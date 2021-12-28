@@ -1,0 +1,5 @@
+build
+src/externals
+src/frontend/tests
+src/tests
+.vscode

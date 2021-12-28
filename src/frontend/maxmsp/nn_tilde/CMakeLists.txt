@@ -22,9 +22,6 @@ SOURCE_FILES
 	${PROJECT_NAME}.cpp
 )
 
-
-
-
 add_library( 
 	${PROJECT_NAME} 
 	MODULE
@@ -32,6 +29,12 @@ add_library(
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE backend)
 
+if (APPLE) # ALLOW PACKAGING
+set_target_properties(${PROJECT_NAME} PROPERTIES
+BUILD_WITH_INSTALL_RPATH FALSE
+LINK_FLAGS "-Wl,-rpath,@loader_path/"
+)
+endif()
 
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
 
@@ -42,3 +45,10 @@ include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
 
 include(${C74_MIN_API_DIR}/test/min-object-unittest.cmake)
 target_link_libraries(${TEST_NAME} PRIVATE backend)
+
+if (APPLE) # ALLOW PACKAGING
+set_target_properties(${TEST_NAME} PROPERTIES
+BUILD_WITH_INSTALL_RPATH FALSE
+LINK_FLAGS "-Wl,-rpath,@loader_path/"
+)
+endif()
