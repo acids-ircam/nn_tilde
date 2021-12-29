@@ -29,7 +29,7 @@ add_library(
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE backend)
 
-if (APPLE) # ALLOW PACKAGING
+if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
 set_target_properties(${PROJECT_NAME} PROPERTIES
 BUILD_WITH_INSTALL_RPATH FALSE
 LINK_FLAGS "-Wl,-rpath,@loader_path/"
@@ -38,7 +38,7 @@ endif()
 
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
 
-if (APPLE)
+if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
 add_custom_command( 
 		TARGET ${PROJECT_NAME} 
 		POST_BUILD 
@@ -47,9 +47,6 @@ add_custom_command(
 	)
 endif()
 
-# "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS
-
-
 #############################################################
 # UNIT TEST
 #############################################################
@@ -57,9 +54,4 @@ endif()
 include(${C74_MIN_API_DIR}/test/min-object-unittest.cmake)
 target_link_libraries(${TEST_NAME} PRIVATE backend)
 
-if (APPLE) # ALLOW PACKAGING
-set_target_properties(${TEST_NAME} PROPERTIES
-BUILD_WITH_INSTALL_RPATH FALSE
-LINK_FLAGS "-Wl,-rpath,@loader_path/"
-)
 endif()
