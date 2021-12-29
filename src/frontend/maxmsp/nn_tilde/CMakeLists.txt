@@ -38,6 +38,17 @@ endif()
 
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
 
+if (APPLE)
+add_custom_command( 
+		TARGET ${PROJECT_NAME} 
+		POST_BUILD 
+		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/" 
+		COMMENT "Copy Torch Libraries" 
+	)
+endif()
+
+# "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS
+
 
 #############################################################
 # UNIT TEST
