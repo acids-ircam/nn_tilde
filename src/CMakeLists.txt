@@ -13,6 +13,6 @@ if (UNIX AND NOT APPLE)
 add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
 endif()
 
-if(APPLE)
+if(APPLE OR MSVC)
 add_subdirectory(frontend/maxmsp/nn_tilde) # MAX MSP EXTERNAL
 endif()
