@@ -6,9 +6,7 @@ set(CMAKE_CXX_FLAGS "-faligned-allocation")
 
 message("CMAKE_HOST_SYSTEM_PROCESSOR: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
 if (APPLE)
-    if (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
-        set(CMAKE_OSX_ARCHITECTURES arm64)
-    endif()
+    set(CMAKE_OSX_ARCHITECTURES ${CMAKE_HOST_SYSTEM_PROCESSOR})
 endif()
 
 add_subdirectory(backend) # DEEP LEARNING BACKEND
