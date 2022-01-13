@@ -1,3 +1,5 @@
+![banner](assets/banner.png)
+
 ## Build Instructions
 
 ### macOS
