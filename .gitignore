@@ -4,3 +4,4 @@ src/frontend/tests
 src/tests
 .vscode
 *libtorch
+*DS_Store*
