@@ -10,7 +10,7 @@ Pre-built binaries are available in the [release section](https://github.com/aci
 - Run the following commands:
 
 ```bash
-git clone https://github.com/caillonantoine/nn_tilde --recursive
+git clone https://github.com/acids-ircam/nn_tilde --recursive
 cd nn_tilde
 mkdir build
 cd build
@@ -27,7 +27,7 @@ make
 - Run the following commands:
 
 ```bash
-git clone https://github.com/caillonantoine/nn_tilde --recurse-submodules
+git clone https://github.com/acids-ircam/nn_tilde --recurse-submodules
 cd nn_tilde
 mkdir build
 cd build
