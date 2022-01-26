@@ -53,7 +53,7 @@ public:
   // BOOT STAMP
   message<> maxclass_setup{
       this, "maxclass_setup",
-      MIN_FUNCTION{cout << "nn~ - 1.13 - 2022 - Antoine Caillon" << endl;
+      MIN_FUNCTION{cout << "nn~ - 1.14 - 2022 - Antoine Caillon" << endl;
   cout << "visit https://caillonantoine.github.io" << endl;
   return {};
 }
@@ -100,6 +100,8 @@ nn::nn(const atoms &args)
   auto model_methods = m_model.get_available_methods();
   for (int i(0); i < model_methods.size(); i++) {
     auto params = m_model.get_method_params(model_methods[i]);
+    if (!params.size())
+      continue;
     int max_ratio = *std::max_element(params.begin(), params.end());
     m_higher_ratio = std::max(m_higher_ratio, max_ratio);
   }

@@ -8,7 +8,7 @@ Backend::Backend() : m_loaded(0) { at::init_num_threads(); }
 void Backend::perform(std::vector<float *> in_buffer,
                       std::vector<float *> out_buffer, int n_vec,
                       std::string method) {
-  torch::NoGradGuard no_grad;
+  c10::InferenceMode guard;
 
   auto params = get_method_params(method);
   if (!params.size())
@@ -96,11 +96,12 @@ std::vector<int> Backend::get_method_params(std::string method) {
   std::vector<int> params;
 
   if (std::find(am.begin(), am.end(), method) != am.end()) {
-
-    auto p = m_model.attr(method + "_params").toTensor();
-
-    for (int i(0); i < 4; i++)
-      params.push_back(p[i].item().to<int>());
+    try {
+      auto p = m_model.attr(method + "_params").toTensor();
+      for (int i(0); i < 4; i++)
+        params.push_back(p[i].item().to<int>());
+    } catch (...) {
+    }
   }
   return params;
 }
