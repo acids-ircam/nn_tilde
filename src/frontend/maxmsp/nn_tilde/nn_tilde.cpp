@@ -6,6 +6,16 @@
 
 using namespace c74::min;
 
+unsigned power_ceil(unsigned x) {
+  if (x <= 1)
+    return 1;
+  int power = 2;
+  x--;
+  while (x >>= 1)
+    power <<= 1;
+  return power;
+}
+
 class nn : public object<nn>, public vector_operator<> {
 public:
   MIN_DESCRIPTION{"Deep Audio Engine"};
@@ -127,6 +137,7 @@ nn::nn(const atoms &args)
     m_buffer_size = m_higher_ratio;
     cout << "buffer size too small, switching to " << m_buffer_size << endl;
   }
+  m_buffer_size = power_ceil(m_buffer_size);
 
   // CREATE INLETS, OUTLETS and BUFFERS
   for (int i(0); i < m_in_dim; i++) {
