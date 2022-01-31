@@ -1,8 +1,8 @@
 name: Build nn_tilde (macOS)
 on:
   push:
-    branches:
-      - master
+    tags:
+      - "v*"
 jobs:
   Build-nn_tilde-macOS:
     runs-on: macos-latest
@@ -29,7 +29,6 @@ jobs:
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
           prerelease: false
           files: |
             nn_max_msp_macOS_x86_64.tar.gz
