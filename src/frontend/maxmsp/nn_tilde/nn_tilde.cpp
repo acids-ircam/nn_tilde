@@ -173,10 +173,28 @@ void fill_with_zero(audio_bundle output) {
 }
 
 void nn::buffered_perform(audio_bundle input, audio_bundle output) {
+  // CHECK BUFFERS
+  auto vec_size = input.frame_count();
+
+  if (vec_size > m_buffer_size) {
+    cout << "vector size (" << vec_size << ")";
+    cout << "larger than buffer size (" << m_buffer_size << ")";
+    cout << endl;
+    enable = false;
+    fill_with_zero(output);
+  }
+
+  // CHECK SYNCHRO
+  auto relative_head = m_head % m_buffer_size;
+  auto n_sample_left = m_buffer_size - relative_head;
+  if (vec_size > n_sample_left) {
+    m_head = 0;
+  }
+
   // PERFORM OPERATION USING INTERNAL BUFFERS
   for (int c(0); c < input.channel_count(); c++) {
     auto in = input.samples(c);
-    for (int i(0); i < input.frame_count(); i++) {
+    for (int i(0); i < vec_size; i++) {
       m_in_buffer[c][i + m_head] = float(in[i]);
     }
   }
@@ -188,7 +206,7 @@ void nn::buffered_perform(audio_bundle input, audio_bundle output) {
   }
 
   // INCREASE HEAD
-  m_head += input.frame_count();
+  m_head += vec_size;
 
   // IF BUFFER FILLED
   if (!(m_head % m_buffer_size)) {
