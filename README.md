@@ -6,7 +6,7 @@
 
 Pre-built binaries are available in the [release section](https://github.com/acids-ircam/nn_tilde/releases) of this repo.
 
-- Doxnload libtorch 1.10 (CPU) [here](https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.10.1.zip) and unzip it to a known directory
+- Download libtorch 1.10 (CPU) [here](https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.10.1.zip) and unzip it to a known directory
 - Run the following commands:
 
 ```bash
