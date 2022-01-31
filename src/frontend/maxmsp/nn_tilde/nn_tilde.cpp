@@ -63,7 +63,7 @@ public:
   // BOOT STAMP
   message<> maxclass_setup{
       this, "maxclass_setup",
-      MIN_FUNCTION{cout << "nn~ - 1.15 - 2022 - Antoine Caillon" << endl;
+      MIN_FUNCTION{cout << "nn~ - v1.0.0 - 2022 - Antoine Caillon" << endl;
   cout << "visit https://caillonantoine.github.io" << endl;
   return {};
 }
