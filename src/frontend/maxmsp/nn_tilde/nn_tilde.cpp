@@ -136,8 +136,9 @@ nn::nn(const atoms &args)
   } else if (m_buffer_size < m_higher_ratio) {
     m_buffer_size = m_higher_ratio;
     cout << "buffer size too small, switching to " << m_buffer_size << endl;
+  } else {
+    m_buffer_size = power_ceil(m_buffer_size);
   }
-  m_buffer_size = power_ceil(m_buffer_size);
 
   // CREATE INLETS, OUTLETS and BUFFERS
   for (int i(0); i < m_in_dim; i++) {
