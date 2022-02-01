@@ -4,6 +4,8 @@
 #include <thread>
 #include <vector>
 
+#define VERSION "v1.0.2"
+
 using namespace c74::min;
 
 unsigned power_ceil(unsigned x) {
@@ -61,9 +63,10 @@ public:
                          description{"Enable / disable tensor computation"}};
 
   // BOOT STAMP
-  message<> maxclass_setup{
-      this, "maxclass_setup",
-      MIN_FUNCTION{cout << "nn~ - v1.0.0 - 2022 - Antoine Caillon" << endl;
+  message<> maxclass_setup{this, "maxclass_setup",
+                           MIN_FUNCTION{cout << "nn~ - " << VERSION
+                                             << " - 2022 - Antoine Caillon"
+                                             << endl;
   cout << "visit https://caillonantoine.github.io" << endl;
   return {};
 }
