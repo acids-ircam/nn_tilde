@@ -4,7 +4,7 @@
 #include <thread>
 #include <vector>
 
-#define VERSION "v1.0.2"
+#define VERSION "v1.0.3"
 
 using namespace c74::min;
 
