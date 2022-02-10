@@ -12,7 +12,7 @@ jobs:
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
-          curl https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.10.1.zip -o libtorch.zip
+          curl https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.10.2.zip -o libtorch.zip
           unzip libtorch.zip
       - name: Build
         run: |
