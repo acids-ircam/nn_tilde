@@ -61,17 +61,18 @@ jobs:
           path: nn_max_msp_macOS_x86_64.tar.gz
 
   AutomaticRelease:
+    runs-on: macos-latest
     needs: [arm64-build, x86_64-build]
-    - name: Download build binaries
-          uses: actions/download-artifact@v2
-          with:
-            name: nn_tilde
-    - name: Automated Release
-      uses: "marvinpinto/action-automatic-releases@latest"
-      with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        prerelease: false
-        files: |
-          nn_max_msp_macOS_x86_64.tar.gz
-          nn_max_msp_macOS_arm64.tar.gz
-
+    steps:
+      - name: Download build binaries
+        uses: actions/download-artifact@v2
+        with:
+          name: nn_tilde
+      - name: Automated Release
+        uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          files: |
+            nn_max_msp_macOS_x86_64.tar.gz
+            nn_max_msp_macOS_arm64.tar.gz
