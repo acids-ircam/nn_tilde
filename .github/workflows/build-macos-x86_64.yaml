@@ -1,4 +1,4 @@
-name: Build nn_tilde (macOS)
+name: Build nn_tilde (macOS x86_64)
 on:
   push:
     tags:

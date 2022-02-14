@@ -1,4 +1,4 @@
-name: Build nn_tilde (macOS)
+name: Build nn_tilde (macOS arm64)
 on:
   push:
     tags:
@@ -18,7 +18,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/torch -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
           make
       - name: Package creation
         run: |
