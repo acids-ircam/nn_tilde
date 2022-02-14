@@ -1,6 +1,0 @@
-name: Build nn_tilde (macOS x86_64)
-on:
-  push:
-    tags:
-      - "v*"
-jobs:
