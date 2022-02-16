@@ -4,7 +4,7 @@
 #include <thread>
 #include <vector>
 
-#define VERSION "v1.0.4"
+#define VERSION "v1.1.0"
 
 using namespace c74::min;
 
@@ -91,7 +91,10 @@ nn::nn(const atoms &args)
     return;
   }
   if (args.size() > 0) {
-    m_path = path(std::string(args[0]));
+    auto model_path = std::string(args[0]);
+    if (model_path.substr(model_path.length() - 3) != ".ts")
+      model_path = model_path + ".ts";
+    m_path = path(model_path);
   }
   if (args.size() > 1) {
     m_method = std::string(args[1]);
