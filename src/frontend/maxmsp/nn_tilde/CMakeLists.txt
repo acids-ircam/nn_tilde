@@ -19,7 +19,8 @@ find_package(Torch REQUIRED)
 
 set(
 SOURCE_FILES
-	${PROJECT_NAME}.cpp
+	nn_tilde.cpp
+	circular_buffer.cpp
 )
 
 add_library( 
