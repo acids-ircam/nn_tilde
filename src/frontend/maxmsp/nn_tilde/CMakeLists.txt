@@ -20,7 +20,6 @@ find_package(Torch REQUIRED)
 set(
 SOURCE_FILES
 	nn_tilde.cpp
-	circular_buffer.cpp
 )
 
 add_library( 
@@ -29,6 +28,9 @@ add_library(
 	${SOURCE_FILES}
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE backend)
+
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+
 
 if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
 set_target_properties(${PROJECT_NAME} PROPERTIES

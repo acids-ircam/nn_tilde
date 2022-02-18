@@ -1,10 +1,11 @@
 #include "../../../backend/backend.h"
 #include "c74_min.h"
+#include "circular_buffer.h"
 #include <string>
 #include <thread>
 #include <vector>
 
-#define VERSION "v1.1.0"
+#define VERSION "v1.2.0"
 
 using namespace c74::min;
 
@@ -39,7 +40,9 @@ public:
 
   // BUFFER RELATED MEMBERS
   int m_head, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
-  std::vector<std::unique_ptr<float[]>> m_in_buffer, m_out_buffer;
+  std::unique_ptr<circular_buffer<double, float>[]> m_in_buffer;
+  std::unique_ptr<circular_buffer<float, double>[]> m_out_buffer;
+  std::vector<std::unique_ptr<float[]>> m_in_model, m_out_model;
 
   // AUDIO PERFORM
   void operator()(audio_bundle input, audio_bundle output);
@@ -76,10 +79,21 @@ public:
 }
 ;
 
-void thread_perform(nn *nn_instance, std::vector<float *> in_buffer,
-                    std::vector<float *> out_buffer, int n_vec,
-                    std::string method) {
-  nn_instance->m_model.perform(in_buffer, out_buffer, n_vec, method);
+void thread_perform(nn *nn_instance) {
+  std::vector<float *> in_model, out_model;
+
+  for (int c(0); c < nn_instance->m_in_dim; c++)
+    in_model.push_back(&nn_instance->m_in_model[c][0]);
+  for (int c(0); c < nn_instance->m_out_dim; c++)
+    out_model.push_back(&nn_instance->m_out_model[c][0]);
+
+  nn_instance->m_model.perform(in_model, out_model, nn_instance->m_buffer_size,
+                               nn_instance->m_method);
+
+  for (int c(0); c < nn_instance->m_out_dim; c++) {
+    nn_instance->m_out_buffer[c].put(&nn_instance->m_out_model[c][0],
+                                     nn_instance->m_buffer_size);
+  }
 }
 
 nn::nn(const atoms &args)
@@ -136,10 +150,7 @@ nn::nn(const atoms &args)
   m_out_dim = params[2];
   m_out_ratio = params[3];
 
-  if (m_buffer_size == 0) { // NO BUFFER MODE
-    cout << "disabling internal buffer. make sure your dsp buffer size is >= "
-         << m_higher_ratio << endl;
-  } else if (m_buffer_size < m_higher_ratio) {
+  if (m_buffer_size < m_higher_ratio) {
     m_buffer_size = m_higher_ratio;
     cout << "buffer size too small, switching to " << m_buffer_size << endl;
   } else {
@@ -147,19 +158,20 @@ nn::nn(const atoms &args)
   }
 
   // CREATE INLETS, OUTLETS and BUFFERS
+  m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim);
   for (int i(0); i < m_in_dim; i++) {
     m_inlets.push_back(std::make_unique<inlet<>>(
         this, "(signal) model input " + std::to_string(i), "signal"));
-    if (m_buffer_size) { // INTERNAL BUFFER CREATION
-      m_in_buffer.push_back(std::make_unique<float[]>(2 * m_buffer_size));
-    }
+    m_in_buffer[i].initialize(m_buffer_size);
+    m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
+
+  m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(m_out_dim);
   for (int i(0); i < m_out_dim; i++) {
-    m_outlets.push_back(std::make_unique<outlet<>>(
+    m_outlets.emplace_back(std::make_unique<outlet<>>(
         this, "(signal) model output " + std::to_string(i), "signal"));
-    if (m_buffer_size) { // INTERNAL BUFFER CREATION
-      m_out_buffer.push_back(std::make_unique<float[]>(2 * m_buffer_size));
-    }
+    m_out_buffer[i].initialize(m_buffer_size);
+    m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
 }
 
@@ -190,89 +202,25 @@ void nn::buffered_perform(audio_bundle input, audio_bundle output) {
     fill_with_zero(output);
   }
 
-  // CHECK SYNCHRO
-  auto relative_head = m_head % m_buffer_size;
-  auto n_sample_left = m_buffer_size - relative_head;
-  if (vec_size > n_sample_left) {
-    m_head = 0;
-  }
-
   // PERFORM OPERATION USING INTERNAL BUFFERS
   for (int c(0); c < input.channel_count(); c++) {
     auto in = input.samples(c);
-    for (int i(0); i < vec_size; i++) {
-      m_in_buffer[c][i + m_head] = float(in[i]);
-    }
+    m_in_buffer[c].put(in, vec_size);
   }
   for (int c(0); c < output.channel_count(); c++) {
     auto out = output.samples(c);
-    for (int i(0); i < output.frame_count(); i++) {
-      out[i] = double(m_out_buffer[c][i + m_head]);
-    }
+    m_out_buffer[c].get(out, vec_size);
   }
 
-  // INCREASE HEAD
-  m_head += vec_size;
-
-  // IF BUFFER FILLED
-  if (!(m_head % m_buffer_size)) {
+  if (m_in_buffer[0].full()) {
     if (compute_thread) {
       compute_thread->join();
     }
 
-    m_head = m_head % (2 * m_buffer_size);
+    for (int c(0); c < m_in_dim; c++)
+      m_in_buffer[c].get(&m_in_model[c][0], m_buffer_size);
 
-    int offset_head = (m_head + m_buffer_size) % (2 * m_buffer_size);
-
-    std::vector<float *> in_buffer;
-    std::vector<float *> out_buffer;
-
-    for (int i(0); i < m_in_buffer.size(); i++) {
-      in_buffer.push_back(&m_in_buffer[i][offset_head]);
-    }
-    for (int i(0); i < m_out_buffer.size(); i++) {
-      out_buffer.push_back(&m_out_buffer[i][offset_head]);
-    }
-
-    compute_thread = std::make_unique<std::thread>(
-        thread_perform, this, in_buffer, out_buffer, m_buffer_size, m_method);
-  }
-}
-
-void nn::direct_perform(audio_bundle input, audio_bundle output) {
-  auto in_ccount = input.channel_count(), in_fcount = input.frame_count();
-  auto out_ccount = output.channel_count(), out_fcount = output.frame_count();
-
-  // DOUBLE TO FLOAT CONVERSION
-  auto float_in_buffer = std::make_unique<float[]>(in_ccount * in_fcount);
-  auto float_out_buffer = std::make_unique<float[]>(out_ccount * out_fcount);
-
-  for (int c(0); c < in_ccount; c++) {
-    auto in = input.samples(c);
-    for (int i(0); i < in_fcount; i++) {
-      float_in_buffer[c * in_fcount + i] = float(in[i]);
-    }
-  }
-
-  // INPUT OUTPUT CREATION
-  std::vector<float *> in_buffer;
-  std::vector<float *> out_buffer;
-
-  for (int i(0); i < in_ccount; i++) {
-    in_buffer.push_back(&float_in_buffer[i * in_fcount]);
-  }
-  for (int i(0); i < out_ccount; i++) {
-    out_buffer.push_back(&float_out_buffer[i * out_fcount]);
-  }
-
-  // PERFORM
-  thread_perform(this, in_buffer, out_buffer, in_fcount, m_method);
-
-  for (int c(0); c < output.channel_count(); c++) {
-    auto out = output.samples(c);
-    for (int i(0); i < output.frame_count(); i++) {
-      out[i] = double(float_out_buffer[c * out_fcount + i]);
-    }
+    compute_thread = std::make_unique<std::thread>(thread_perform, this);
   }
 }
 
@@ -284,17 +232,7 @@ void nn::operator()(audio_bundle input, audio_bundle output) {
     return;
   }
 
-  if (!m_buffer_size && dsp_vec_size < m_higher_ratio) {
-    cout << "dsp vec size too small !" << endl;
-    enable = false;
-    fill_with_zero(output);
-    return;
-  }
-
-  if (m_buffer_size)
-    buffered_perform(input, output);
-  else
-    direct_perform(input, output);
+  buffered_perform(input, output);
 }
 
 MIN_EXTERNAL(nn);
