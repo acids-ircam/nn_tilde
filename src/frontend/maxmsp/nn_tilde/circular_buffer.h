@@ -1,5 +1,7 @@
 #pragma once
+#include <chrono>
 #include <condition_variable>
+#include <iostream>
 #include <memory>
 #include <mutex>
 
@@ -51,7 +53,8 @@ void circular_buffer<InType, OutType>::put(InType *input_array, int N) {
 
   while (N--) {
     std::unique_lock<std::mutex> lock(_mutex);
-    _cv.wait(lock, [this] { return !this->_full; });
+    _cv.wait_for(lock, std::chrono::milliseconds(10),
+                 [this] { return !this->_full; });
 
     _buffer[_head] = OutType(*(input_array++));
     _head = (_head + 1) % _max_size;
@@ -85,4 +88,5 @@ void circular_buffer<InType, OutType>::reset() {
   _head = _tail;
   _count = 0;
   _full = false;
+  _cv.notify_one();
 }

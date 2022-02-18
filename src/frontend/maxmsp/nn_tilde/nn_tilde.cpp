@@ -176,9 +176,8 @@ nn::nn(const atoms &args)
 }
 
 nn::~nn() {
-  if (compute_thread) {
+  if (compute_thread)
     compute_thread->join();
-  }
 }
 
 void fill_with_zero(audio_bundle output) {
