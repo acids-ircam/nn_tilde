@@ -36,18 +36,19 @@ public:
   Backend m_model;
   std::string m_method;
   c74::min::path m_path;
-  std::unique_ptr<std::thread> compute_thread;
+  std::unique_ptr<std::thread> m_compute_thread;
 
   // BUFFER RELATED MEMBERS
   int m_head, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
   std::unique_ptr<circular_buffer<double, float>[]> m_in_buffer;
   std::unique_ptr<circular_buffer<float, double>[]> m_out_buffer;
   std::vector<std::unique_ptr<float[]>> m_in_model, m_out_model;
+  bool m_use_thread;
 
   // AUDIO PERFORM
   void operator()(audio_bundle input, audio_bundle output);
   void buffered_perform(audio_bundle input, audio_bundle output);
-  void direct_perform(audio_bundle input, audio_bundle output);
+  void perform(audio_bundle input, audio_bundle output);
 
   using vector_operator::operator();
   int m_buffer_size;
@@ -79,7 +80,7 @@ public:
 }
 ;
 
-void thread_perform(nn *nn_instance) {
+void model_perform(nn *nn_instance) {
   std::vector<float *> in_model, out_model;
 
   for (int c(0); c < nn_instance->m_in_dim; c++)
@@ -89,16 +90,12 @@ void thread_perform(nn *nn_instance) {
 
   nn_instance->m_model.perform(in_model, out_model, nn_instance->m_buffer_size,
                                nn_instance->m_method);
-
-  for (int c(0); c < nn_instance->m_out_dim; c++) {
-    nn_instance->m_out_buffer[c].put(&nn_instance->m_out_model[c][0],
-                                     nn_instance->m_buffer_size);
-  }
 }
 
 nn::nn(const atoms &args)
-    : m_head(0), compute_thread(nullptr), m_in_dim(1), m_in_ratio(1),
-      m_out_dim(1), m_out_ratio(1), m_buffer_size(4096), m_method("forward") {
+    : m_head(0), m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1),
+      m_out_dim(1), m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
+      m_use_thread(true) {
 
   // CHECK ARGUMENTS
   if (!args.size()) {
@@ -119,10 +116,8 @@ nn::nn(const atoms &args)
 
   // TRY TO LOAD MODEL
   if (m_model.load(std::string(m_path))) {
-    cout << "error during loading" << endl;
+    cerr << "error during loading" << endl;
     return;
-  } else {
-    // cout << "successfully loaded model" << endl;
   }
 
   // GET MODEL'S METHOD PARAMETERS
@@ -139,7 +134,7 @@ nn::nn(const atoms &args)
   auto params = m_model.get_method_params(m_method);
 
   if (!params.size()) {
-    cout << "method " << m_method << " not found, using forward instead"
+    cerr << "method " << m_method << " not found, using forward instead"
          << endl;
     m_method = "forward";
     params = m_model.get_method_params(m_method);
@@ -150,9 +145,13 @@ nn::nn(const atoms &args)
   m_out_dim = params[2];
   m_out_ratio = params[3];
 
-  if (m_buffer_size < m_higher_ratio) {
+  if (!m_buffer_size) {
+    // NO THREAD MODE
+    m_use_thread = false;
     m_buffer_size = m_higher_ratio;
-    cout << "buffer size too small, switching to " << m_buffer_size << endl;
+  } else if (m_buffer_size < m_higher_ratio) {
+    m_buffer_size = m_higher_ratio;
+    cerr << "buffer size too small, switching to " << m_buffer_size << endl;
   } else {
     m_buffer_size = power_ceil(m_buffer_size);
   }
@@ -176,8 +175,8 @@ nn::nn(const atoms &args)
 }
 
 nn::~nn() {
-  if (compute_thread)
-    compute_thread->join();
+  if (m_compute_thread)
+    m_compute_thread->join();
 }
 
 void fill_with_zero(audio_bundle output) {
@@ -189,49 +188,64 @@ void fill_with_zero(audio_bundle output) {
   }
 }
 
-void nn::buffered_perform(audio_bundle input, audio_bundle output) {
+void nn::perform(audio_bundle input, audio_bundle output) {
   // CHECK BUFFERS
   auto vec_size = input.frame_count();
 
-  if (vec_size > m_buffer_size) {
-    cout << "vector size (" << vec_size << ")";
-    cout << "larger than buffer size (" << m_buffer_size << ")";
-    cout << endl;
-    enable = false;
-    fill_with_zero(output);
-  }
-
-  // PERFORM OPERATION USING INTERNAL BUFFERS
+  // COPY INPUT TO CIRCULAR BUFFER
   for (int c(0); c < input.channel_count(); c++) {
     auto in = input.samples(c);
     m_in_buffer[c].put(in, vec_size);
   }
-  for (int c(0); c < output.channel_count(); c++) {
-    auto out = output.samples(c);
-    m_out_buffer[c].get(out, vec_size);
-  }
 
-  if (m_in_buffer[0].full()) {
-    if (compute_thread) {
-      compute_thread->join();
+  if (m_in_buffer[0].full()) { // BUFFER IS FULL
+    // IF USE THREAD, CHECK THAT COMPUTATION IS OVER
+    if (m_compute_thread && m_use_thread) {
+      m_compute_thread->join();
     }
 
+    // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
     for (int c(0); c < m_in_dim; c++)
       m_in_buffer[c].get(&m_in_model[c][0], m_buffer_size);
 
-    compute_thread = std::make_unique<std::thread>(thread_perform, this);
+    if (!m_use_thread) // PROCESS DATA RIGHT NOW
+      model_perform(this);
+
+    // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
+    for (int c(0); c < m_out_dim; c++)
+      m_out_buffer[c].put(&m_out_model[c][0], m_buffer_size);
+
+    if (m_use_thread) // PROCESS DATA LATER
+      m_compute_thread = std::make_unique<std::thread>(model_perform, this);
+  }
+
+  // COPY CIRCULAR BUFFER TO OUTPUT
+  for (int c(0); c < output.channel_count(); c++) {
+    auto out = output.samples(c);
+    m_out_buffer[c].get(out, vec_size);
   }
 }
 
 void nn::operator()(audio_bundle input, audio_bundle output) {
   auto dsp_vec_size = output.frame_count();
 
+  // CHECK IF MODEL IS LOADED AND ENABLED
   if (!m_model.is_loaded() || !enable) {
     fill_with_zero(output);
     return;
   }
 
-  buffered_perform(input, output);
+  // CHECK IF DSP_VEC_SIZE IS LARGER THAN BUFFER SIZE
+  if (dsp_vec_size > m_buffer_size) {
+    cerr << "vector size (" << dsp_vec_size << ") ";
+    cerr << "larger than buffer size (" << m_buffer_size << "). ";
+    cerr << "disabling model.";
+    cerr << endl;
+    enable = false;
+    fill_with_zero(output);
+  }
+
+  perform(input, output);
 }
 
 MIN_EXTERNAL(nn);
