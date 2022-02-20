@@ -36,22 +36,22 @@ public:
   Backend m_model;
   std::string m_method;
   c74::min::path m_path;
-  std::unique_ptr<std::thread> m_compute_thread;
+  int m_head, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
 
   // BUFFER RELATED MEMBERS
-  int m_head, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
+  int m_buffer_size;
   std::unique_ptr<circular_buffer<double, float>[]> m_in_buffer;
   std::unique_ptr<circular_buffer<float, double>[]> m_out_buffer;
   std::vector<std::unique_ptr<float[]>> m_in_model, m_out_model;
-  bool m_use_thread;
 
   // AUDIO PERFORM
+  bool m_use_thread;
+  std::unique_ptr<std::thread> m_compute_thread;
   void operator()(audio_bundle input, audio_bundle output);
   void buffered_perform(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
 
   using vector_operator::operator();
-  int m_buffer_size;
 
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
@@ -101,16 +101,16 @@ nn::nn(const atoms &args)
   if (!args.size()) {
     return;
   }
-  if (args.size() > 0) {
+  if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
     auto model_path = std::string(args[0]);
     if (model_path.substr(model_path.length() - 3) != ".ts")
       model_path = model_path + ".ts";
     m_path = path(model_path);
   }
-  if (args.size() > 1) {
+  if (args.size() > 1) { // TWO ARGUMENTS ARE GIVEN
     m_method = std::string(args[1]);
   }
-  if (args.size() > 2) {
+  if (args.size() > 2) { // THREE ARGUMENTS ARE GIVEN
     m_buffer_size = int(args[2]);
   }
 
@@ -120,17 +120,18 @@ nn::nn(const atoms &args)
     return;
   }
 
-  // GET MODEL'S METHOD PARAMETERS
+  // FIND MINIMUM BUFFER SIZE GIVEN MODEL RATIO
   m_higher_ratio = 1;
   auto model_methods = m_model.get_available_methods();
   for (int i(0); i < model_methods.size(); i++) {
     auto params = m_model.get_method_params(model_methods[i]);
     if (!params.size())
-      continue;
-    int max_ratio = *std::max_element(params.begin(), params.end());
+      continue; // METHOD NOT USABLE, SKIPPING
+    int max_ratio = std::max(params[1], params[3]);
     m_higher_ratio = std::max(m_higher_ratio, max_ratio);
   }
 
+  // GET MODEL'S METHOD PARAMETERS
   auto params = m_model.get_method_params(m_method);
 
   if (!params.size()) {
@@ -167,7 +168,7 @@ nn::nn(const atoms &args)
 
   m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(m_out_dim);
   for (int i(0); i < m_out_dim; i++) {
-    m_outlets.emplace_back(std::make_unique<outlet<>>(
+    m_outlets.push_back(std::make_unique<outlet<>>(
         this, "(signal) model output " + std::to_string(i), "signal"));
     m_out_buffer[i].initialize(m_buffer_size);
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
@@ -188,8 +189,29 @@ void fill_with_zero(audio_bundle output) {
   }
 }
 
+void nn::operator()(audio_bundle input, audio_bundle output) {
+  auto dsp_vec_size = output.frame_count();
+
+  // CHECK IF MODEL IS LOADED AND ENABLED
+  if (!m_model.is_loaded() || !enable) {
+    fill_with_zero(output);
+    return;
+  }
+
+  // CHECK IF DSP_VEC_SIZE IS LARGER THAN BUFFER SIZE
+  if (dsp_vec_size > m_buffer_size) {
+    cerr << "vector size (" << dsp_vec_size << ") ";
+    cerr << "larger than buffer size (" << m_buffer_size << "). ";
+    cerr << "disabling model.";
+    cerr << endl;
+    enable = false;
+    fill_with_zero(output);
+  }
+
+  perform(input, output);
+}
+
 void nn::perform(audio_bundle input, audio_bundle output) {
-  // CHECK BUFFERS
   auto vec_size = input.frame_count();
 
   // COPY INPUT TO CIRCULAR BUFFER
@@ -224,28 +246,6 @@ void nn::perform(audio_bundle input, audio_bundle output) {
     auto out = output.samples(c);
     m_out_buffer[c].get(out, vec_size);
   }
-}
-
-void nn::operator()(audio_bundle input, audio_bundle output) {
-  auto dsp_vec_size = output.frame_count();
-
-  // CHECK IF MODEL IS LOADED AND ENABLED
-  if (!m_model.is_loaded() || !enable) {
-    fill_with_zero(output);
-    return;
-  }
-
-  // CHECK IF DSP_VEC_SIZE IS LARGER THAN BUFFER SIZE
-  if (dsp_vec_size > m_buffer_size) {
-    cerr << "vector size (" << dsp_vec_size << ") ";
-    cerr << "larger than buffer size (" << m_buffer_size << "). ";
-    cerr << "disabling model.";
-    cerr << endl;
-    enable = false;
-    fill_with_zero(output);
-  }
-
-  perform(input, output);
 }
 
 MIN_EXTERNAL(nn);
