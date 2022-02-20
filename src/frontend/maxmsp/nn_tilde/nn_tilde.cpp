@@ -117,6 +117,7 @@ nn::nn(const atoms &args)
   // TRY TO LOAD MODEL
   if (m_model.load(std::string(m_path))) {
     cerr << "error during loading" << endl;
+    error();
     return;
   }
 
