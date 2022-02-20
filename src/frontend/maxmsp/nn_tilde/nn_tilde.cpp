@@ -21,7 +21,7 @@ unsigned power_ceil(unsigned x) {
 
 class nn : public object<nn>, public vector_operator<> {
 public:
-  MIN_DESCRIPTION{"Deep Audio Engine"};
+  MIN_DESCRIPTION{"Interface for deep learning models"};
   MIN_TAGS{"audio, deep learning, ai"};
   MIN_AUTHOR{"Antoine Caillon"};
 
