@@ -36,7 +36,7 @@ public:
   Backend m_model;
   std::string m_method;
   c74::min::path m_path;
-  int m_head, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
+  int m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
 
   // BUFFER RELATED MEMBERS
   int m_buffer_size;
@@ -93,8 +93,8 @@ void model_perform(nn *nn_instance) {
 }
 
 nn::nn(const atoms &args)
-    : m_head(0), m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1),
-      m_out_dim(1), m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
+    : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
+      m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
       m_use_thread(true) {
 
   // CHECK ARGUMENTS
