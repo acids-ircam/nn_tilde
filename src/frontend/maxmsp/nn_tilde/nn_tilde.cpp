@@ -67,26 +67,24 @@ public:
                          description{"Enable / disable tensor computation"}};
 
   // BOOT STAMP
-  message<> maxclass_setup{this, "maxclass_setup",
-                           MIN_FUNCTION{cout << "nn~ - " << VERSION
-                                             << " - 2022 - Antoine Caillon"
-                                             << endl;
-  cout << "visit https://caillonantoine.github.io" << endl;
-  return {};
-}
-}
+  message<> maxclass_setup{
+      this, "maxclass_setup",
+      [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
+        cout << "nn~ - " << VERSION << " - 2022 - Antoine Caillon" << endl;
+        cout << "visit https://caillonantoine.github.io" << endl;
+        return {};
+      }}
 
-;
-}
-;
+  ;
+};
 
 void model_perform(nn *nn_instance) {
   std::vector<float *> in_model, out_model;
 
   for (int c(0); c < nn_instance->m_in_dim; c++)
-    in_model.push_back(&nn_instance->m_in_model[c][0]);
+    in_model.push_back(nn_instance->m_in_model[c].get());
   for (int c(0); c < nn_instance->m_out_dim; c++)
-    out_model.push_back(&nn_instance->m_out_model[c][0]);
+    out_model.push_back(nn_instance->m_out_model[c].get());
 
   nn_instance->m_model.perform(in_model, out_model, nn_instance->m_buffer_size,
                                nn_instance->m_method);
@@ -229,14 +227,14 @@ void nn::perform(audio_bundle input, audio_bundle output) {
 
     // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
     for (int c(0); c < m_in_dim; c++)
-      m_in_buffer[c].get(&m_in_model[c][0], m_buffer_size);
+      m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
 
     if (!m_use_thread) // PROCESS DATA RIGHT NOW
       model_perform(this);
 
     // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
     for (int c(0); c < m_out_dim; c++)
-      m_out_buffer[c].put(&m_out_model[c][0], m_buffer_size);
+      m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
 
     if (m_use_thread) // PROCESS DATA LATER
       m_compute_thread = std::make_unique<std::thread>(model_perform, this);
