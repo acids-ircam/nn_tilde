@@ -5,7 +5,9 @@
 #include <thread>
 #include <vector>
 
-#define VERSION "v1.2.0"
+#ifndef VERSION
+#define VERSION "UNDEFINED"
+#endif
 
 using namespace c74::min;
 
