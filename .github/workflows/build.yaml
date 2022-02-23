@@ -56,7 +56,6 @@ jobs:
           mkdir nn_tilde/help
           mv src/externals nn_tilde
           cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          mv src/externals nn_tilde
           tar -czvf nn_max_msp_macOS_x86_64.tar.gz nn_tilde
       - name: Upload binaries
         uses: actions/upload-artifact@v2
