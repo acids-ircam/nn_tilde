@@ -59,5 +59,14 @@ add_custom_command(
 		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/" 
 		COMMENT "Copy Torch Libraries" 
 	)
+
+if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+	add_custom_command( 
+		TARGET ${PROJECT_NAME} 
+		POST_BUILD 
+		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo"
+		COMMENT "Codesign external" 
+	)
+endif()
 endif()
 

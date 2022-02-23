@@ -24,7 +24,6 @@ jobs:
         run: |
           mkdir nn_tilde
           mv src/externals nn_tilde
-          codesign --force --deep -s - nn_tilde/externals/nn~.mxo
           tar -czvf nn_max_msp_macOS_arm64.tar.gz nn_tilde
       - name: Upload binaries
         uses: actions/upload-artifact@v2

@@ -1,9 +1,9 @@
 #include "../../../backend/backend.h"
 #include "m_pd.h"
+#include "pthread.h"
 #include <memory>
 #include <string>
 #include <vector>
-#include "pthread.h"
 
 static t_class *nn_tilde_class;
 
