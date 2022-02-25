@@ -136,7 +136,7 @@ nn::nn(const atoms &args)
   auto params = m_model.get_method_params(m_method);
 
   if (!params.size()) {
-    error("method " + m_method + "not found !");
+    error("method " + m_method + " not found !");
   }
 
   m_in_dim = params[0];
