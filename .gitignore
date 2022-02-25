@@ -6,3 +6,4 @@ src/tests
 *libtorch
 *DS_Store*
 src/docs
+*.ts

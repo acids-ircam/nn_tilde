@@ -136,10 +136,7 @@ nn::nn(const atoms &args)
   auto params = m_model.get_method_params(m_method);
 
   if (!params.size()) {
-    cerr << "method " << m_method << " not found, using forward instead"
-         << endl;
-    m_method = "forward";
-    params = m_model.get_method_params(m_method);
+    error("method " + m_method + "not found !");
   }
 
   m_in_dim = params[0];
