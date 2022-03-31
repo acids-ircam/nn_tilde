@@ -12,13 +12,13 @@ jobs:
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
-          curl https://nubo.ircam.fr/index.php/s/7deSnqxNXJtArxw/download -o libtorch.tar.gz
-          tar -xvf libtorch.tar.gz
+          curl https://anaconda.org/pytorch/pytorch/1.11.0.arm64/download/osx-arm64/pytorch-1.11.0.arm64-py3.9_0.tar.bz2 -o libtorch.tar.bz2
+          tar -xvf libtorch.tar.bz2
       - name: Build
         run: |
           mkdir build
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/torch -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/lib/python3.9/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
           make
       - name: Package creation
         run: |
@@ -41,7 +41,7 @@ jobs:
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
-          curl https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.10.2.zip -o libtorch.zip
+          curl https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.11.0.zip -o libtorch.zip
           unzip libtorch.zip
 
       - name: Build
