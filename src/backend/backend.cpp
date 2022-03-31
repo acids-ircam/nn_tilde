@@ -28,7 +28,8 @@ void Backend::perform(std::vector<float *> in_buffer,
     tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
   }
   auto cat_tensor_in = torch::cat(tensor_in, 1);
-  cat_tensor_in = cat_tensor_in.reshape({1, in_dim, -1, in_ratio}).mean(-1);
+  cat_tensor_in = cat_tensor_in.reshape({1, in_dim, -1, in_ratio});
+  cat_tensor_in = cat_tensor_in.select(-1, -1);
 
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
