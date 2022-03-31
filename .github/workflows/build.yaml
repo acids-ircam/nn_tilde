@@ -12,8 +12,7 @@ jobs:
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
-          curl -L https://anaconda.org/pytorch/pytorch/1.11.0.arm64/download/osx-arm64/pytorch-1.11.0.arm64-py3.9_0.tar.bz2 -o libtorch.tar.bz2
-          tar -xvf libtorch.tar.bz2
+          curl -L https://anaconda.org/pytorch/pytorch/1.11.0.arm64/download/osx-arm64/pytorch-1.11.0.arm64-py3.9_0.tar.bz2 | tar -xv
       - name: Build
         run: |
           mkdir build
