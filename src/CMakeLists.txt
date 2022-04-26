@@ -13,7 +13,7 @@ endif()
 
 add_subdirectory(backend) # DEEP LEARNING BACKEND
 
-if (UNIX AND NOT APPLE)
+if (UNIX)
     add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
 endif()
 
