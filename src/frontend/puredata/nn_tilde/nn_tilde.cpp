@@ -7,6 +7,10 @@
 
 static t_class *nn_tilde_class;
 
+#ifndef VERSION
+#define VERSION "UNDEFINED"
+#endif
+
 // CLASS LIKE INITIALISATION
 typedef struct _nn_tilde {
   t_object x_obj;
@@ -120,6 +124,11 @@ void nn_tilde_free(t_nn_tilde *x) {
 
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   t_nn_tilde *x = (t_nn_tilde *)pd_new(nn_tilde_class);
+
+  std::string startmessage = "nn~ - ";
+  startmessage += VERSION;
+  startmessage += " - 2022 - Antoine Caillon\n";
+  startpost(startmessage.c_str());
 
   x->m_head = 0;
   x->compute_thread = nullptr;
