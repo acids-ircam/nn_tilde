@@ -11,6 +11,16 @@ static t_class *nn_tilde_class;
 #define VERSION "UNDEFINED"
 #endif
 
+unsigned power_ceil(unsigned x) {
+  if (x <= 1)
+    return 1;
+  int power = 2;
+  x--;
+  while (x >>= 1)
+    power <<= 1;
+  return power;
+}
+
 // CLASS LIKE INITIALISATION
 typedef struct _nn_tilde {
   t_object x_obj;
@@ -26,6 +36,7 @@ typedef struct _nn_tilde {
   // BUFFER RELATED MEMBERS
   int m_head, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_buffer_size;
   std::vector<std::unique_ptr<float[]>> m_in_buffer, m_out_buffer;
+  bool m_use_thread;
 
   // DSP RELATED MEMBERS
   int m_dsp_vec_size;
@@ -125,11 +136,6 @@ void nn_tilde_free(t_nn_tilde *x) {
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   t_nn_tilde *x = (t_nn_tilde *)pd_new(nn_tilde_class);
 
-  std::string startmessage = "nn~ - ";
-  startmessage += VERSION;
-  startmessage += " - 2022 - Antoine Caillon\n";
-  startpost(startmessage.c_str());
-
   x->m_head = 0;
   x->compute_thread = nullptr;
   x->m_in_dim = 1;
@@ -176,9 +182,19 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_out_dim = params[2];
   x->m_out_ratio = params[3];
 
-  if (x->m_buffer_size < x->m_in_ratio || x->m_buffer_size < x->m_out_ratio) {
-    x->m_buffer_size = std::max(x->m_in_ratio, x->m_out_ratio);
-    post("buffer size too small, switching to minimum.");
+  auto higher_ratio = x->m_model.get_higher_ratio();
+
+  if (!x->m_buffer_size) {
+    // NO THREAD MODE
+    x->m_use_thread = false;
+    x->m_buffer_size = higher_ratio;
+  } else if (x->m_buffer_size < higher_ratio) {
+    x->m_buffer_size = higher_ratio;
+    std::string err_message = "buffer size too small, switching to ";
+    err_message += std::to_string(higher_ratio);
+    post(err_message.c_str());
+  } else {
+    x->m_buffer_size = power_ceil(x->m_buffer_size);
   }
 
   // CREATE INLETS, OUTLETS and BUFFERS
@@ -197,8 +213,16 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
 
 void nn_tilde_enable(t_nn_tilde *x, t_floatarg arg) { x->m_enabled = int(arg); }
 
+void startup_message() {
+  std::string startmessage = "nn~ - ";
+  startmessage += VERSION;
+  startmessage += " - 2022 - Antoine Caillon";
+  post(startmessage.c_str());
+}
+
 extern "C" {
 void nn_tilde_setup(void) {
+  startup_message();
   nn_tilde_class = class_new(gensym("nn~"), (t_newmethod)nn_tilde_new, 0,
                              sizeof(t_nn_tilde), CLASS_DEFAULT, A_GIMME, 0);
 

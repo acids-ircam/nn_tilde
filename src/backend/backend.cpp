@@ -107,4 +107,17 @@ std::vector<int> Backend::get_method_params(std::string method) {
   return params;
 }
 
+int Backend::get_higher_ratio() {
+  int higher_ratio = 1;
+  auto model_methods = get_available_methods();
+  for (const auto &method : model_methods) {
+    auto params = get_method_params(method);
+    if (!params.size())
+      continue; // METHOD NOT USABLE, SKIPPING
+    int max_ratio = std::max(params[1], params[3]);
+    higher_ratio = std::max(higher_ratio, max_ratio);
+  }
+  return higher_ratio;
+}
+
 bool Backend::is_loaded() { return m_loaded; }
