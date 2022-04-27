@@ -157,6 +157,18 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     x->m_buffer_size = atom_getint(argv + 2);
   }
 
+  // SEARCH FOR FILE
+  if (!sys_isabsolutepath(x->m_path->s_name)) {
+    char dirname[MAXPDSTRING], *dummy;
+    auto fd = open_via_path("", x->m_path->s_name, "", dirname, &dummy,
+                            MAXPDSTRING, 1);
+    std::string found_path;
+    found_path += dirname;
+    found_path += "/";
+    found_path += x->m_path->s_name;
+    x->m_path = gensym(found_path.c_str());
+  }
+
   // TRY TO LOAD MODEL
   if (x->m_model.load(x->m_path->s_name)) {
     post("error during loading");
