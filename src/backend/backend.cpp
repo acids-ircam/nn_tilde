@@ -6,7 +6,8 @@
 #define CUDA torch::kCUDA
 #define CPU torch::kCPU
 
-Backend::Backend() : m_loaded(0), m_cuda_available(true) {
+Backend::Backend()
+    : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
   at::init_num_threads();
   if (m_cuda_available)
     std::cout << "using cuda" << std::endl;
@@ -72,7 +73,7 @@ void Backend::perform(std::vector<float *> in_buffer,
   }
 
   tensor_out = tensor_out.to(CPU);
-  
+
   auto out_ptr = tensor_out.contiguous().data_ptr<float>();
 
   for (int i(0); i < out_buffer.size(); i++) {
