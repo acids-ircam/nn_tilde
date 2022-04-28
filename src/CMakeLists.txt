@@ -8,12 +8,12 @@ if (APPLE)
     if (CMAKE_OSX_ARCHITECTURES STREQUAL "")
         set(CMAKE_OSX_ARCHITECTURES ${CMAKE_HOST_SYSTEM_PROCESSOR})
     endif()
-message("CMAKE_OSX_ARCHITECTURES: ${CMAKE_OSX_ARCHITECTURES}")
+    message("CMAKE_OSX_ARCHITECTURES: ${CMAKE_OSX_ARCHITECTURES}")
 endif()
 
 add_subdirectory(backend) # DEEP LEARNING BACKEND
 
-if (UNIX)
+if ((APPLE AND NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
     add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
 endif()
 

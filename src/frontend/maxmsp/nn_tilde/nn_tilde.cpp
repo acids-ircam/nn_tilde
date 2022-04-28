@@ -97,6 +97,8 @@ nn::nn(const atoms &args)
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
       m_use_thread(true) {
 
+  m_model = Backend();
+
   // CHECK ARGUMENTS
   if (!args.size()) {
     return;
