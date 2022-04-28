@@ -132,6 +132,7 @@ void nn_tilde_free(t_nn_tilde *x) {
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   t_nn_tilde *x = (t_nn_tilde *)pd_new(nn_tilde_class);
 
+  x->m_model = Backend();
   x->m_head = 0;
   x->m_compute_thread = nullptr;
   x->m_in_dim = 1;

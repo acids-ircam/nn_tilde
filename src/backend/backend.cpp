@@ -6,9 +6,12 @@
 #define CUDA torch::kCUDA
 #define CPU torch::kCPU
 
-Backend::Backend()
-    : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+Backend::Backend() : m_loaded(0), m_cuda_available(true) {
   at::init_num_threads();
+  if (m_cuda_available)
+    std::cout << "using cuda" << std::endl;
+  else
+    std::cout << "using cpu" << std::endl;
 }
 
 void Backend::perform(std::vector<float *> in_buffer,
@@ -38,7 +41,7 @@ void Backend::perform(std::vector<float *> in_buffer,
   cat_tensor_in = cat_tensor_in.select(-1, -1);
 
   if (m_cuda_available)
-    cat_tensor_in.to(CUDA);
+    cat_tensor_in = cat_tensor_in.to(CUDA);
 
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
@@ -68,7 +71,9 @@ void Backend::perform(std::vector<float *> in_buffer,
     return;
   }
 
-  auto out_ptr = tensor_out.to(CPU).contiguous().data_ptr<float>();
+  tensor_out = tensor_out.to(CPU);
+  
+  auto out_ptr = tensor_out.contiguous().data_ptr<float>();
 
   for (int i(0); i < out_buffer.size(); i++) {
     memcpy(out_buffer[i], out_ptr + i * n_vec, n_vec * sizeof(float));
@@ -79,8 +84,10 @@ int Backend::load(std::string path) {
   try {
     m_model = torch::jit::load(path);
     m_model.eval();
-    if (m_cuda_available)
+    if (m_cuda_available) {
+      std::cout << "sending model to gpu" << std::endl;
       m_model.to(CUDA);
+    }
     m_loaded = 1;
     return 0;
   } catch (const std::exception &e) {
