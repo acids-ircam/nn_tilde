@@ -19,4 +19,5 @@ public:
   int get_higher_ratio();
   int load(std::string path);
   bool is_loaded();
+  bool m_cuda_available;
 };

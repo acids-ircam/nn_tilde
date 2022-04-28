@@ -3,7 +3,13 @@
 #include <iostream>
 #include <stdlib.h>
 
-Backend::Backend() : m_loaded(0) { at::init_num_threads(); }
+#define CUDA torch::kCUDA
+#define CPU torch::kCPU
+
+Backend::Backend()
+    : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+  at::init_num_threads();
+}
 
 void Backend::perform(std::vector<float *> in_buffer,
                       std::vector<float *> out_buffer, int n_vec,
@@ -30,6 +36,9 @@ void Backend::perform(std::vector<float *> in_buffer,
   auto cat_tensor_in = torch::cat(tensor_in, 1);
   cat_tensor_in = cat_tensor_in.reshape({1, in_dim, -1, in_ratio});
   cat_tensor_in = cat_tensor_in.select(-1, -1);
+
+  if (m_cuda_available)
+    cat_tensor_in.to(CUDA);
 
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
@@ -59,7 +68,7 @@ void Backend::perform(std::vector<float *> in_buffer,
     return;
   }
 
-  auto out_ptr = tensor_out.contiguous().data_ptr<float>();
+  auto out_ptr = tensor_out.to(CPU).contiguous().data_ptr<float>();
 
   for (int i(0); i < out_buffer.size(); i++) {
     memcpy(out_buffer[i], out_ptr + i * n_vec, n_vec * sizeof(float));
@@ -70,6 +79,8 @@ int Backend::load(std::string path) {
   try {
     m_model = torch::jit::load(path);
     m_model.eval();
+    if (m_cuda_available)
+      m_model.to(CUDA);
     m_loaded = 1;
     return 0;
   } catch (const std::exception &e) {
