@@ -13,7 +13,6 @@ typedef struct _nn_tilde {
   t_sample f;
 
   int m_enabled;
-
   // BACKEND RELATED MEMBERS
   Backend m_model;
   t_symbol *m_method, *m_path;
@@ -39,7 +38,7 @@ void thread_perform(t_nn_tilde *nn_instance, std::vector<float *> in_buffer,
   struct sched_param params;
   params.sched_priority = sched_get_priority_max(SCHED_FIFO);
   int ret = pthread_setschedparam(this_thread, SCHED_FIFO, &params);
-  nn_instance->m_model.perform(in_buffer, out_buffer, n_vec, method);
+  nn_instance->m_model.perform(in_buffer, out_buffer, n_vec, method, 1);
 }
 
 // DSP CALL

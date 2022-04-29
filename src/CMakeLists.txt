@@ -8,7 +8,7 @@ if (APPLE)
     if (CMAKE_OSX_ARCHITECTURES STREQUAL "")
         set(CMAKE_OSX_ARCHITECTURES ${CMAKE_HOST_SYSTEM_PROCESSOR})
     endif()
-message("CMAKE_OSX_ARCHITECTURES: ${CMAKE_OSX_ARCHITECTURES}")
+    message("CMAKE_OSX_ARCHITECTURES: ${CMAKE_OSX_ARCHITECTURES}")
 endif()
 
 add_subdirectory(backend) # DEEP LEARNING BACKEND
@@ -19,4 +19,6 @@ endif()
 
 if(APPLE OR MSVC)
     add_subdirectory(frontend/maxmsp/nn_tilde) # MAX MSP EXTERNAL
+    add_subdirectory(frontend/maxmsp/mc.nn_tilde) # MAX MSP EXTERNAL
+    add_subdirectory(frontend/maxmsp/mc.bnn_tilde) # MAX MSP EXTERNAL
 endif()

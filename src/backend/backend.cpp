@@ -7,7 +7,8 @@ Backend::Backend() : m_loaded(0) { at::init_num_threads(); }
 
 void Backend::perform(std::vector<float *> in_buffer,
                       std::vector<float *> out_buffer, int n_vec,
-                      std::string method) {
+                      std::string method,
+                      int n_batches) {
   c10::InferenceMode guard;
 
   auto params = get_method_params(method);
@@ -23,32 +24,35 @@ void Backend::perform(std::vector<float *> in_buffer,
     return;
 
   // COPY BUFFER INTO A TENSOR
+  //std::cout << "copying buffer in tensor" << std::endl;
   std::vector<at::Tensor> tensor_in;
   for (int i(0); i < in_buffer.size(); i++) {
     tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
   }
   auto cat_tensor_in = torch::cat(tensor_in, 1);
-  cat_tensor_in = cat_tensor_in.reshape({1, in_dim, -1, in_ratio});
+  cat_tensor_in = cat_tensor_in.reshape({n_batches, in_dim, -1, in_ratio});
   cat_tensor_in = cat_tensor_in.select(-1, -1);
 
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
   // PROCESS TENSOR
+  //std::cout << "tensor shape = " << cat_tensor_in.sizes() << std::endl;
+  //std::cout << "processing tensor" << std::endl;
   at::Tensor tensor_out;
   try {
     tensor_out = m_model.get_method(method)(inputs).toTensor();
     tensor_out =
-        tensor_out.repeat_interleave(out_ratio).reshape({1, out_dim, -1});
+        tensor_out.repeat_interleave(out_ratio).reshape({n_batches, out_dim, -1});
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
     return;
   }
 
-  int out_channels(tensor_out.size(1)), out_n_vec(tensor_out.size(2));
+  int out_batches(tensor_out.size(0)), out_channels(tensor_out.size(1)), out_n_vec(tensor_out.size(2));
 
   // CHECKS ON TENSOR SHAPE
-  if (out_channels != out_buffer.size()) {
-    std::cout << "bad out_buffer size, expected " << out_channels
+  if (out_batches * out_channels != out_buffer.size()) {
+    std::cout << "bad out_buffer size, expected " << out_batches * out_channels
               << " buffers, got " << out_buffer.size() << "!\n";
     return;
   }
@@ -59,6 +63,7 @@ void Backend::perform(std::vector<float *> in_buffer,
     return;
   }
 
+  tensor_out = tensor_out.reshape({out_batches * out_channels, -1});
   auto out_ptr = tensor_out.contiguous().data_ptr<float>();
 
   for (int i(0); i < out_buffer.size(); i++) {
