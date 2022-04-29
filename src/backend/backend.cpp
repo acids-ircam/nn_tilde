@@ -3,7 +3,17 @@
 #include <iostream>
 #include <stdlib.h>
 
-Backend::Backend() : m_loaded(0) { at::init_num_threads(); }
+#define CUDA torch::kCUDA
+#define CPU torch::kCPU
+
+Backend::Backend()
+    : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+  at::init_num_threads();
+  if (m_cuda_available)
+    std::cout << "using cuda" << std::endl;
+  else
+    std::cout << "using cpu" << std::endl;
+}
 
 void Backend::perform(std::vector<float *> in_buffer,
                       std::vector<float *> out_buffer, int n_vec,
@@ -30,6 +40,9 @@ void Backend::perform(std::vector<float *> in_buffer,
   auto cat_tensor_in = torch::cat(tensor_in, 1);
   cat_tensor_in = cat_tensor_in.reshape({1, in_dim, -1, in_ratio});
   cat_tensor_in = cat_tensor_in.select(-1, -1);
+
+  if (m_cuda_available)
+    cat_tensor_in = cat_tensor_in.to(CUDA);
 
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
@@ -59,6 +72,8 @@ void Backend::perform(std::vector<float *> in_buffer,
     return;
   }
 
+  tensor_out = tensor_out.to(CPU);
+
   auto out_ptr = tensor_out.contiguous().data_ptr<float>();
 
   for (int i(0); i < out_buffer.size(); i++) {
@@ -70,6 +85,10 @@ int Backend::load(std::string path) {
   try {
     m_model = torch::jit::load(path);
     m_model.eval();
+    if (m_cuda_available) {
+      std::cout << "sending model to gpu" << std::endl;
+      m_model.to(CUDA);
+    }
     m_loaded = 1;
     return 0;
   } catch (const std::exception &e) {
@@ -105,6 +124,19 @@ std::vector<int> Backend::get_method_params(std::string method) {
     }
   }
   return params;
+}
+
+int Backend::get_higher_ratio() {
+  int higher_ratio = 1;
+  auto model_methods = get_available_methods();
+  for (const auto &method : model_methods) {
+    auto params = get_method_params(method);
+    if (!params.size())
+      continue; // METHOD NOT USABLE, SKIPPING
+    int max_ratio = std::max(params[1], params[3]);
+    higher_ratio = std::max(higher_ratio, max_ratio);
+  }
+  return higher_ratio;
 }
 
 bool Backend::is_loaded() { return m_loaded; }

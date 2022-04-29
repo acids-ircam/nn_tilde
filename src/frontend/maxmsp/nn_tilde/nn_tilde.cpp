@@ -97,6 +97,8 @@ nn::nn(const atoms &args)
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
       m_use_thread(true) {
 
+  m_model = Backend();
+
   // CHECK ARGUMENTS
   if (!args.size()) {
     return;
@@ -121,16 +123,7 @@ nn::nn(const atoms &args)
     return;
   }
 
-  // FIND MINIMUM BUFFER SIZE GIVEN MODEL RATIO
-  m_higher_ratio = 1;
-  auto model_methods = m_model.get_available_methods();
-  for (int i(0); i < model_methods.size(); i++) {
-    auto params = m_model.get_method_params(model_methods[i]);
-    if (!params.size())
-      continue; // METHOD NOT USABLE, SKIPPING
-    int max_ratio = std::max(params[1], params[3]);
-    m_higher_ratio = std::max(m_higher_ratio, max_ratio);
-  }
+  m_higher_ratio = m_model.get_higher_ratio();
 
   // GET MODEL'S METHOD PARAMETERS
   auto params = m_model.get_method_params(m_method);
