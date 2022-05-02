@@ -1,5 +1,5 @@
 #include "../../../backend/backend.h"
-#include "../../maxmsp/nn_tilde/circular_buffer.h"
+#include "../../maxmsp/shared/circular_buffer.h"
 #include "m_pd.h"
 #include "pthread.h"
 #include <memory>
@@ -28,7 +28,6 @@ typedef struct _nn_tilde {
   t_sample f;
 
   int m_enabled;
-
   // BACKEND RELATED MEMBERS
   Backend m_model;
   t_symbol *m_method, *m_path;
@@ -59,7 +58,7 @@ void model_perform(t_nn_tilde *nn_instance) {
     out_model.push_back(nn_instance->m_out_model[c].get());
 
   nn_instance->m_model.perform(in_model, out_model, nn_instance->m_buffer_size,
-                               nn_instance->m_method->s_name);
+                               nn_instance->m_method->s_name, 1);
 }
 
 // DSP CALL

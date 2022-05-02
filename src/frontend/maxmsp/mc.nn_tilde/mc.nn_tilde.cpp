@@ -21,18 +21,25 @@ unsigned power_ceil(unsigned x) {
   return power;
 }
 
-class nn : public object<nn>, public vector_operator<> {
-public:
-  MIN_DESCRIPTION{"Interface for deep learning models"};
-  MIN_TAGS{"audio, deep learning, ai"};
-  MIN_AUTHOR{"Antoine Caillon"};
+long simplemc_multichanneloutputs(c74::max::t_object* x, long index, long count);
+long simplemc_inputchanged(c74::max::t_object* x, long index, long count);
 
-  nn(const atoms &args = {});
-  ~nn();
+class mc_nn_tilde : public object<mc_nn_tilde>, public mc_operator<> {
+public:
+  MIN_DESCRIPTION{"Multi-channel interface for deep learning models"};
+  MIN_TAGS{"audio, deep learning, ai"};
+  MIN_AUTHOR{"Antoine Caillon, Axel Chemla--Romeu-Santos"};
+
+  mc_nn_tilde(const atoms &args = {});
+  ~mc_nn_tilde();
 
   // INLETS OUTLETS
   std::vector<std::unique_ptr<inlet<>>> m_inlets;
   std::vector<std::unique_ptr<outlet<>>> m_outlets;
+  // CHANNELS
+  std::vector<int> chans;
+  int get_batches();
+  bool check_inputs();
 
   // BACKEND RELATED MEMBERS
   Backend m_model;
@@ -45,6 +52,7 @@ public:
   std::unique_ptr<circular_buffer<double, float>[]> m_in_buffer;
   std::unique_ptr<circular_buffer<float, double>[]> m_out_buffer;
   std::vector<std::unique_ptr<float[]>> m_in_model, m_out_model;
+  void reset_buffers();
 
   // AUDIO PERFORM
   bool m_use_thread;
@@ -53,7 +61,7 @@ public:
   void buffered_perform(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
 
-  using vector_operator::operator();
+  //using mc_operator::operator();
 
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
@@ -72,32 +80,50 @@ public:
   message<> maxclass_setup{
       this, "maxclass_setup",
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
-        cout << "nn~ - " << VERSION << " - 2022 - Antoine Caillon" << endl;
+        // make stamp
+        cout << "mc.nn~ - " << VERSION << " - 2022 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
         cout << "visit https://caillonantoine.github.io" << endl;
+        // mc handle
+        c74::max::t_class* c = args[0];
+        c74::max::class_addmethod(c, (c74::max::method)simplemc_multichanneloutputs, "multichanneloutputs", c74::max::A_CANT, 0);
+        c74::max::class_addmethod(c, (c74::max::method)simplemc_inputchanged, "inputchanged", c74::max::A_CANT, 0);
         return {};
-      }}
+      }
+    };
 
-  ;
+  /*
+  message<> dspsetup { this, "dspsetup", 
+      MIN_FUNCTION {
+        if (not ob->m_min_object.check_inputs()) {
+          cerr << ("mc.nn~ warning : number of batches inconsistent") << endl;
+          c74::max::object_error_obtrusive((t_object*)this,)
+        }
+      return {};
+    }
+  };
+  */
 };
 
-void model_perform(nn *nn_instance) {
-  std::vector<float *> in_model, out_model;
-
-  for (int c(0); c < nn_instance->m_in_dim; c++)
-    in_model.push_back(nn_instance->m_in_model[c].get());
-  for (int c(0); c < nn_instance->m_out_dim; c++)
-    out_model.push_back(nn_instance->m_out_model[c].get());
-
-  nn_instance->m_model.perform(in_model, out_model, nn_instance->m_buffer_size,
-                               nn_instance->m_method, 1);
+int mc_nn_tilde::get_batches() {
+    return *std::min_element(chans.begin(), chans.end());
 }
 
-nn::nn(const atoms &args)
+void model_perform(mc_nn_tilde *mc_nn_instance) {
+  std::vector<float *> in_model, out_model;
+
+  for (int c(0); c < mc_nn_instance->m_in_dim; c++)
+    in_model.push_back(mc_nn_instance->m_in_model[c].get());
+  for (int c(0); c < mc_nn_instance->m_out_dim; c++)
+    out_model.push_back(mc_nn_instance->m_out_model[c].get());
+
+  mc_nn_instance->m_model.perform(in_model, out_model, mc_nn_instance->m_buffer_size,
+                                  mc_nn_instance->m_method, mc_nn_instance->get_batches());
+}
+
+mc_nn_tilde::mc_nn_tilde(const atoms &args)
     : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
       m_use_thread(true) {
-
-  m_model = Backend();
 
   // CHECK ARGUMENTS
   if (!args.size()) {
@@ -123,7 +149,16 @@ nn::nn(const atoms &args)
     return;
   }
 
-  m_higher_ratio = m_model.get_higher_ratio();
+  // FIND MINIMUM BUFFER SIZE GIVEN MODEL RATIO
+  m_higher_ratio = 1;
+  auto model_methods = m_model.get_available_methods();
+  for (int i(0); i < model_methods.size(); i++) {
+    auto params = m_model.get_method_params(model_methods[i]);
+    if (!params.size())
+      continue; // METHOD NOT USABLE, SKIPPING
+    int max_ratio = std::max(params[1], params[3]);
+    m_higher_ratio = std::max(m_higher_ratio, max_ratio);
+  }
 
   // GET MODEL'S METHOD PARAMETERS
   auto params = m_model.get_method_params(m_method);
@@ -132,6 +167,9 @@ nn::nn(const atoms &args)
     error("method " + m_method + " not found !");
   }
 
+  
+  for (int i(0); i < params[0]; i++)
+      chans.push_back(1);
   m_in_dim = params[0];
   m_in_ratio = params[1];
   m_out_dim = params[2];
@@ -149,24 +187,41 @@ nn::nn(const atoms &args)
   }
 
   // CREATE INLETS, OUTLETS and BUFFERS
-  m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim);
+  m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim * get_batches());
   for (int i(0); i < m_in_dim; i++) {
     m_inlets.push_back(std::make_unique<inlet<>>(
-        this, "(signal) model input " + std::to_string(i), "signal"));
+        this, "(signal) model input " + std::to_string(i), "multichannelsignal"));
     m_in_buffer[i].initialize(m_buffer_size);
     m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
 
-  m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(m_out_dim);
+  m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(m_out_dim * get_batches());
   for (int i(0); i < m_out_dim; i++) {
     m_outlets.push_back(std::make_unique<outlet<>>(
-        this, "(signal) model output " + std::to_string(i), "signal"));
+        this, "(signal) model output " + std::to_string(i), "multichannelsignal"));
     m_out_buffer[i].initialize(m_buffer_size);
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
 }
 
-nn::~nn() {
+void mc_nn_tilde::reset_buffers() {
+  auto params = m_model.get_method_params(m_method);
+  m_in_dim = params[0] * get_batches();
+  m_out_dim = params[2] * get_batches();
+  m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim);
+  m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(m_out_dim);
+  m_in_model.clear(); m_out_model.clear();
+  for (int i(0); i < m_in_dim; i++) {
+    m_in_buffer[i].initialize(m_buffer_size);
+    m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
+  }
+  for (int i(0); i < m_out_dim; i++) {
+    m_out_buffer[i].initialize(m_buffer_size);
+    m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
+  }
+}
+
+mc_nn_tilde::~mc_nn_tilde() {
   if (m_compute_thread)
     m_compute_thread->join();
 }
@@ -180,7 +235,16 @@ void fill_with_zero(audio_bundle output) {
   }
 }
 
-void nn::operator()(audio_bundle input, audio_bundle output) {
+bool mc_nn_tilde::check_inputs() {
+    bool check = true;
+    for (int i = 1; i < chans.size(); i++) {
+        if (chans[i] != chans[0])
+            check = false;
+    }
+    return check;
+}
+
+void mc_nn_tilde::operator()(audio_bundle input, audio_bundle output) {
   auto dsp_vec_size = output.frame_count();
 
   // CHECK IF MODEL IS LOADED AND ENABLED
@@ -198,18 +262,22 @@ void nn::operator()(audio_bundle input, audio_bundle output) {
     enable = false;
     fill_with_zero(output);
     return;
-  } 
+  }
 
   perform(input, output);
 }
 
-void nn::perform(audio_bundle input, audio_bundle output) {
+void mc_nn_tilde::perform(audio_bundle input, audio_bundle output) {
   auto vec_size = input.frame_count();
 
   // COPY INPUT TO CIRCULAR BUFFER
-  for (int c(0); c < input.channel_count(); c++) {
-    auto in = input.samples(c);
-    m_in_buffer[c].put(in, vec_size);
+  int dim_offset = 0;
+  for (int i(0); i < m_inlets.size(); i++) {
+      for (int b(0); b < get_batches(); b++) {
+        auto in = input.samples(dim_offset + b);
+        m_in_buffer[i * get_batches() + b].put(in, vec_size);
+      }
+      dim_offset += chans[i];
   }
 
   if (m_in_buffer[0].full()) { // BUFFER IS FULL
@@ -240,4 +308,27 @@ void nn::perform(audio_bundle input, audio_bundle output) {
   }
 }
 
-MIN_EXTERNAL(nn);
+
+long simplemc_multichanneloutputs(c74::max::t_object* x, long index, long count) {
+    minwrap<mc_nn_tilde>* ob = (minwrap<mc_nn_tilde>*)(x);
+    return ob->m_min_object.get_batches();
+}
+
+long simplemc_inputchanged(c74::max::t_object* x, long index, long count) {
+    minwrap<mc_nn_tilde>* ob = (minwrap<mc_nn_tilde>*)(x);
+    bool needs_refresh = false;
+    if (ob->m_min_object.chans[index] != count) {
+        auto old_n_batch = ob->m_min_object.get_batches();
+        ob->m_min_object.chans[index] = count;
+        auto new_n_batch = ob->m_min_object.get_batches();
+        if (old_n_batch != new_n_batch) {
+            ob->m_min_object.reset_buffers();
+        }
+        needs_refresh = true;
+    } 
+    return needs_refresh;
+}
+
+
+MIN_EXTERNAL(mc_nn_tilde);
+
