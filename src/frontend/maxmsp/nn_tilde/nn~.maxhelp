@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 455.0, 271.0, 733.0, 542.0 ],
+		"rect" : [ 592.0, 165.0, 733.0, 542.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -57,7 +57,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 0.0, 26.0, 733.0, 516.0 ],
+						"rect" : [ 592.0, 191.0, 733.0, 516.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -120,7 +120,7 @@
 									"numinlets" : 1,
 									"numoutlets" : 0,
 									"patching_rect" : [ 353.0, 425.0, 111.5, 20.0 ],
-									"text" : "mc.bnn~ version"
+									"text" : "mcs.nn~ version"
 								}
 
 							}
@@ -139,10 +139,10 @@
 									"id" : "obj-24",
 									"maxclass" : "newobj",
 									"numinlets" : 3,
-									"numoutlets" : 1,
-									"outlettype" : [ "" ],
+									"numoutlets" : 3,
+									"outlettype" : [ "multichannelsignal", "multichannelsignal", "multichannelsignal" ],
 									"patching_rect" : [ 353.0, 320.0, 142.0, 22.0 ],
-									"text" : "mc.bnn~ wheel decode 3"
+									"text" : "mcs.nn~ wheel decode 3"
 								}
 
 							}
@@ -260,9 +260,9 @@
 									"maxclass" : "newobj",
 									"numinlets" : 3,
 									"numoutlets" : 3,
-									"outlettype" : [ "", "", "" ],
+									"outlettype" : [ "multichannelsignal", "multichannelsignal", "multichannelsignal" ],
 									"patching_rect" : [ 353.0, 264.0, 142.0, 22.0 ],
-									"text" : "mc.bnn~ wheel encode 3"
+									"text" : "mcs.nn~ wheel encode 3"
 								}
 
 							}
@@ -412,9 +412,9 @@
 								"box" : 								{
 									"id" : "obj-2",
 									"maxclass" : "newobj",
-									"numinlets" : 16,
+									"numinlets" : 8,
 									"numoutlets" : 1,
-									"outlettype" : [ "" ],
+									"outlettype" : [ "multichannelsignal" ],
 									"patching_rect" : [ 24.0, 320.0, 176.5, 22.0 ],
 									"text" : "mc.nn~ wheel decode"
 								}
@@ -425,8 +425,8 @@
 									"id" : "obj-1",
 									"maxclass" : "newobj",
 									"numinlets" : 1,
-									"numoutlets" : 16,
-									"outlettype" : [ "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" ],
+									"numoutlets" : 8,
+									"outlettype" : [ "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal" ],
 									"patching_rect" : [ 24.0, 264.0, 176.5, 22.0 ],
 									"text" : "mc.nn~ wheel encode"
 								}
@@ -440,68 +440,12 @@
 									"numinlets" : 1,
 									"numoutlets" : 0,
 									"patching_rect" : [ 13.0, 11.0, 321.0, 47.0 ],
-									"text" : "nn~ has two multi-channel versions : \n     - mc.nn~ that batches inputs among mc channels\n     - mc.bnn~ that batches inputs among inlets"
+									"text" : "nn~ has two multi-channel versions : \n     - mc.nn~ that batches inputs among mc channels\n     - mcs.nn~ that batches inputs among inlets"
 								}
 
 							}
  ],
 						"lines" : [ 							{
-								"patchline" : 								{
-									"destination" : [ "obj-2", 15 ],
-									"source" : [ "obj-1", 15 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-2", 14 ],
-									"source" : [ "obj-1", 14 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-2", 13 ],
-									"source" : [ "obj-1", 13 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-2", 12 ],
-									"source" : [ "obj-1", 12 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-2", 11 ],
-									"source" : [ "obj-1", 11 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-2", 10 ],
-									"source" : [ "obj-1", 10 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-2", 9 ],
-									"source" : [ "obj-1", 9 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-2", 8 ],
-									"source" : [ "obj-1", 8 ]
-								}
-
-							}
-, 							{
 								"patchline" : 								{
 									"destination" : [ "obj-2", 7 ],
 									"source" : [ "obj-1", 7 ]
@@ -778,7 +722,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 8,
 									"numoutlets" : 1,
-									"outlettype" : [ "" ],
+									"outlettype" : [ "signal" ],
 									"patching_rect" : [ 23.0, 261.0, 106.0, 22.0 ],
 									"text" : "nn~ wheel decode"
 								}
@@ -802,7 +746,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 1,
 									"numoutlets" : 8,
-									"outlettype" : [ "", "", "", "", "", "", "", "" ],
+									"outlettype" : [ "signal", "signal", "signal", "signal", "signal", "signal", "signal", "signal" ],
 									"patching_rect" : [ 23.0, 220.0, 105.999999999999986, 22.0 ],
 									"text" : "nn~ wheel prior"
 								}
@@ -1068,7 +1012,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 8,
 									"numoutlets" : 1,
-									"outlettype" : [ "" ],
+									"outlettype" : [ "signal" ],
 									"patching_rect" : [ 94.0, 400.0, 203.0, 22.0 ],
 									"text" : "nn~ wheel decode"
 								}
@@ -1128,7 +1072,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 1,
 									"numoutlets" : 8,
-									"outlettype" : [ "", "", "", "", "", "", "", "" ],
+									"outlettype" : [ "signal", "signal", "signal", "signal", "signal", "signal", "signal", "signal" ],
 									"patching_rect" : [ 94.0, 279.0, 203.0, 22.0 ],
 									"text" : "nn~ wheel encode"
 								}
@@ -1455,7 +1399,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 1,
 									"numoutlets" : 1,
-									"outlettype" : [ "" ],
+									"outlettype" : [ "signal" ],
 									"patching_rect" : [ 308.0, 227.0, 107.0, 22.0 ],
 									"text" : "nn~ wheel forward"
 								}
@@ -1605,7 +1549,8 @@
 									"id" : "obj-2",
 									"maxclass" : "newobj",
 									"numinlets" : 1,
-									"numoutlets" : 0,
+									"numoutlets" : 1,
+									"outlettype" : [ "signal" ],
 									"patching_rect" : [ 22.0, 121.0, 137.0, 22.0 ],
 									"text" : "nn~ wheel forward 8192"
 								}
@@ -1672,7 +1617,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 455.0, 297.0, 733.0, 516.0 ],
+						"rect" : [ 0.0, 26.0, 733.0, 516.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -2109,6 +2054,14 @@
 				"bootpath" : "C74:/docs/tutorial-patchers/msp-tut",
 				"type" : "AIFF",
 				"implicit" : 1
+			}
+, 			{
+				"name" : "mc.nn~.mxo",
+				"type" : "iLaX"
+			}
+, 			{
+				"name" : "mcs.nn~.mxo",
+				"type" : "iLaX"
 			}
 , 			{
 				"name" : "morph.256.rom.aif",

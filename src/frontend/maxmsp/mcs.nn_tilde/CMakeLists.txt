@@ -19,7 +19,7 @@ find_package(Torch REQUIRED)
 
 set(
 SOURCE_FILES
-	mc.bnn_tilde.cpp
+	mcs.nn_tilde.cpp
 )
 
 if (UNIX)
