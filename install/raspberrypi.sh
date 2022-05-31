@@ -13,3 +13,5 @@ cmake ../src/ -DCMAKE_PREFIX_PATH=$LIBTORCH -DCMAKE_BUILD_TYPE=Release
 make
 sudo mkdir -p /usr/local/lib/pd-externals/
 sudo cp frontend/puredata/nn_tilde/nn~.pd_linux /usr/local/lib/pd-externals/
+cd ../../
+rm -fr nn_tilde
