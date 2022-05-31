@@ -24,4 +24,5 @@ sudo cp frontend/puredata/nn_tilde/nn~.pd_linux /usr/local/lib/pd-externals/
 cd ../../
 rm -fr nn_tilde
 
-echo "done !"
+echo "installed nn~ to /usr/local/lib/pd-externals/ !"
+echo "have fun !"

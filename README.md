@@ -38,3 +38,13 @@ cmake --build . --config Release
 Use `cmake --help` to find the generator name for your Visual Studio version
 
 - Copy all the DLLs from `<unzipped libtorch directory>\lib` to the Max 7/8 installation directory, next to `Max.exe`
+
+### Raspberry Pi
+
+While nn~ can be compiled and used on Raspberry Pi, you may have to consider using lighter deep learning models. We currently only support 64bit OS.
+
+Install nn~ for PureData using
+
+```bash
+curl -s https://raw.githubusercontent.com/acids-ircam/nn_tilde/master/install/raspberrypi.sh | bash
+```
