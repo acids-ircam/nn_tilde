@@ -48,3 +48,22 @@ Install nn~ for PureData using
 ```bash
 curl -s https://raw.githubusercontent.com/acids-ircam/nn_tilde/master/install/raspberrypi.sh | bash
 ```
+
+### Arch Linux + Arch Linux Arm 64
+
+Install nn~ for PureData with defaults
+
+```bash
+curl -s https://raw.githubusercontent.com/acids-ircam/nn_tilde/master/install/archlinux+arm.sh | bash
+```
+
+#### Change install location
+
+* global
+```bash
+wget https://raw.githubusercontent.com/acids-ircam/nn_tilde/master/install/archlinux+arm.sh; chmod +x ./archlinux+arm.sh; ./archlinux+arm.sh -i g; rm ./archlinux+arm.sh
+```
+* application specific
+```bash
+wget https://raw.githubusercontent.com/acids-ircam/nn_tilde/master/install/archlinux+arm.sh; chmod +x ./archlinux+arm.sh; ./archlinux+arm.sh -i a; rm ./archlinux+arm.sh
+```
