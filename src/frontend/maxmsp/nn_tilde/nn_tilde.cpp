@@ -219,7 +219,6 @@ nn::nn(const atoms &args)
     }
     m_inlets.push_back(std::make_unique<inlet<>>(
         this, input_label, "signal"));
-    std::cout << "initiliazing buffer with size " << m_buffer_size << std::endl;
     m_in_buffer[i].initialize(m_buffer_size);
     m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
