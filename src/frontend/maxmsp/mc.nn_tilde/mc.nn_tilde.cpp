@@ -44,6 +44,8 @@ public:
   // BACKEND RELATED MEMBERS
   Backend m_model;
   std::string m_method;
+  std::vector<std::string> settable_attributes;
+  bool has_settable_attribute(std::string attribute);
   c74::min::path m_path;
   int m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
 
@@ -61,7 +63,7 @@ public:
   void buffered_perform(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
 
-  //using mc_operator::operator();
+  // using mc_operator::operator();
 
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
@@ -91,22 +93,68 @@ public:
       }
     };
 
-  /*
-  message<> dspsetup { this, "dspsetup", 
-      MIN_FUNCTION {
-        if (not ob->m_min_object.check_inputs()) {
-          cerr << ("mc.nn~ warning : number of batches inconsistent") << endl;
-          c74::max::object_error_obtrusive((t_object*)this,)
+  message<> anything {this, "anything", "callback for attributes",
+    MIN_FUNCTION {
+      symbol attribute_name = args[0];
+      if (attribute_name == "get_settable_attributes") {
+        for (std::string attr : settable_attributes)
+          cout << attr << endl;
+        return {};
+      } 
+      else if (attribute_name == "get_available_methods") 
+      {
+        for (std::string method : m_model.get_available_methods()) 
+          cout << method << endl;
+        return {};
+      } 
+      else if (attribute_name == "get") 
+      {
+        if (args.size() < 2) {
+          cerr << "get must be given an attribute name" << endl;
+          return {};
         }
+        attribute_name = args[1];
+        if (m_model.has_settable_attribute(attribute_name)) {
+          cout << attribute_name << ": " << m_model.get_attribute_as_string(attribute_name) << endl;
+        } else {
+          cerr << "no attribute " << attribute_name << " found in model" << endl;
+        }
+        return {};
+      }
+      else if (attribute_name == "set") 
+      {
+        if (args.size() < 3) {
+          cerr << "set must be given an attribute name and corresponding arguments" << endl;
+          return {};
+        }
+        attribute_name = args[1];
+        std::vector<std::string> attribute_args;
+        if (has_settable_attribute(attribute_name)) {
+          for (int i = 2; i < args.size(); i++) {
+            attribute_args.push_back(args[i]);
+          }
+          try {
+            m_model.set_attribute(attribute_name, attribute_args);
+          } catch (std::string message) {
+            cerr << message << endl;
+          }
+        } else {
+          cerr << "model does not have attribute " << attribute_name << endl;
+        }
+      }
+      else
+      {
+        cerr << "no corresponding method for " << attribute_name << endl;
+      }
       return {};
-    }
-  };
-  */
+     }};
 };
 
 int mc_nn_tilde::get_batches() {
     return *std::min_element(chans.begin(), chans.end());
 }
+
+
 
 void model_perform(mc_nn_tilde *mc_nn_instance) {
   std::vector<float *> in_model, out_model;
@@ -163,6 +211,10 @@ mc_nn_tilde::mc_nn_tilde(const atoms &args)
   // GET MODEL'S METHOD PARAMETERS
   auto params = m_model.get_method_params(m_method);
 
+  try {
+    settable_attributes = m_model.get_settable_attributes();
+  } catch (...) { }
+
   if (!params.size()) {
     error("method " + m_method + " not found !");
   }
@@ -189,19 +241,39 @@ mc_nn_tilde::mc_nn_tilde(const atoms &args)
   // CREATE INLETS, OUTLETS and BUFFERS
   m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim * get_batches());
   for (int i(0); i < m_in_dim; i++) {
+    std::string input_label = "";
+    try {
+      input_label = m_model.get_model().attr(m_method + "_input_labels").toList().get(i).toStringRef();
+    } catch (...) {
+      input_label = "(signal) model input " + std::to_string(i);
+    }
     m_inlets.push_back(std::make_unique<inlet<>>(
-        this, "(signal) model input " + std::to_string(i), "multichannelsignal"));
+        this, input_label, "multichannelsignal"));
     m_in_buffer[i].initialize(m_buffer_size);
     m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
 
   m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(m_out_dim * get_batches());
   for (int i(0); i < m_out_dim; i++) {
+    std::string output_label = "";
+    try {
+      output_label = m_model.get_model().attr(m_method + "_output_labels").toList().get(i).toStringRef();
+    } catch (...) {
+      output_label = "(signal) model output " + std::to_string(i);
+    }
     m_outlets.push_back(std::make_unique<outlet<>>(
-        this, "(signal) model output " + std::to_string(i), "multichannelsignal"));
+        this, output_label, "multichannelsignal"));
     m_out_buffer[i].initialize(m_buffer_size);
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
+}
+
+bool mc_nn_tilde::has_settable_attribute(std::string attribute) {
+  for (std::string candidate : settable_attributes) {
+    if (candidate == attribute)
+      return true;
+  }
+  return false;
 }
 
 void mc_nn_tilde::reset_buffers() {

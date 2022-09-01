@@ -45,6 +45,8 @@ public:
   // BACKEND RELATED MEMBERS
   Backend m_model;
   std::string m_method;
+  std::vector<std::string> settable_attributes;
+  bool has_settable_attribute(std::string attribute);
   c74::min::path m_path;
   int m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio, m_batches;
 
@@ -93,6 +95,63 @@ public:
         return {};
       }
     };
+
+  message<> anything {this, "anything", "callback for attributes",
+    MIN_FUNCTION {
+      symbol attribute_name = args[0];
+      if (attribute_name == "get_settable_attributes") {
+        for (std::string attr : settable_attributes) {
+          cout << attr << endl;
+        }
+        return {};
+      } 
+      else if (attribute_name == "get_available_methods") 
+      {
+        for (std::string method : m_model.get_available_methods()) 
+          cout << method << endl;
+        return {};
+      } 
+      else if (attribute_name == "get") 
+      {
+        if (args.size() < 2) {
+          cerr << "get must be given an attribute name" << endl;
+          return {};
+        }
+        attribute_name = args[1];
+        if (m_model.has_settable_attribute(attribute_name)) {
+          cout << attribute_name << ": " << m_model.get_attribute_as_string(attribute_name) << endl;
+        } else {
+          cerr << "no attribute " << attribute_name << " found in model" << endl;
+        }
+        return {};
+      }
+      else if (attribute_name == "set") 
+      {
+        if (args.size() < 3) {
+          cerr << "set must be given an attribute name and corresponding arguments" << endl;
+          return {};
+        }
+        attribute_name = args[1];
+        std::vector<std::string> attribute_args;
+        if (has_settable_attribute(attribute_name)) {
+          for (int i = 2; i < args.size(); i++) {
+            attribute_args.push_back(args[i]);
+          }
+          try {
+            m_model.set_attribute(attribute_name, attribute_args);
+          } catch (std::string message) {
+            cerr << message << endl;
+          }
+        } else {
+          cerr << "model does not have attribute " << attribute_name << endl;
+        }
+      }
+      else
+      {
+        cerr << "no corresponding method for " << attribute_name << endl;
+      }
+      return {};
+     }};
 };
 
 
@@ -163,6 +222,10 @@ mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
     error("method " + m_method + " not found !");
   }
 
+  // GET MODEL'S SETTABLE ATTRIBUTES
+  try {
+    settable_attributes = m_model.get_settable_attributes();
+  } catch (...) { }
   
   m_in_dim = params[0];
   m_in_ratio = params[1];
@@ -183,17 +246,25 @@ mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
   }
 
   // CREATE INLETS, OUTLETS 
-  std::cout << "number of batches : " << get_batches() << std::endl;
   for (int i(0); i < get_batches(); i++) {
+    std::string input_label, output_label;
+    try {
+      input_label = m_model.get_model().attr(m_method + "_input_labels").toList().get(i).toStringRef();
+    } catch (...) {
+      input_label = "(signal) model input " + std::to_string(i);
+    }
+    try {
+      output_label = m_model.get_model().attr(m_method + "_output_labels").toList().get(i).toStringRef();
+    } catch (...) {
+      output_label = "(signal) model output " + std::to_string(i);
+    }
     m_inlets.push_back(std::make_unique<inlet<>>(
-      this, "(signal) model input " + std::to_string(i), "multichannelsignal"));
+      this, input_label, "multichannelsignal"));
     m_outlets.push_back(std::make_unique<outlet<>>(
-      this, "(signal) model output " + std::to_string(i), "multichannelsignal"));
+      this, output_label, "multichannelsignal"));
   }
 
   // CREATE BUFFERS
-  std::cout << "input buffer size : "<< m_in_dim * get_batches();
-  std::cout << "; output buffer size : " << m_out_dim * get_batches() << std::endl;
   m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim * get_batches());
   for (int i(0); i < m_in_dim * get_batches(); i++) {
     m_in_buffer[i].initialize(m_buffer_size);
@@ -210,6 +281,14 @@ mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
 mc_bnn_tilde::~mc_bnn_tilde() {
   if (m_compute_thread)
     m_compute_thread->join();
+}
+
+bool mc_bnn_tilde::has_settable_attribute(std::string attribute) {
+  for (std::string candidate : settable_attributes) {
+    if (candidate == attribute)
+      return true;
+  }
+  return false;
 }
 
 void fill_with_zero(audio_bundle output) {
@@ -254,7 +333,6 @@ void mc_bnn_tilde::operator()(audio_bundle input, audio_bundle output) {
 
 void mc_bnn_tilde::perform(audio_bundle input, audio_bundle output) {
   auto vec_size = input.frame_count();
-  std::cout << vec_size << std::endl;
 
   // COPY INPUT TO CIRCULAR BUFFER
   for (int b(0); b < m_inlets.size(); b++) {

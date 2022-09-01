@@ -25,7 +25,7 @@ class nn : public object<nn>, public vector_operator<> {
 public:
   MIN_DESCRIPTION{"Interface for deep learning models"};
   MIN_TAGS{"audio, deep learning, ai"};
-  MIN_AUTHOR{"Antoine Caillon"};
+  MIN_AUTHOR{"Antoine Caillon & Axel Chemla--Romeu-Santos"};
 
   nn(const atoms &args = {});
   ~nn();
@@ -55,7 +55,7 @@ public:
   void buffered_perform(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
 
-  using vector_operator::operator();
+  // using vector_operator::operator();
 
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
@@ -74,7 +74,7 @@ public:
   message<> maxclass_setup{
       this, "maxclass_setup",
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
-        cout << "nn~ - " << VERSION << " - 2022 - Antoine Caillon" << endl;
+        cout << "nn~ - " << VERSION << " - 2022 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
         cout << "visit https://caillonantoine.github.io" << endl;
         return {};
       }};
@@ -83,8 +83,9 @@ public:
     MIN_FUNCTION {
       symbol attribute_name = args[0];
       if (attribute_name == "get_settable_attributes") {
-        for (std::string attr : settable_attributes)
+        for (std::string attr : settable_attributes) {
           cout << attr << endl;
+        }
         return {};
       } 
       else if (attribute_name == "get_available_methods") 
@@ -243,6 +244,14 @@ nn::~nn() {
     m_compute_thread->join();
 }
 
+bool nn::has_settable_attribute(std::string attribute) {
+  for (std::string candidate : settable_attributes) {
+    if (candidate == attribute)
+      return true;
+  }
+  return false;
+}
+
 void fill_with_zero(audio_bundle output) {
   for (int c(0); c < output.channel_count(); c++) {
     auto out = output.samples(c);
@@ -312,12 +321,5 @@ void nn::perform(audio_bundle input, audio_bundle output) {
   }
 }
 
-bool nn::has_settable_attribute(std::string attribute) {
-  for (std::string candidate : settable_attributes) {
-    if (candidate == attribute)
-      return true;
-  }
-  return false;
-}
 
 MIN_EXTERNAL(nn);

@@ -253,7 +253,6 @@ void Backend::set_attribute(std::string attribute_name, std::vector<std::string>
   std::vector<c10::IValue> setter_inputs = {};
   for (int i = 0; i < setter_params.size(0); i++) {
     int current_id = setter_params[i].item().toInt();
-    std::cout << "set " << i << ": " << current_id << std::endl;
     switch (current_id) {
       // bool case
       case 0:
@@ -277,10 +276,7 @@ void Backend::set_attribute(std::string attribute_name, std::vector<std::string>
     }
   }
   try {
-    std::cout << "setter name : " << attribute_setter_name << std::endl;
-    std::cout << "setter input size : " << setter_inputs.size() << std::endl;
     auto setter_out = m_model.get_method(attribute_setter_name)(setter_inputs);
-    std::cout << "hello?" << std::endl;
     int setter_result = setter_out.toInt();
     if (setter_result != 0) {
       throw "setter returned -1";
