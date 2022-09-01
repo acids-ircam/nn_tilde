@@ -1,4 +1,5 @@
 #include "backend.h"
+#include "parsing_utils.h"
 #include <algorithm>
 #include <iostream>
 #include <stdlib.h>
@@ -33,7 +34,6 @@ void Backend::perform(std::vector<float *> in_buffer,
     return;
 
   // COPY BUFFER INTO A TENSOR
-  // std::cout << "copying buffer in tensor" << std::endl;
   std::vector<at::Tensor> tensor_in;
   for (int i(0); i < in_buffer.size(); i++) {
     tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
@@ -48,8 +48,6 @@ void Backend::perform(std::vector<float *> in_buffer,
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
   // PROCESS TENSOR
-  // std::cout << "tensor shape = " << cat_tensor_in.sizes() << std::endl;
-  // std::cout << "processing tensor" << std::endl;
   at::Tensor tensor_out;
   try {
     tensor_out = m_model.get_method(method)(inputs).toTensor();
@@ -59,7 +57,6 @@ void Backend::perform(std::vector<float *> in_buffer,
     std::cerr << e.what() << '\n';
     return;
   }
-
   int out_batches(tensor_out.size(0)), out_channels(tensor_out.size(1)),
       out_n_vec(tensor_out.size(2));
 
@@ -101,10 +98,41 @@ int Backend::load(std::string path) {
   }
 }
 
+bool Backend::has_method(std::string method_name) {
+  for (const auto &m : m_model.get_methods()) {
+    if (m.name() == method_name)
+      return true;
+  }
+  return false;
+}
+
+bool Backend::has_settable_attribute(std::string attribute) {
+  for (const auto &a : get_settable_attributes()) {
+    if (a == attribute)
+      return true;
+  }
+  return false;
+}
+
 std::vector<std::string> Backend::get_available_methods() {
   std::vector<std::string> methods;
-  for (const auto &m : m_model.get_methods())
-    methods.push_back(m.name());
+  try 
+  {
+    std::vector<c10::IValue> dumb_input = {};
+    auto methods_from_model = m_model.get_method("get_methods")(dumb_input).toList();
+    for (int i = 0; i < methods_from_model.size(); i++) {
+      methods.push_back(methods_from_model.get(i).toStringRef());
+    }
+  } catch (...) {
+    for (const auto &m : m_model.get_methods())
+    {
+      try 
+      {
+        auto method_params = m_model.attr(m.name() + "_params");
+        methods.push_back(m.name());
+      } catch (...) {}
+    }
+  }
   return methods;
 }
 
@@ -114,6 +142,154 @@ std::vector<std::string> Backend::get_available_attributes() {
     attributes.push_back(attribute.name);
   return attributes;
 }
+
+std::vector<std::string> Backend::get_settable_attributes() {
+  std::vector<std::string> attributes;
+  try 
+  {
+    std::vector<c10::IValue> dumb_input = {};
+    auto methods_from_model = m_model.get_method("get_attributes")(dumb_input).toList();
+    for (int i = 0; i < methods_from_model.size(); i++) {
+      attributes.push_back(methods_from_model.get(i).toStringRef());
+    }
+  } catch (...) {
+    for (const auto &a : m_model.named_attributes())
+    {
+      try 
+      {
+        auto method_params = m_model.attr(a.name + "_params");
+        attributes.push_back(a.name);
+      } catch (...) {}
+    }
+  }
+  return attributes;
+}
+
+std::vector<c10::IValue> Backend::get_attribute(std::string attribute_name) {
+  auto am = get_available_methods();
+  std::string attribute_getter_name = "get_" + attribute_name;
+  try {
+    auto attribute_getter = m_model.get_method(attribute_getter_name);
+  } catch (...) {
+    throw "getter for attribute " + attribute_name + " not found in model";
+  }
+  std::vector<c10::IValue> getter_inputs = {}, attributes;
+  try {
+    try {
+      attributes = m_model.get_method(attribute_getter_name)(getter_inputs).toList().vec();
+    } catch (...) {
+      auto output_tuple = m_model.get_method(attribute_getter_name)(getter_inputs).toTuple();
+      attributes = (*output_tuple.get()).elements();
+    }
+  } catch(...) {
+    attributes.push_back(m_model.get_method(attribute_getter_name)(getter_inputs));
+  }
+  return attributes;
+}
+
+std::string Backend::get_attribute_as_string(std::string attribute_name) {
+  std::vector<c10::IValue> getter_outputs = get_attribute(attribute_name);
+  // finstringd arguments
+  torch::Tensor setter_params;
+  try {
+    setter_params = m_model.attr(attribute_name + "_params").toTensor();
+  } catch (...) {
+    throw "parameters to set attribute " + attribute_name + " not found in model";
+  } 
+  std::string current_attr = "";
+  for (int i = 0; i < setter_params.size(0); i++) {
+    int current_id = setter_params[i].item().toInt();
+    switch (current_id) {
+      // bool case
+      case 0: {
+        current_attr += (getter_outputs[i].toBool())? "true" : "false";
+        break;
+      }
+      // int case
+      case 1: {
+        current_attr += std::to_string(getter_outputs[i].toInt());
+        break;
+      }
+      // float case
+      case 2: {
+        float result = getter_outputs[i].to<float>();
+        current_attr += std::to_string(result);
+        break;
+      }
+      // str case
+      case 3: {
+        current_attr += getter_outputs[i].toStringRef();
+        break;
+      }
+      default: {
+        throw "bad type id : " + std::to_string(current_id) + "at index " + std::to_string(i);
+        break;
+      }
+    }
+    if (i < setter_params.size(0) - 1)
+      current_attr += " ";
+  }
+  return current_attr;
+}
+
+void Backend::set_attribute(std::string attribute_name, std::vector<std::string> attribute_args)
+{
+  // find setter
+  auto am = get_available_methods();
+  std::string attribute_setter_name = "set_" + attribute_name;
+  try {
+    auto attribute_setter = m_model.get_method(attribute_setter_name);
+  } catch (...) {
+    throw "setter for attribute " + attribute_name + " not found in model";
+  }
+  // find arguments
+  torch::Tensor setter_params;
+  try {
+    setter_params = m_model.attr(attribute_name + "_params").toTensor();
+  } catch (...) {
+    throw "parameters to set attribute " + attribute_name + " not found in model";
+  }
+  // process inputs
+  std::vector<c10::IValue> setter_inputs = {};
+  for (int i = 0; i < setter_params.size(0); i++) {
+    int current_id = setter_params[i].item().toInt();
+    std::cout << "set " << i << ": " << current_id << std::endl;
+    switch (current_id) {
+      // bool case
+      case 0:
+      setter_inputs.push_back(c10::IValue(to_bool(attribute_args[i])));
+      break;
+      // int case
+      case 1:
+      setter_inputs.push_back(c10::IValue(to_int(attribute_args[i])));
+      break;
+      // float case
+      case 2:
+      setter_inputs.push_back(c10::IValue(to_float(attribute_args[i])));
+      break;
+      // str case
+      case 3:
+      setter_inputs.push_back(c10::IValue(attribute_args[i]));
+      break;
+      default:
+      throw "bad type id : " + std::to_string(current_id) + "at index " + std::to_string(i);
+      break;
+    }
+  }
+  try {
+    std::cout << "setter name : " << attribute_setter_name << std::endl;
+    std::cout << "setter input size : " << setter_inputs.size() << std::endl;
+    auto setter_out = m_model.get_method(attribute_setter_name)(setter_inputs);
+    std::cout << "hello?" << std::endl;
+    int setter_result = setter_out.toInt();
+    if (setter_result != 0) {
+      throw "setter returned -1";
+    }
+  } catch (...) {
+    throw "setter for " + attribute_name + " failed";
+  }
+}
+
 
 std::vector<int> Backend::get_method_params(std::string method) {
   auto am = get_available_methods();
