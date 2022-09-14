@@ -45,7 +45,7 @@ cmake ../src/ -DPUREDATA_INCLUDE_DIR="${PD_APP}/Contents/Resources/src" \
 # build
 make
 cp frontend/puredata/nn_tilde/nn~.pd_darwin ../
-cp frontend/puredata/nn_tilde/
+cp ../src/frontend/puredata/nn_tilde/nn~-help.pd ../
 cd ../
 
 # add stub helpfile for testing
