@@ -7,3 +7,4 @@ src/tests
 *DS_Store*
 src/docs
 *.ts
+*.pd_darwin
