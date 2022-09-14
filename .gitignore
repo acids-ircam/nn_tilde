@@ -8,3 +8,4 @@ src/tests
 src/docs
 *.ts
 *.pd_darwin
+nn~-help.pd
