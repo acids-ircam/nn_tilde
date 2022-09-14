@@ -1,0 +1,11 @@
+#N canvas 349 263 450 300 12;
+#X obj 52 117 nn~ /Users/megrimm/Desktop/percussion.ts encode;
+#X text 155 85 need absolute path to model;
+#X obj 82 215 dac~;
+#X obj 101 47 osc~ 110;
+#X obj 104 21 hsl 128 15 55 440 1 0 empty empty empty -2 -8 0 10 #fcfcfc
+#000000 #000000 0 1;
+#X obj 27 28 tgl 15 0 empty empty empty 17 7 0 10 #fcfcfc #000000 #000000
+0 1;
+#X text 46 25 Enable;
+#X connect 4 0 3 0;
