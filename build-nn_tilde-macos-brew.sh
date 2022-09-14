@@ -45,11 +45,12 @@ cmake ../src/ -DPUREDATA_INCLUDE_DIR="${PD_APP}/Contents/Resources/src" \
 # build
 make
 cp frontend/puredata/nn_tilde/nn~.pd_darwin ../
+cp frontend/puredata/nn_tilde/
 cd ../
 
 # add stub helpfile for testing
-if [ ! -e "nn~-help.pd" ] ; then
-    echo "#N canvas 538 97 450 300 12;" > "nn~-help.pd"
-    echo "#X obj 155 105 nn~;"         >> "nn~-help.pd"
-    echo ""                            >> "nn~-help.pd"
-fi
+# if [ ! -e "nn~-help.pd" ] ; then
+#    echo "#N canvas 538 97 450 300 12;" > "nn~-help.pd"
+#    echo "#X obj 155 105 nn~;"         >> "nn~-help.pd"
+#    echo ""                            >> "nn~-help.pd"
+# fi
