@@ -1,6 +1,7 @@
 from typing import Any, Callable, Optional, Sequence, Tuple, Union
 import torch
 import logging
+import inspect
 
 TYPE_HASH = {bool: 0, int: 1, float: 2, str: 3, torch.Tensor: 4}
 
@@ -104,6 +105,17 @@ class Module(torch.nn.Module):
             values = (values, )
 
         type_hash = tuple(TYPE_HASH[type(v)] for v in values)
+
+        if not hasattr(self, f"get_{attribute_name}"):
+            raise AttributeError(f"Getter for {attribute_name} not defined")
+
+        if not hasattr(self, f"set_{attribute_name}"):
+            raise AttributeError(f"Setter for {attribute_name} not defined")
+
+        signature = inspect.signature(getattr(self, f"get_{attribute_name}"))
+        if signature.return_annotation == inspect._empty:
+            raise TypeError(
+                f"Output type not defined for getter get_{attribute_name}")
 
         self.register_buffer(attribute_name, torch.Tensor(values))
         self.register_buffer(f"{attribute_name}_params",
