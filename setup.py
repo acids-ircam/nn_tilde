@@ -17,7 +17,7 @@ setuptools.setup(
     ]).strip().decode(),
     author="Antoine CAILLON",
     author_email="caillon@ircam.fr",
-    description="Set of tools to create nn_tilde compatible models",
+    description="Set of tools to create nn_tilde compatible models.",
     long_description=readme,
     long_description_content_type="text/markdown",
     packages=['nn_tilde'],
