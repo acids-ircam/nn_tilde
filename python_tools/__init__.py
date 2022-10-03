@@ -3,6 +3,7 @@ import torch
 import logging
 import inspect
 
+
 TYPE_HASH = {bool: 0, int: 1, float: 2, str: 3, torch.Tensor: 4}
 
 
@@ -40,6 +41,7 @@ class Module(torch.nn.Module):
             test_method: weither the method is tested during registration or not
             test_buffer_size: duration of the test buffer
         """
+        logging.info(f'Registering method "{method_name}"')
         self.register_buffer(
             f'{method_name}_params',
             torch.tensor([
@@ -117,7 +119,8 @@ class Module(torch.nn.Module):
             raise TypeError(
                 f"Output type not defined for getter get_{attribute_name}")
 
-        self.register_buffer(attribute_name, torch.Tensor(values))
+        # self.register_buffer(attribute_name, torch.Tensor(values))
+        self.__setattr__(attribute_name, values)
         self.register_buffer(f"{attribute_name}_params",
                              torch.Tensor(type_hash))
         self._attributes.append(attribute_name)
