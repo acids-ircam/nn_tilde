@@ -186,6 +186,12 @@ mc_nn_tilde::mc_nn_tilde(const atoms &args)
     m_buffer_size = power_ceil(m_buffer_size);
   }
 
+// Calling forward in a thread causes memory leak in windows.
+// See https://github.com/pytorch/pytorch/issues/24237
+#ifdef _WIN32
+  m_use_thread = false;
+#endif
+
   // CREATE INLETS, OUTLETS and BUFFERS
   m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim * get_batches());
   for (int i(0); i < m_in_dim; i++) {
