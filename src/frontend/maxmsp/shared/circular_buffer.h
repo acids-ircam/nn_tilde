@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <stdio.h>
 
 template <class in_type, class out_type> class circular_buffer {
 public:
@@ -8,7 +9,9 @@ public:
   bool empty();
   bool full();
   void put(in_type *input_array, int N);
+  void put_interleave(in_type* input_array, int channels, int N);
   void get(out_type *output_array, int N);
+  void get_interleave(out_type* output_array, int channels, int N);
   void reset();
 
 protected:
@@ -54,6 +57,22 @@ void circular_buffer<in_type, out_type>::put(in_type *input_array, int N) {
   }
 }
 
+// Put from an interleaved format
+template <class in_type, class out_type>
+void circular_buffer<in_type, out_type>::put_interleave(in_type* input_array, int channels, int N) {
+    if (!_max_size)
+        return;
+
+    while (N--) {
+        _buffer[_head] = out_type(*(input_array));
+        input_array += channels;
+        _head = (_head + 1) % _max_size;
+        if (_full)
+            _tail = (_tail + 1) % _max_size;
+        _full = _head == _tail;
+    }
+}
+
 template <class in_type, class out_type>
 void circular_buffer<in_type, out_type>::get(out_type *output_array, int N) {
   if (!_max_size)
@@ -69,6 +88,25 @@ void circular_buffer<in_type, out_type>::get(out_type *output_array, int N) {
     }
   }
 }
+
+template <class in_type, class out_type>
+void circular_buffer<in_type, out_type>::get_interleave(out_type* output_array, int channels, int N) {
+    if (!_max_size)
+        return;
+
+    while (N--) {
+        if (empty()) {
+            *(output_array++) = out_type();
+        }
+        else {
+            *(output_array++) = _buffer[_tail];
+            _tail = (_tail + 1) % _max_size;
+            _full = false;
+        }
+        output_array += channels;
+    }
+}
+
 
 template <class in_type, class out_type>
 void circular_buffer<in_type, out_type>::reset() {
