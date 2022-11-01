@@ -6,7 +6,7 @@
 
 Pre-built binaries are available in the [release section](https://github.com/acids-ircam/nn_tilde/releases) of this repo.
 
-- Download libtorch 1.10 (CPU) [here](https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.10.1.zip) and unzip it to a known directory
+- Download the latest libtorch (CPU) [here](https://pytorch.org/get-started/locally/) and unzip it to a known directory
 - Run the following commands:
 
 ```bash
@@ -22,7 +22,7 @@ make
 
 ### Windows
 
-- Download Libtorch 1.10 (CPU) and dependencies [here](https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-1.10.1%2Bcpu.zip) and unzip to a known directory.
+- Download Libtorch (CPU) and dependencies [here](https://pytorch.org/get-started/locally/) and unzip to a known directory.
 - Install Visual Studio and the C++ tools
 - Run the following commands:
 
