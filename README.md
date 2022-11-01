@@ -1,4 +1,4 @@
-![banner](assets/banner.png)
+![banner](https://github.com/acids-ircam/nn_tilde/raw/master/assets/banner.png)
 
 ## Build Instructions
 

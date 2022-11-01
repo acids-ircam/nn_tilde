@@ -166,7 +166,6 @@ std::vector<std::string> Backend::get_settable_attributes() {
 }
 
 std::vector<c10::IValue> Backend::get_attribute(std::string attribute_name) {
-  auto am = get_available_methods();
   std::string attribute_getter_name = "get_" + attribute_name;
   try {
     auto attribute_getter = m_model.get_method(attribute_getter_name);
@@ -235,7 +234,6 @@ std::string Backend::get_attribute_as_string(std::string attribute_name) {
 void Backend::set_attribute(std::string attribute_name, std::vector<std::string> attribute_args)
 {
   // find setter
-  auto am = get_available_methods();
   std::string attribute_setter_name = "set_" + attribute_name;
   try {
     auto attribute_setter = m_model.get_method(attribute_setter_name);
