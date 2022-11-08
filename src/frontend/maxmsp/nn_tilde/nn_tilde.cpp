@@ -82,13 +82,13 @@ public:
   message<> anything {this, "anything", "callback for attributes",
     MIN_FUNCTION {
       symbol attribute_name = args[0];
-      if (attribute_name == "get_settable_attributes") {
+      if (attribute_name == "get_attributes") {
         for (std::string attr : settable_attributes) {
           cout << attr << endl;
         }
         return {};
       } 
-      else if (attribute_name == "get_available_methods") 
+      else if (attribute_name == "get_methods") 
       {
         for (std::string method : m_model.get_available_methods()) 
           cout << method << endl;

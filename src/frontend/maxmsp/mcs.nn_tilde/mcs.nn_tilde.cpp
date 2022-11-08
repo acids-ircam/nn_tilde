@@ -99,13 +99,13 @@ public:
   message<> anything {this, "anything", "callback for attributes",
     MIN_FUNCTION {
       symbol attribute_name = args[0];
-      if (attribute_name == "get_settable_attributes") {
-        for (std::string attr : settable_attributes) {
+      if (attribute_name == "get_attributes") {
+        for (std::string attr : settable_attributes) {
           cout << attr << endl;
         }
         return {};
       } 
-      else if (attribute_name == "get_available_methods") 
+      else if (attribute_name == "get_methods") 
       {
         for (std::string method : m_model.get_available_methods()) 
           cout << method << endl;
@@ -372,10 +372,16 @@ void mc_bnn_tilde::perform(audio_bundle input, audio_bundle output) {
   // COPY CIRCULAR BUFFER TO OUTPUT
   for (int b(0); b < m_outlets.size(); b++) {
       for (int d(0); d < m_out_dim; d++) {
-        auto out = output.samples(d * m_outlets.size() + b);
+        auto out = output.samples(b * m_out_dim + d);
         m_out_buffer[b * m_out_dim + d].get(out, vec_size);
       }
   }
+  // for (int b(0); b < m_outlets.size(); b++) {
+  //     for (int d(0); d < m_out_dim; d++) {
+  //       auto out = output.samples(b * n_batches + d);
+  //       m_out_buffer[d * n_batches + b].get(out, vec_size);
+  //     }
+  // }
 }
 
 
