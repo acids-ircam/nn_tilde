@@ -96,12 +96,12 @@ public:
   message<> anything {this, "anything", "callback for attributes",
     MIN_FUNCTION {
       symbol attribute_name = args[0];
-      if (attribute_name == "get_settable_attributes") {
+      if (attribute_name == "get_attributes") {
         for (std::string attr : settable_attributes)
           cout << attr << endl;
         return {};
       } 
-      else if (attribute_name == "get_available_methods") 
+      else if (attribute_name == "get_methods") 
       {
         for (std::string method : m_model.get_available_methods()) 
           cout << method << endl;
@@ -237,6 +237,12 @@ mc_nn_tilde::mc_nn_tilde(const atoms &args)
   } else {
     m_buffer_size = power_ceil(m_buffer_size);
   }
+
+// Calling forward in a thread causes memory leak in windows.
+// See https://github.com/pytorch/pytorch/issues/24237
+#ifdef _WIN32
+  m_use_thread = false;
+#endif
 
   // CREATE INLETS, OUTLETS and BUFFERS
   m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim * get_batches());
@@ -374,9 +380,19 @@ void mc_nn_tilde::perform(audio_bundle input, audio_bundle output) {
   }
 
   // COPY CIRCULAR BUFFER TO OUTPUT
-  for (int c(0); c < output.channel_count(); c++) {
-    auto out = output.samples(c);
-    m_out_buffer[c].get(out, vec_size);
+  // for (int c(0); c < output.channel_count(); c++) {
+  //   auto out = output.samples(c);
+  //   auto current_batch = c % get_batches();
+  //   m_out_buffer[c].get(out, vec_size);
+  // }
+  std::cout << output.channel_count() << ";" << m_out_dim << std::endl;
+  std::cout << m_outlets.size() << ";" << get_batches() << std::endl;
+  for (int b(0); b < get_batches(); b++) {
+    for (int d(0); d < m_outlets.size(); d++) {
+        std::cout << b << ";" << d << ";" << b * m_outlets.size() + d << std::endl;
+        auto out = output.samples(d * get_batches() + b);
+        m_out_buffer[b * m_outlets.size() + d].get(out, vec_size);
+      }
   }
 }
 
