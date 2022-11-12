@@ -1,6 +1,7 @@
 #include "../../../backend/backend.h"
 #include "c74_min.h"
 #include "../shared/circular_buffer.h"
+#include "../shared/max_logger.h"
 #include <string>
 #include <thread>
 #include <vector>
@@ -22,10 +23,14 @@ unsigned power_ceil(unsigned x) {
 }
 
 class nn : public object<nn>, public vector_operator<> {
+private:
+  MaxLogger<nn> logger;
+
 public:
   MIN_DESCRIPTION{"Interface for deep learning models"};
   MIN_TAGS{"audio, deep learning, ai"};
   MIN_AUTHOR{"Antoine Caillon & Axel Chemla--Romeu-Santos"};
+  MIN_RELATED{ "mc.nn~, mcs.nn~" };
 
   nn(const atoms &args = {});
   ~nn();
@@ -52,10 +57,8 @@ public:
   bool m_use_thread;
   std::unique_ptr<std::thread> m_compute_thread;
   void operator()(audio_bundle input, audio_bundle output);
-  void buffered_perform(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
-
-  // using vector_operator::operator();
+  void buffered_perform(audio_bundle input, audio_bundle output);
 
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
@@ -67,8 +70,16 @@ public:
       "Size of the internal buffer (can't be lower than the method's ratio)."};
 
   // ENABLE / DISABLE ATTRIBUTE
-  attribute<bool> enable{this, "enable", true,
+  attribute<bool> enable { this, "enable", true,
                          description{"Enable / disable tensor computation"}};
+  attribute<symbol> device { this, "device", "cpu", 
+                             description{"Device (cpu/cuda/mps)"}, range{"cpu", "cuda", "mps"},
+                             setter { MIN_FUNCTION {
+                              std::cout << "device arguments : " << args[0] << std::endl;
+                              this->m_model.set_device(static_cast<std::string>(args[0]));
+                              return args;
+                             }}
+  };
 
   // BOOT STAMP
   message<> maxclass_setup{
@@ -83,7 +94,7 @@ public:
     MIN_FUNCTION {
       symbol attribute_name = args[0];
       if (attribute_name == "get_attributes") {
-        for (std::string attr : settable_attributes) {
+        for (std::string attr : settable_attributes) {
           cout << attr << endl;
         }
         return {};
@@ -150,11 +161,12 @@ void model_perform(nn *nn_instance) {
 nn::nn(const atoms &args)
     : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
-      m_use_thread(true) {
+      m_use_thread(true), logger(this) {
 
-  m_model = Backend();
+  m_model.set_logger(&this->logger);
 
-
+  std::cout << "COUCOUCOUCOU" << std::endl;
+  
   // CHECK ARGUMENTS
   if (!args.size()) {
     return;
@@ -243,6 +255,7 @@ nn::nn(const atoms &args)
     m_out_buffer[i].initialize(m_buffer_size);
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
+
 }
 
 nn::~nn() {

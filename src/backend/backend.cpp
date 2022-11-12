@@ -1,19 +1,17 @@
 #include "backend.h"
 #include "parsing_utils.h"
+#include "logger.h"
 #include <algorithm>
 #include <iostream>
 #include <stdlib.h>
 
-#define CUDA torch::kCUDA
 #define CPU torch::kCPU
+#define CUDA torch::kCUDA
+#define MPS torch::kMPS
 
-Backend::Backend()
-    : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+Backend::Backend(): m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+  // Check device
   at::init_num_threads();
-  if (m_cuda_available)
-    std::cout << "using cuda" << std::endl;
-  else
-    std::cout << "using cpu" << std::endl;
 }
 
 void Backend::perform(std::vector<float *> in_buffer,
@@ -41,9 +39,10 @@ void Backend::perform(std::vector<float *> in_buffer,
   auto cat_tensor_in = torch::cat(tensor_in, 1);
   cat_tensor_in = cat_tensor_in.reshape({n_batches, in_dim, -1, in_ratio});
   cat_tensor_in = cat_tensor_in.select(-1, -1);
-
-  if (m_cuda_available)
+  if (this->device == "cuda")
     cat_tensor_in = cat_tensor_in.to(CUDA);
+  if (this->device == "mps")
+    cat_tensor_in = cat_tensor_in.to(MPS);
 
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
@@ -86,16 +85,50 @@ int Backend::load(std::string path) {
   try {
     m_model = torch::jit::load(path);
     m_model.eval();
-    if (m_cuda_available) {
-      std::cout << "sending model to gpu" << std::endl;
-      m_model.to(CUDA);
-    }
+
     m_loaded = 1;
     return 0;
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
     return 1;
   }
+}
+
+void Backend::set_logger(Logger *logger) {
+  this->logger = logger;
+}
+
+void Backend::set_device(std::string device) {
+  if (device=="cuda") {
+    if (!torch::cuda::is_available()) {
+      this->error("CUDA not available. Set device to CPU.");
+      this->device = "cpu";
+    } else {
+      this->device = "cuda";
+    }
+    if (m_loaded)
+      m_model.to(CUDA);
+  } else if (device=="mps") {
+    // check if MPS is available?
+    this->device = device;
+    if (m_loaded)
+      m_model.to(MPS);
+  } else if (device == "cpu") {
+    this->device = device;
+    if (m_loaded)
+      m_model.to(CPU);
+  }
+  std::cout << "set device to : " << this->device << std::endl;
+}
+
+void Backend::post(std::string message) {
+  if (this->logger) 
+    this->logger->post(message);
+}
+
+void Backend::error(std::string message) {
+  if (this->logger)
+    this->logger->error(message);
 }
 
 bool Backend::has_method(std::string method_name) {
