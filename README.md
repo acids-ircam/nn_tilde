@@ -14,7 +14,7 @@ git clone https://github.com/acids-ircam/nn_tilde --recursive
 cd nn_tilde
 mkdir build
 cd build
-cmake ../src/ -DCMAKE_PREFIX_PATH=/path/to/libtorch -DCMAKE_BUILD_TYPE=Release
+cmake ../src/ -DCMAKE_PREFIX_PATH=/path/to/libtorch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR="/Applications/Pd-0.53-0.app/Contents/Resources/src"
 make
 ```
 

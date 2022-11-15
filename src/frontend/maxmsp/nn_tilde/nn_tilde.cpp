@@ -41,6 +41,7 @@ public:
 
   // BACKEND RELATED MEMBERS
   Backend m_model;
+  std::string m_model_path;
   std::string m_method;
   std::vector<std::string> settable_attributes;
   bool has_settable_attribute(std::string attribute);
@@ -78,7 +79,8 @@ public:
                               std::cout << "device arguments : " << args[0] << std::endl;
                               this->m_model.set_device(static_cast<std::string>(args[0]));
                               return args;
-                             }}
+                             }
+                           }
   };
 
   // BOOT STAMP
@@ -140,6 +142,10 @@ public:
           cerr << "model does not have attribute " << attribute_name << endl;
         }
       }
+      else if (attribute_name == "reload")
+      {
+        m_model.reload();
+      }
       else
       {
         cerr << "no corresponding method for " << attribute_name << endl;
@@ -161,12 +167,8 @@ void model_perform(nn *nn_instance) {
 nn::nn(const atoms &args)
     : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
-      m_use_thread(true), logger(this) {
+      m_use_thread(true), logger(this), m_model(&logger) {
 
-  m_model.set_logger(&this->logger);
-
-  std::cout << "COUCOUCOUCOU" << std::endl;
-  
   // CHECK ARGUMENTS
   if (!args.size()) {
     return;

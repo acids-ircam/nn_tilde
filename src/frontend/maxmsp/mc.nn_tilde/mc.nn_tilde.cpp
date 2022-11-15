@@ -1,6 +1,7 @@
 #include "../../../backend/backend.h"
 #include "c74_min.h"
 #include "../shared/circular_buffer.h"
+#include "../shared/max_logger.h"
 #include <string>
 #include <thread>
 #include <vector>
@@ -25,6 +26,8 @@ long simplemc_multichanneloutputs(c74::max::t_object* x, long index, long count)
 long simplemc_inputchanged(c74::max::t_object* x, long index, long count);
 
 class mc_nn_tilde : public object<mc_nn_tilde>, public mc_operator<> {
+private:
+  MaxLogger<mc_nn_tilde> logger;
 public:
   MIN_DESCRIPTION{"Multi-channel interface for deep learning models"};
   MIN_TAGS{"audio, deep learning, ai"};
@@ -77,6 +80,16 @@ public:
   // ENABLE / DISABLE ATTRIBUTE
   attribute<bool> enable{this, "enable", true,
                          description{"Enable / disable tensor computation"}};
+  attribute<symbol> device { this, "device", "cpu", 
+                            description{"Device (cpu/cuda/mps)"}, range{"cpu", "cuda", "mps"},
+                            setter { MIN_FUNCTION {
+                            std::cout << "device arguments : " << args[0] << std::endl;
+                            this->m_model.set_device(static_cast<std::string>(args[0]));
+                            return args;
+                            }
+                          }
+  };
+
 
   // BOOT STAMP
   message<> maxclass_setup{
@@ -142,6 +155,10 @@ public:
           cerr << "model does not have attribute " << attribute_name << endl;
         }
       }
+      else if (attribute_name == "reload")
+      {
+        m_model.reload();
+      }
       else
       {
         cerr << "no corresponding method for " << attribute_name << endl;
@@ -171,7 +188,7 @@ void model_perform(mc_nn_tilde *mc_nn_instance) {
 mc_nn_tilde::mc_nn_tilde(const atoms &args)
     : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
-      m_use_thread(true) {
+      m_use_thread(true), logger(this), m_model(&logger) {
 
   // CHECK ARGUMENTS
   if (!args.size()) {
@@ -385,11 +402,8 @@ void mc_nn_tilde::perform(audio_bundle input, audio_bundle output) {
   //   auto current_batch = c % get_batches();
   //   m_out_buffer[c].get(out, vec_size);
   // }
-  std::cout << output.channel_count() << ";" << m_out_dim << std::endl;
-  std::cout << m_outlets.size() << ";" << get_batches() << std::endl;
   for (int b(0); b < get_batches(); b++) {
     for (int d(0); d < m_outlets.size(); d++) {
-        std::cout << b << ";" << d << ";" << b * m_outlets.size() + d << std::endl;
         auto out = output.samples(d * get_batches() + b);
         m_out_buffer[b * m_outlets.size() + d].get(out, vec_size);
       }

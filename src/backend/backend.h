@@ -8,17 +8,16 @@
 class Backend {
 private:
   torch::jit::script::Module m_model;
+  std::string model_path;
   std::string device = "cpu";
-  Logger *logger = NULL;
+  Logger *logger;
   int m_loaded;
 
 public:
-  Backend();
+  Backend(Logger *logger = NULL); 
+
   void perform(std::vector<float *> in_buffer, std::vector<float *> out_buffer,
                int n_vec, std::string method, int n_batches);
-  void post(std::string message);
-  void error(std::string message);
-  void set_logger(Logger *logger);
   void set_device(std::string device);  
 
   bool has_method(std::string method_name);
@@ -35,6 +34,7 @@ public:
   std::vector<int> get_method_params(std::string method);
   int get_higher_ratio();
   int load(std::string path);
+  void reload();
   bool is_loaded();
   bool m_cuda_available;
   torch::jit::script::Module get_model() { return m_model; }

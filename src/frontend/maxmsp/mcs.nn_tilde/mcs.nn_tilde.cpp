@@ -1,6 +1,7 @@
 #include "../../../backend/backend.h"
 #include "c74_min.h"
 #include "../shared/circular_buffer.h"
+#include "../shared/max_logger.h"
 #include <string>
 #include <thread>
 #include <vector>
@@ -25,6 +26,8 @@ long simplemc_multichanneloutputs(c74::max::t_object* x, long index, long count)
 long simplemc_inputchanged(c74::max::t_object* x, long index, long count);
 
 class mc_bnn_tilde : public object<mc_bnn_tilde>, public mc_operator<> {
+private:
+  MaxLogger<mc_bnn_tilde> logger;
 public:
   MIN_DESCRIPTION{"Multi-channel interface for deep learning models (batch version)"};
   MIN_TAGS{"audio, deep learning, ai"};
@@ -32,7 +35,6 @@ public:
 
   mc_bnn_tilde(const atoms &args = {});
   ~mc_bnn_tilde();
-
 
   // INLETS OUTLETS
   std::vector<std::unique_ptr<inlet<>>> m_inlets;
@@ -80,6 +82,16 @@ public:
   // ENABLE / DISABLE ATTRIBUTE
   attribute<bool> enable{this, "enable", true,
                          description{"Enable / disable tensor computation"}};
+
+  attribute<symbol> device { this, "device", "cpu", 
+                             description{"Device (cpu/cuda/mps)"}, range{"cpu", "cuda", "mps"},
+                             setter { MIN_FUNCTION {
+                              std::cout << "device arguments : " << args[0] << std::endl;
+                              this->m_model.set_device(static_cast<std::string>(args[0]));
+                              return args;
+                             }
+                           }
+  };
 
   // BOOT STAMP
   message<> maxclass_setup{
@@ -146,6 +158,10 @@ public:
           cerr << "model does not have attribute " << attribute_name << endl;
         }
       }
+      else if (attribute_name == "reload")
+      {
+        m_model.reload();
+      }
       else
       {
         cerr << "no corresponding method for " << attribute_name << endl;
@@ -175,7 +191,7 @@ void model_perform(mc_bnn_tilde *mc_nn_instance) {
 mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
     : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
       m_out_ratio(1), m_buffer_size(4096), m_batches(1), m_method("forward"),
-      m_use_thread(true) {
+      m_use_thread(true), logger(this), m_model(&logger) {
 
   // CHECK ARGUMENTS
   if (!args.size()) {

@@ -1,6 +1,7 @@
 #include "../../../backend/backend.h"
 #include "../../maxmsp/shared/circular_buffer.h"
 #include "m_pd.h"
+#include "../../../backend/logger.h"
 #include "pthread.h"
 #include <memory>
 #include <string>
@@ -11,6 +12,27 @@ static t_class *nn_tilde_class;
 #ifndef VERSION
 #define VERSION "UNDEFINED"
 #endif
+
+template <typename T> class PdLogger: public Logger {
+  private:
+    T *obj;
+
+  public:
+    PdLogger(T *obj) {
+      this->obj = obj;
+    }
+    void post(std::string message) {
+      logpost(obj, 2, message.data());
+    }
+    void warning(std::string message) {
+      logpost(obj, 1, message.data());
+    }
+    void error(std::string message) {
+      post(message);
+      // pd_error(obj, message)
+    }
+};
+
 
 unsigned power_ceil(unsigned x) {
   if (x <= 1)
@@ -30,6 +52,7 @@ typedef struct _nn_tilde {
   int m_enabled;
   // BACKEND RELATED MEMBERS
   Backend m_model;
+  // PdLogger<nn_tilde_class> logger;
   t_symbol *m_method, *m_path;
   std::unique_ptr<std::thread> m_compute_thread;
 
@@ -131,14 +154,15 @@ void nn_tilde_free(t_nn_tilde *x) {
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   t_nn_tilde *x = (t_nn_tilde *)pd_new(nn_tilde_class);
 
-  x->m_model = Backend();
+  PdLogger<t_nn_tilde> logger(x);
+  x->m_model = Backend(&logger);
   x->m_head = 0;
   x->m_compute_thread = nullptr;
   x->m_in_dim = 1;
   x->m_in_ratio = 1;
   x->m_out_dim = 1;
   x->m_out_ratio = 1;
-  x->m_buffer_size = 4096;
+  x->m_buffer_size = 8192;
   x->m_method = gensym("forward");
   x->m_enabled = 1;
   x->m_use_thread = true;
@@ -174,7 +198,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     post("error during loading");
     return (void *)x;
   } else {
-    // cout << "successfully loaded model" << endl;
+    post("successfully loaded model");
   }
 
   // GET MODEL'S METHOD PARAMETERS

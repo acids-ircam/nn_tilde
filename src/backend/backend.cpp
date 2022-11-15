@@ -9,9 +9,10 @@
 #define CUDA torch::kCUDA
 #define MPS torch::kMPS
 
-Backend::Backend(): m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+Backend::Backend(Logger *logger): m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
   // Check device
   at::init_num_threads();
+  this->logger = logger;
 }
 
 void Backend::perform(std::vector<float *> in_buffer,
@@ -53,6 +54,7 @@ void Backend::perform(std::vector<float *> in_buffer,
     tensor_out = tensor_out.repeat_interleave(out_ratio).reshape(
         {n_batches, out_dim, -1});
   } catch (const std::exception &e) {
+    logger->error(e.what());
     std::cerr << e.what() << '\n';
     return;
   }
@@ -61,12 +63,13 @@ void Backend::perform(std::vector<float *> in_buffer,
 
   // CHECKS ON TENSOR SHAPE
   if (out_batches * out_channels != out_buffer.size()) {
-    std::cout << "bad out_buffer size, expected " << out_batches * out_channels
-              << " buffers, got " << out_buffer.size() << "!\n";
+    logger->error("bad out_buffer size, expected " + std::to_string(out_batches * out_channels) + 
+              " buffers, got " + std::to_string(out_buffer.size()));
     return;
   }
 
   if (out_n_vec != n_vec) {
+    logger->error("model output size is not consistent, expected " + std::to_string(n_vec) + " samples, got " + std::to_string(out_n_vec));
     std::cout << "model output size is not consistent, expected " << n_vec
               << " samples, got " << out_n_vec << "!\n";
     return;
@@ -82,26 +85,29 @@ void Backend::perform(std::vector<float *> in_buffer,
 }
 
 int Backend::load(std::string path) {
+  logger->post("loading model " + path + "...");
   try {
     m_model = torch::jit::load(path);
+    model_path = path;
     m_model.eval();
 
     m_loaded = 1;
     return 0;
   } catch (const std::exception &e) {
+    logger->error(e.what());
     std::cerr << e.what() << '\n';
     return 1;
   }
 }
 
-void Backend::set_logger(Logger *logger) {
-  this->logger = logger;
+void Backend::reload() {
+  load(model_path);
 }
 
 void Backend::set_device(std::string device) {
   if (device=="cuda") {
     if (!torch::cuda::is_available()) {
-      this->error("CUDA not available. Set device to CPU.");
+      logger->warning("CUDA not available. Set device to CPU.");
       this->device = "cpu";
     } else {
       this->device = "cuda";
@@ -118,17 +124,6 @@ void Backend::set_device(std::string device) {
     if (m_loaded)
       m_model.to(CPU);
   }
-  std::cout << "set device to : " << this->device << std::endl;
-}
-
-void Backend::post(std::string message) {
-  if (this->logger) 
-    this->logger->post(message);
-}
-
-void Backend::error(std::string message) {
-  if (this->logger)
-    this->logger->error(message);
 }
 
 bool Backend::has_method(std::string method_name) {
@@ -203,6 +198,7 @@ std::vector<c10::IValue> Backend::get_attribute(std::string attribute_name) {
   try {
     auto attribute_getter = m_model.get_method(attribute_getter_name);
   } catch (...) {
+    logger->error("getter for attribute " + attribute_name + " not found in model");
     throw "getter for attribute " + attribute_name + " not found in model";
   }
   std::vector<c10::IValue> getter_inputs = {}, attributes;
@@ -226,6 +222,7 @@ std::string Backend::get_attribute_as_string(std::string attribute_name) {
   try {
     setter_params = m_model.attr(attribute_name + "_params").toTensor();
   } catch (...) {
+    logger->error("parameters to set attribute " + attribute_name + " not found in model");
     throw "parameters to set attribute " + attribute_name + " not found in model";
   } 
   std::string current_attr = "";
@@ -254,6 +251,7 @@ std::string Backend::get_attribute_as_string(std::string attribute_name) {
         break;
       }
       default: {
+        logger->error("bad type id : " + std::to_string(current_id) + "at index " + std::to_string(i));
         throw "bad type id : " + std::to_string(current_id) + "at index " + std::to_string(i);
         break;
       }
@@ -271,6 +269,7 @@ void Backend::set_attribute(std::string attribute_name, std::vector<std::string>
   try {
     auto attribute_setter = m_model.get_method(attribute_setter_name);
   } catch (...) {
+    logger->error("setter for attribute " + attribute_name + " not found in model");
     throw "setter for attribute " + attribute_name + " not found in model";
   }
   // find arguments
@@ -278,6 +277,7 @@ void Backend::set_attribute(std::string attribute_name, std::vector<std::string>
   try {
     setter_params = m_model.attr(attribute_name + "_params").toTensor();
   } catch (...) {
+    logger->error("parameters to set attribute " + attribute_name + " not found in model");
     throw "parameters to set attribute " + attribute_name + " not found in model";
   }
   // process inputs
@@ -302,6 +302,7 @@ void Backend::set_attribute(std::string attribute_name, std::vector<std::string>
       setter_inputs.push_back(c10::IValue(attribute_args[i]));
       break;
       default:
+      logger->error("bad type id : " + std::to_string(current_id) + "at index " + std::to_string(i));
       throw "bad type id : " + std::to_string(current_id) + "at index " + std::to_string(i);
       break;
     }
@@ -310,9 +311,11 @@ void Backend::set_attribute(std::string attribute_name, std::vector<std::string>
     auto setter_out = m_model.get_method(attribute_setter_name)(setter_inputs);
     int setter_result = setter_out.toInt();
     if (setter_result != 0) {
+      logger->error("setter failed");
       throw "setter returned -1";
     }
   } catch (...) {
+    logger->error("setter for " + attribute_name + " failed");
     throw "setter for " + attribute_name + " failed";
   }
 }
