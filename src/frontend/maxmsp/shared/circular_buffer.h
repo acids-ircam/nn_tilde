@@ -89,6 +89,7 @@ void circular_buffer<in_type, out_type>::get(out_type *output_array, int N) {
   }
 }
 
+// get to an interleaved format
 template <class in_type, class out_type>
 void circular_buffer<in_type, out_type>::get_interleave(out_type* output_array, int channels, int N) {
     if (!_max_size)
@@ -99,7 +100,8 @@ void circular_buffer<in_type, out_type>::get_interleave(out_type* output_array, 
             *(output_array++) = out_type();
         }
         else {
-            *(output_array++) = _buffer[_tail];
+            *(output_array) = _buffer[_tail];
+
             _tail = (_tail + 1) % _max_size;
             _full = false;
         }
