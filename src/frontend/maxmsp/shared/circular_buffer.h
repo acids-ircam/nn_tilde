@@ -1,6 +1,5 @@
 #pragma once
 #include <memory>
-#include <stdio.h>
 
 template <class in_type, class out_type> class circular_buffer {
 public:
