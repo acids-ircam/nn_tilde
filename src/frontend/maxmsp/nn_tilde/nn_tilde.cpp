@@ -83,9 +83,8 @@ public:
     MIN_FUNCTION {
       symbol attribute_name = args[0];
       if (attribute_name == "get_attributes") {
-        for (std::string attr : settable_attributes) {
+        for (std::string attr : settable_attributes)
           cout << attr << endl;
-        }
         return {};
       } 
       else if (attribute_name == "get_methods") 
