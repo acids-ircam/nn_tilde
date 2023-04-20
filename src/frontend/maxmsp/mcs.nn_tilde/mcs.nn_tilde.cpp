@@ -161,10 +161,10 @@ int mc_bnn_tilde::get_batches() {
 void model_perform(mc_bnn_tilde *mc_nn_instance) {
   // set attributes
   std::vector<std::string> attribute_name_and_args;
-	while (nn_instance->set_attribute_queue.try_dequeue(attribute_name_and_args)) {
+	while (mc_nn_instance->set_attribute_queue.try_dequeue(attribute_name_and_args)) {
     std::vector<std::string> attribute_args(attribute_name_and_args.begin() + 1, attribute_name_and_args.end());
 		try {
-      nn_instance->m_model.set_attribute(attribute_name_and_args[0], attribute_args);
+      mc_nn_instance->m_model.set_attribute(attribute_name_and_args[0], attribute_args);
     } catch (std::string message) {
       std::cerr << message << std::endl;
     }
