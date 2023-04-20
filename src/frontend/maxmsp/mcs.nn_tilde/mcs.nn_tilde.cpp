@@ -49,6 +49,7 @@ public:
   bool has_settable_attribute(std::string attribute);
   c74::min::path m_path;
   int m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio, m_batches;
+	fifo<std::vector<std::string>>	set_attribute_queue { 100 };
 
   // BUFFER RELATED MEMBERS
   int m_buffer_size;
@@ -134,14 +135,11 @@ public:
         attribute_name = args[1];
         std::vector<std::string> attribute_args;
         if (has_settable_attribute(attribute_name)) {
-          for (int i = 2; i < args.size(); i++) {
+          for (int i = 1; i < args.size(); i++) {
             attribute_args.push_back(args[i]);
           }
-          try {
-            m_model.set_attribute(attribute_name, attribute_args);
-          } catch (std::string message) {
-            cerr << message << endl;
-          }
+          
+          set_attribute_queue.try_enqueue(attribute_args);
         } else {
           cerr << "model does not have attribute " << attribute_name << endl;
         }
@@ -161,6 +159,17 @@ int mc_bnn_tilde::get_batches() {
 }
 
 void model_perform(mc_bnn_tilde *mc_nn_instance) {
+  // set attributes
+  std::vector<std::string> attribute_name_and_args;
+	while (nn_instance->set_attribute_queue.try_dequeue(attribute_name_and_args)) {
+    std::vector<std::string> attribute_args(attribute_name_and_args.begin() + 1, attribute_name_and_args.end());
+		try {
+      nn_instance->m_model.set_attribute(attribute_name_and_args[0], attribute_args);
+    } catch (std::string message) {
+      std::cerr << message << std::endl;
+    }
+	}
+
   std::vector<float *> in_model, out_model;
   auto num_batches = mc_nn_instance->get_batches();
   for (int c(0); c < mc_nn_instance->m_in_dim * num_batches; c++)
