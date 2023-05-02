@@ -1,6 +1,6 @@
 #include "../../../backend/backend.h"
-#include "c74_min.h"
 #include "../shared/circular_buffer.h"
+#include "c74_min.h"
 #include <string>
 #include <thread>
 #include <vector>
@@ -74,68 +74,65 @@ public:
   message<> maxclass_setup{
       this, "maxclass_setup",
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
-        cout << "nn~ - " << VERSION << " - 2022 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
+        cout << "nn~ " << VERSION << "- torch " << TORCH_VERSION_MAJOR << "."
+             << TORCH_VERSION_MINOR << "." << TORCH_VERSION_PATCH
+             << " - 2023 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
         cout << "visit https://caillonantoine.github.io" << endl;
         return {};
       }};
 
-  message<> anything {this, "anything", "callback for attributes",
-    MIN_FUNCTION {
-      symbol attribute_name = args[0];
-      if (attribute_name == "get_attributes") {
-        for (std::string attr : settable_attributes) {
-          cout << attr << endl;
-        }
-        return {};
-      } 
-      else if (attribute_name == "get_methods") 
-      {
-        for (std::string method : m_model.get_available_methods()) 
-          cout << method << endl;
-        return {};
-      } 
-      else if (attribute_name == "get") 
-      {
-        if (args.size() < 2) {
-          cerr << "get must be given an attribute name" << endl;
-          return {};
-        }
-        attribute_name = args[1];
-        if (m_model.has_settable_attribute(attribute_name)) {
-          cout << attribute_name << ": " << m_model.get_attribute_as_string(attribute_name) << endl;
-        } else {
-          cerr << "no attribute " << attribute_name << " found in model" << endl;
-        }
-        return {};
-      }
-      else if (attribute_name == "set") 
-      {
-        if (args.size() < 3) {
-          cerr << "set must be given an attribute name and corresponding arguments" << endl;
-          return {};
-        }
-        attribute_name = args[1];
-        std::vector<std::string> attribute_args;
-        if (has_settable_attribute(attribute_name)) {
-          for (int i = 2; i < args.size(); i++) {
-            attribute_args.push_back(args[i]);
-          }
-          try {
-            m_model.set_attribute(attribute_name, attribute_args);
-          } catch (std::string message) {
-            cerr << message << endl;
-          }
-        } else {
-          cerr << "model does not have attribute " << attribute_name << endl;
-        }
-      }
-      else
-      {
-        cerr << "no corresponding method for " << attribute_name << endl;
-      }
+  message<> anything{this, "anything", "callback for attributes",
+                     MIN_FUNCTION{symbol attribute_name = args[0];
+  if (attribute_name == "get_attributes") {
+    for (std::string attr : settable_attributes)
+       { cout << attr << endl; }
+    return {};
+  } else if (attribute_name == "get_methods") {
+    for (std::string method : m_model.get_available_methods())
+      cout << method << endl;
+    return {};
+  } else if (attribute_name == "get") {
+    if (args.size() < 2) {
+      cerr << "get must be given an attribute name" << endl;
       return {};
-     }};
-};
+    }
+    attribute_name = args[1];
+    if (m_model.has_settable_attribute(attribute_name)) {
+      cout << attribute_name << ": "
+           << m_model.get_attribute_as_string(attribute_name) << endl;
+    } else {
+      cerr << "no attribute " << attribute_name << " found in model" << endl;
+    }
+    return {};
+  } else if (attribute_name == "set") {
+    if (args.size() < 3) {
+      cerr << "set must be given an attribute name and corresponding arguments"
+           << endl;
+      return {};
+    }
+    attribute_name = args[1];
+    std::vector<std::string> attribute_args;
+    if (has_settable_attribute(attribute_name)) {
+      for (int i = 2; i < args.size(); i++) {
+        attribute_args.push_back(args[i]);
+      }
+      try {
+        m_model.set_attribute(attribute_name, attribute_args);
+      } catch (std::string message) {
+        cerr << message << endl;
+      }
+    } else {
+      cerr << "model does not have attribute " << attribute_name << endl;
+    }
+  } else {
+    cerr << "no corresponding method for " << attribute_name << endl;
+  }
+  return {};
+}
+}
+;
+}
+;
 
 void model_perform(nn *nn_instance) {
   std::vector<float *> in_model, out_model;
@@ -153,7 +150,6 @@ nn::nn(const atoms &args)
       m_use_thread(true) {
 
   m_model = Backend();
-
 
   // CHECK ARGUMENTS
   if (!args.size()) {
@@ -187,7 +183,8 @@ nn::nn(const atoms &args)
   // GET MODEL'S SETTABLE ATTRIBUTES
   try {
     settable_attributes = m_model.get_settable_attributes();
-  } catch (...) { }
+  } catch (...) {
+  }
 
   if (!params.size()) {
     error("method " + m_method + " not found !");
@@ -220,12 +217,15 @@ nn::nn(const atoms &args)
   for (int i(0); i < m_in_dim; i++) {
     std::string input_label = "";
     try {
-      input_label = m_model.get_model().attr(m_method + "_input_labels").toList().get(i).toStringRef();
+      input_label = m_model.get_model()
+                        .attr(m_method + "_input_labels")
+                        .toList()
+                        .get(i)
+                        .toStringRef();
     } catch (...) {
       input_label = "(signal) model input " + std::to_string(i);
     }
-    m_inlets.push_back(std::make_unique<inlet<>>(
-        this, input_label, "signal"));
+    m_inlets.push_back(std::make_unique<inlet<>>(this, input_label, "signal"));
     m_in_buffer[i].initialize(m_buffer_size);
     m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
@@ -234,12 +234,16 @@ nn::nn(const atoms &args)
   for (int i(0); i < m_out_dim; i++) {
     std::string output_label = "";
     try {
-      output_label = m_model.get_model().attr(m_method + "_output_labels").toList().get(i).toStringRef();
+      output_label = m_model.get_model()
+                         .attr(m_method + "_output_labels")
+                         .toList()
+                         .get(i)
+                         .toStringRef();
     } catch (...) {
       output_label = "(signal) model output " + std::to_string(i);
     }
-    m_outlets.push_back(std::make_unique<outlet<>>(
-        this, output_label, "signal"));
+    m_outlets.push_back(
+        std::make_unique<outlet<>>(this, output_label, "signal"));
     m_out_buffer[i].initialize(m_buffer_size);
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
@@ -285,7 +289,7 @@ void nn::operator()(audio_bundle input, audio_bundle output) {
     enable = false;
     fill_with_zero(output);
     return;
-  } 
+  }
 
   perform(input, output);
 }
@@ -326,6 +330,5 @@ void nn::perform(audio_bundle input, audio_bundle output) {
     m_out_buffer[c].get(out, vec_size);
   }
 }
-
 
 MIN_EXTERNAL(nn);
