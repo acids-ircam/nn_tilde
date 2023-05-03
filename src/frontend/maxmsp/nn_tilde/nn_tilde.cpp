@@ -119,7 +119,7 @@ nn::nn(const atoms &args)
 
   // TRY TO LOAD MODEL
   std::cout << "m_path: " << std::string(m_path) << std::endl;
-  if (m_model.load(std::string("C:/Users/nick/Documents/rave_chugin/chugins/rave/nn_tilde/src/tests/rave_chafe_data_rt.ts"))) {
+  if (m_model.load(std::string(m_path))) {
     cerr << "error during loading" << endl;
     error();
     return;
