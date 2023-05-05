@@ -20,6 +20,8 @@ make
 
 - Copy the produced `.mxo` external inside `~/Documents/Max 8/Packages/nn_tilde/externals/`
 
+You can build `nn~` for PureData by adding `-DPUREDATA_INCLUDE_DIR=/Applications/Pd-X.XX-X.app/Contents/Resources/src/` to the cmake call. 
+
 ### Windows
 
 - Download Libtorch (CPU) and dependencies [here](https://pytorch.org/get-started/locally/) and unzip to a known directory.
