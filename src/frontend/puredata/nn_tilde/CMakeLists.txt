@@ -28,4 +28,4 @@ endif()
 
 target_include_directories(nn PRIVATE "${PUREDATA_INCLUDE_DIR}")
 target_link_libraries(nn PRIVATE backend)
-set_property(TARGET nn PROPERTY CXX_STANDARD 20)  
+set_property(TARGET nn PROPERTY CXX_STANDARD 14)  
