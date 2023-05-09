@@ -18,9 +18,10 @@ public:
   std::vector<std::string> get_available_methods();
   std::vector<std::string> get_available_attributes();
   std::vector<std::string> get_settable_attributes();
-  std::vector<c10::IValue>  get_attribute(std::string attribute_name);
+  std::vector<c10::IValue> get_attribute(std::string attribute_name);
   std::string get_attribute_as_string(std::string attribute_name);
-  void set_attribute(std::string attribute_name, std::vector<std::string> attribute_args);
+  void set_attribute(std::string attribute_name,
+                     std::vector<std::string> attribute_args);
 
   std::vector<int> get_method_params(std::string method);
   int get_higher_ratio();

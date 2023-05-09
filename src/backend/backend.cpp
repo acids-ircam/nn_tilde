@@ -116,21 +116,20 @@ bool Backend::has_settable_attribute(std::string attribute) {
 
 std::vector<std::string> Backend::get_available_methods() {
   std::vector<std::string> methods;
-  try 
-  {
+  try {
     std::vector<c10::IValue> dumb_input = {};
-    auto methods_from_model = m_model.get_method("get_methods")(dumb_input).toList();
+    auto methods_from_model =
+        m_model.get_method("get_methods")(dumb_input).toList();
     for (int i = 0; i < methods_from_model.size(); i++) {
       methods.push_back(methods_from_model.get(i).toStringRef());
     }
   } catch (...) {
-    for (const auto &m : m_model.get_methods())
-    {
-      try 
-      {
+    for (const auto &m : m_model.get_methods()) {
+      try {
         auto method_params = m_model.attr(m.name() + "_params");
         methods.push_back(m.name());
-      } catch (...) {}
+      } catch (...) {
+      }
     }
   }
   return methods;
@@ -145,21 +144,20 @@ std::vector<std::string> Backend::get_available_attributes() {
 
 std::vector<std::string> Backend::get_settable_attributes() {
   std::vector<std::string> attributes;
-  try 
-  {
+  try {
     std::vector<c10::IValue> dumb_input = {};
-    auto methods_from_model = m_model.get_method("get_attributes")(dumb_input).toList();
+    auto methods_from_model =
+        m_model.get_method("get_attributes")(dumb_input).toList();
     for (int i = 0; i < methods_from_model.size(); i++) {
       attributes.push_back(methods_from_model.get(i).toStringRef());
     }
   } catch (...) {
-    for (const auto &a : m_model.named_attributes())
-    {
-      try 
-      {
+    for (const auto &a : m_model.named_attributes()) {
+      try {
         auto method_params = m_model.attr(a.name + "_params");
         attributes.push_back(a.name);
-      } catch (...) {}
+      } catch (...) {
+      }
     }
   }
   return attributes;
@@ -175,13 +173,17 @@ std::vector<c10::IValue> Backend::get_attribute(std::string attribute_name) {
   std::vector<c10::IValue> getter_inputs = {}, attributes;
   try {
     try {
-      attributes = m_model.get_method(attribute_getter_name)(getter_inputs).toList().vec();
+      attributes = m_model.get_method(attribute_getter_name)(getter_inputs)
+                       .toList()
+                       .vec();
     } catch (...) {
-      auto output_tuple = m_model.get_method(attribute_getter_name)(getter_inputs).toTuple();
+      auto output_tuple =
+          m_model.get_method(attribute_getter_name)(getter_inputs).toTuple();
       attributes = (*output_tuple.get()).elements();
     }
-  } catch(...) {
-    attributes.push_back(m_model.get_method(attribute_getter_name)(getter_inputs));
+  } catch (...) {
+    attributes.push_back(
+        m_model.get_method(attribute_getter_name)(getter_inputs));
   }
   return attributes;
 }
@@ -193,37 +195,39 @@ std::string Backend::get_attribute_as_string(std::string attribute_name) {
   try {
     setter_params = m_model.attr(attribute_name + "_params").toTensor();
   } catch (...) {
-    throw "parameters to set attribute " + attribute_name + " not found in model";
-  } 
+    throw "parameters to set attribute " + attribute_name +
+        " not found in model";
+  }
   std::string current_attr = "";
   for (int i = 0; i < setter_params.size(0); i++) {
     int current_id = setter_params[i].item().toInt();
     switch (current_id) {
-      // bool case
-      case 0: {
-        current_attr += (getter_outputs[i].toBool())? "true" : "false";
-        break;
-      }
-      // int case
-      case 1: {
-        current_attr += std::to_string(getter_outputs[i].toInt());
-        break;
-      }
-      // float case
-      case 2: {
-        float result = getter_outputs[i].to<float>();
-        current_attr += std::to_string(result);
-        break;
-      }
-      // str case
-      case 3: {
-        current_attr += getter_outputs[i].toStringRef();
-        break;
-      }
-      default: {
-        throw "bad type id : " + std::to_string(current_id) + "at index " + std::to_string(i);
-        break;
-      }
+    // bool case
+    case 0: {
+      current_attr += (getter_outputs[i].toBool()) ? "true" : "false";
+      break;
+    }
+    // int case
+    case 1: {
+      current_attr += std::to_string(getter_outputs[i].toInt());
+      break;
+    }
+    // float case
+    case 2: {
+      float result = getter_outputs[i].to<float>();
+      current_attr += std::to_string(result);
+      break;
+    }
+    // str case
+    case 3: {
+      current_attr += getter_outputs[i].toStringRef();
+      break;
+    }
+    default: {
+      throw "bad type id : " + std::to_string(current_id) + "at index " +
+          std::to_string(i);
+      break;
+    }
     }
     if (i < setter_params.size(0) - 1)
       current_attr += " ";
@@ -231,8 +235,8 @@ std::string Backend::get_attribute_as_string(std::string attribute_name) {
   return current_attr;
 }
 
-void Backend::set_attribute(std::string attribute_name, std::vector<std::string> attribute_args)
-{
+void Backend::set_attribute(std::string attribute_name,
+                            std::vector<std::string> attribute_args) {
   // find setter
   std::string attribute_setter_name = "set_" + attribute_name;
   try {
@@ -245,31 +249,33 @@ void Backend::set_attribute(std::string attribute_name, std::vector<std::string>
   try {
     setter_params = m_model.attr(attribute_name + "_params").toTensor();
   } catch (...) {
-    throw "parameters to set attribute " + attribute_name + " not found in model";
+    throw "parameters to set attribute " + attribute_name +
+        " not found in model";
   }
   // process inputs
   std::vector<c10::IValue> setter_inputs = {};
   for (int i = 0; i < setter_params.size(0); i++) {
     int current_id = setter_params[i].item().toInt();
     switch (current_id) {
-      // bool case
-      case 0:
+    // bool case
+    case 0:
       setter_inputs.push_back(c10::IValue(to_bool(attribute_args[i])));
       break;
-      // int case
-      case 1:
+    // int case
+    case 1:
       setter_inputs.push_back(c10::IValue(to_int(attribute_args[i])));
       break;
-      // float case
-      case 2:
+    // float case
+    case 2:
       setter_inputs.push_back(c10::IValue(to_float(attribute_args[i])));
       break;
-      // str case
-      case 3:
+    // str case
+    case 3:
       setter_inputs.push_back(c10::IValue(attribute_args[i]));
       break;
-      default:
-      throw "bad type id : " + std::to_string(current_id) + "at index " + std::to_string(i);
+    default:
+      throw "bad type id : " + std::to_string(current_id) + "at index " +
+          std::to_string(i);
       break;
     }
   }
@@ -283,7 +289,6 @@ void Backend::set_attribute(std::string attribute_name, std::vector<std::string>
     throw "setter for " + attribute_name + " failed";
   }
 }
-
 
 std::vector<int> Backend::get_method_params(std::string method) {
   auto am = get_available_methods();
