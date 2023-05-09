@@ -61,9 +61,38 @@ jobs:
           name: nn_tilde
           path: nn_max_msp_macOS_x86_64.tar.gz
 
+  windows-x86_64-build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - run: git submodule update --init --recursive
+      - name: Setup torch
+        run: |
+          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.0.1%2Bcpu.zip -o libtorch.zip
+          unzip libtorch.zip
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -A x64
+          cmake --build . --config Release
+      - name: Package creation
+        run: |
+          mkdir nn_tilde
+          mkdir nn_tilde/help
+          mv src/externals nn_tilde
+          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+          tar -czvf nn_max_msp_windows_x86_64.tar.gz nn_tilde
+      - name: Upload binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: nn_tilde
+          path: nn_max_msp_windows_x86_64.tar.gz
+
   AutomaticRelease:
     runs-on: ubuntu-latest
-    needs: [osx-arm64-build, osx-x86_64-build]
+    needs: [osx-arm64-build, osx-x86_64-build, windows-x86_64-build]
     steps:
       - name: Download build binaries
         uses: actions/download-artifact@v2
@@ -77,3 +106,4 @@ jobs:
           files: |
             nn_max_msp_macOS_x86_64.tar.gz
             nn_max_msp_macOS_arm64.tar.gz
+            nn_max_msp_windows_x86_64.tar.gz
