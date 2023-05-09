@@ -7,6 +7,8 @@
 #define CUDA torch::kCUDA
 #define CPU torch::kCPU
 
+std::mutex Backend::m_render;
+
 Backend::Backend()
     : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
   at::init_num_threads();
@@ -50,11 +52,15 @@ void Backend::perform(std::vector<float *> in_buffer,
   // PROCESS TENSOR
   at::Tensor tensor_out;
   try {
+    m_render.lock();
     tensor_out = m_model.get_method(method)(inputs).toTensor();
+    m_render.unlock();
+
     tensor_out = tensor_out.repeat_interleave(out_ratio).reshape(
         {n_batches, out_dim, -1});
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
+    m_render.unlock();
     return;
   }
   int out_batches(tensor_out.size(0)), out_channels(tensor_out.size(1)),
@@ -91,6 +97,7 @@ int Backend::load(std::string path) {
       m_model.to(CUDA);
     }
     m_loaded = 1;
+    m_filepath = path;
     return 0;
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';

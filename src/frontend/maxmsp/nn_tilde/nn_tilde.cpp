@@ -158,6 +158,7 @@ nn::nn(const atoms &args)
   }
   if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
     auto model_path = std::string(args[0]);
+    std::cout << "PATH: " << model_path << std::endl;
     if (model_path.substr(model_path.length() - 3) != ".ts")
       model_path = model_path + ".ts";
     m_path = path(model_path);
@@ -170,7 +171,8 @@ nn::nn(const atoms &args)
   }
 
   // TRY TO LOAD MODEL
-  if (m_model.load(std::string(m_path))) {
+  std::cout << "m_path: " << std::string(m_path) << std::endl;
+  if (m_model.load(std::string("C:/Users/nick/Documents/rave_chugin/chugins/rave/nn_tilde/src/tests/rave_chafe_data_rt.ts"))) {
     cerr << "error during loading" << endl;
     error();
     return;

@@ -3,11 +3,16 @@
 #include <torch/script.h>
 #include <torch/torch.h>
 #include <vector>
+#include <mutex>
 
 class Backend {
 private:
   torch::jit::script::Module m_model;
   int m_loaded;
+  std::string m_filepath;
+
+  // This is a test
+  static std::mutex m_render;
 
 public:
   Backend();
