@@ -32,7 +32,7 @@ jobs:
           name: nn_tilde
           path: nn_max_msp_macOS_arm64.tar.gz
 
-  osx-x86_64-build:
+  osx-x64-build:
     runs-on: macos-latest
     steps:
       - name: Check out code
@@ -54,14 +54,14 @@ jobs:
           mkdir nn_tilde/help
           mv src/externals nn_tilde
           cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_macOS_x86_64.tar.gz nn_tilde
+          tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
       - name: Upload binaries
         uses: actions/upload-artifact@v2
         with:
           name: nn_tilde
-          path: nn_max_msp_macOS_x86_64.tar.gz
+          path: nn_max_msp_macOS_x64.tar.gz
 
-  windows-x86_64-build:
+  windows-x64-build:
     runs-on: windows-latest
     steps:
       - name: Check out code
@@ -83,16 +83,16 @@ jobs:
           mkdir nn_tilde/help
           mv src/externals nn_tilde
           cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_windows_x86_64.tar.gz nn_tilde
+          tar -czvf nn_max_msp_windows_x64.tar.gz nn_tilde
       - name: Upload binaries
         uses: actions/upload-artifact@v2
         with:
           name: nn_tilde
-          path: nn_max_msp_windows_x86_64.tar.gz
+          path: nn_max_msp_windows_x64.tar.gz
 
   AutomaticRelease:
     runs-on: ubuntu-latest
-    needs: [osx-arm64-build, osx-x86_64-build, windows-x86_64-build]
+    needs: [osx-arm64-build, osx-x64-build, windows-x64-build]
     steps:
       - name: Download build binaries
         uses: actions/download-artifact@v2
@@ -104,6 +104,6 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: |
-            nn_max_msp_macOS_x86_64.tar.gz
+            nn_max_msp_macOS_x64.tar.gz
             nn_max_msp_macOS_arm64.tar.gz
-            nn_max_msp_windows_x86_64.tar.gz
+            nn_max_msp_windows_x64.tar.gz
