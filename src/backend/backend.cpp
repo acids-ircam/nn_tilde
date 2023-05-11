@@ -35,12 +35,13 @@ void Backend::perform(std::vector<float *> in_buffer,
 
   // COPY BUFFER INTO A TENSOR
   std::vector<at::Tensor> tensor_in;
-  for (int i(0); i < in_buffer.size(); i++) {
-    tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
-  }
+  for (auto buf : in_buffer)
+    tensor_in.push_back(torch::from_blob(buf, {1, 1, n_vec}));
+
   auto cat_tensor_in = torch::cat(tensor_in, 1);
-  cat_tensor_in = cat_tensor_in.reshape({n_batches, in_dim, -1, in_ratio});
+  cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
   cat_tensor_in = cat_tensor_in.select(-1, -1);
+  cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
 
   if (m_cuda_available)
     cat_tensor_in = cat_tensor_in.to(CUDA);

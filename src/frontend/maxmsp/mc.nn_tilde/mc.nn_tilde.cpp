@@ -37,6 +37,7 @@ public:
   // INLETS OUTLETS
   std::vector<std::unique_ptr<inlet<>>> m_inlets;
   std::vector<std::unique_ptr<outlet<>>> m_outlets;
+
   // CHANNELS
   std::vector<int> chans;
   int get_batches();
@@ -391,17 +392,8 @@ void mc_nn_tilde::perform(audio_bundle input, audio_bundle output) {
   }
 
   // COPY CIRCULAR BUFFER TO OUTPUT
-  // for (int c(0); c < output.channel_count(); c++) {
-  //   auto out = output.samples(c);
-  //   auto current_batch = c % get_batches();
-  //   m_out_buffer[c].get(out, vec_size);
-  // }
-  std::cout << output.channel_count() << ";" << m_out_dim << std::endl;
-  std::cout << m_outlets.size() << ";" << get_batches() << std::endl;
   for (int b(0); b < get_batches(); b++) {
     for (int d(0); d < m_outlets.size(); d++) {
-      std::cout << b << ";" << d << ";" << b * m_outlets.size() + d
-                << std::endl;
       auto out = output.samples(d * get_batches() + b);
       m_out_buffer[b * m_outlets.size() + d].get(out, vec_size);
     }
