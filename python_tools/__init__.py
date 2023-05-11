@@ -1,8 +1,8 @@
-from typing import Any, Callable, Optional, Sequence, Tuple, Union
-import torch
-import logging
 import inspect
+import logging
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
+import torch
 
 TYPE_HASH = {bool: 0, int: 1, float: 2, str: 3, torch.Tensor: 4}
 
@@ -80,6 +80,9 @@ class Module(torch.nn.Module):
                 raise ValueError(
                     ("Output tensor must have exactly 3 dimensions, "
                      f"got {len(y.shape)}"))
+            if y.shape[0] != 1:
+                raise ValueError(
+                    f"Expecting single batch output, got {y.shape[0]}")
             if y.shape[1] != out_channels:
                 raise ValueError((
                     f"Wrong number of output channels for method \"{method_name}\", "
@@ -89,7 +92,7 @@ class Module(torch.nn.Module):
                     (f"Wrong output length for method \"{method_name}\", "
                      f"expected {test_buffer_size//out_ratio} "
                      f"got {y.shape[2]}"))
-            
+
             logging.info(f"Testing method {method_name} with mc.nn~ API")
             x = torch.zeros(4, in_channels, test_buffer_size // in_ratio)
             y = getattr(self, method_name)(x)
@@ -98,6 +101,8 @@ class Module(torch.nn.Module):
                 raise ValueError(
                     ("Output tensor must have exactly 3 dimensions, "
                      f"got {len(y.shape)}"))
+            if y.shape[0] != 4:
+                raise ValueError(f"Expecting 4 batch output, got {y.shape[0]}")
             if y.shape[1] != out_channels:
                 raise ValueError((
                     f"Wrong number of output channels for method \"{method_name}\", "

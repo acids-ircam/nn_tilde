@@ -21,7 +21,7 @@ setuptools.setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     packages=['nn_tilde'],
-    package_dir= {'nn_tilde': 'python_tools'},
+    package_dir={'nn_tilde': 'python_tools'},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

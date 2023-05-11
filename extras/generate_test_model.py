@@ -1,6 +1,9 @@
-import torch, torch.nn as nn
-import nn_tilde
 from typing import List, Tuple
+
+import torch
+import torch.nn as nn
+
+import nn_tilde
 
 
 class AudioUtils(nn_tilde.Module):
@@ -169,7 +172,7 @@ class AudioUtils(nn_tilde.Module):
     # return -1 if the attribute was wrong.
     @torch.jit.export
     def set_gain_factor(self, x: float) -> int:
-        self.gain_factor= (x,)
+        self.gain_factor = (x, )
         return 0
 
     @torch.jit.export
@@ -182,14 +185,14 @@ class AudioUtils(nn_tilde.Module):
     @torch.jit.export
     def set_saturate_mode(self, x: str):
         if (x == 'tanh') or (x == 'clip'):
-            self.saturate_mode = (x,)
+            self.saturate_mode = (x, )
             return 0
         else:
             return -1
 
     @torch.jit.export
     def set_invert_signal(self, x: bool):
-        self.invert_signal = (x,)
+        self.invert_signal = (x, )
         return 0
 
     @torch.jit.export
@@ -198,7 +201,7 @@ class AudioUtils(nn_tilde.Module):
             return -1
         elif factor % 2 != 0:
             return -1
-        self.fractal = ( factor,float(amount))
+        self.fractal = (factor, float(amount))
         return 0
 
 
