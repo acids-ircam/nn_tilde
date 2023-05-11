@@ -72,7 +72,26 @@ class Module(torch.nn.Module):
         setattr(self, f"{method_name}_output_labels", output_labels)
 
         if test_method:
+            logging.info(f"Testing method {method_name} with nn~ API")
             x = torch.zeros(1, in_channels, test_buffer_size // in_ratio)
+            y = getattr(self, method_name)(x)
+
+            if len(y.shape) != 3:
+                raise ValueError(
+                    ("Output tensor must have exactly 3 dimensions, "
+                     f"got {len(y.shape)}"))
+            if y.shape[1] != out_channels:
+                raise ValueError((
+                    f"Wrong number of output channels for method \"{method_name}\", "
+                    f"expected {out_channels} got {y.shape[1]}"))
+            if y.shape[2] != test_buffer_size // out_ratio:
+                raise ValueError(
+                    (f"Wrong output length for method \"{method_name}\", "
+                     f"expected {test_buffer_size//out_ratio} "
+                     f"got {y.shape[2]}"))
+            
+            logging.info(f"Testing method {method_name} with mc.nn~ API")
+            x = torch.zeros(4, in_channels, test_buffer_size // in_ratio)
             y = getattr(self, method_name)(x)
 
             if len(y.shape) != 3:
