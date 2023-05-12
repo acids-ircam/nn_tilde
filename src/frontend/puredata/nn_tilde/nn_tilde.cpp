@@ -264,6 +264,9 @@ void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
 void startup_message() {
   std::string startmessage = "nn~ - ";
   startmessage += VERSION;
+  startmessage += " - ";
+  startmessage += "torch ";
+  startmessage += TORCH_VERSION;
   startmessage += " - 2023 - Antoine Caillon";
   post(startmessage.c_str());
 }

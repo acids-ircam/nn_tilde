@@ -74,8 +74,7 @@ public:
   message<> maxclass_setup{
       this, "maxclass_setup",
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
-        cout << "nn~ " << VERSION << "- torch " << TORCH_VERSION_MAJOR << "."
-             << TORCH_VERSION_MINOR << "." << TORCH_VERSION_PATCH
+        cout << "nn~ " << VERSION << " - torch " << TORCH_VERSION
              << " - 2023 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
         cout << "visit https://caillonantoine.github.io" << endl;
         return {};

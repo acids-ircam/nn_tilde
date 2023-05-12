@@ -85,8 +85,8 @@ public:
       this, "maxclass_setup",
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
         // make stamp
-        cout << "mc.nn~ - " << VERSION
-             << " - 2022 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
+        cout << "nn~ " << VERSION << " - torch " << TORCH_VERSION
+             << " - 2023 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
         cout << "visit https://caillonantoine.github.io" << endl;
         // mc handle
         c74::max::t_class *c = args[0];
