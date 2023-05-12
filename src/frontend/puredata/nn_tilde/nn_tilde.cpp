@@ -30,6 +30,7 @@ typedef struct _nn_tilde {
   int m_enabled;
   // BACKEND RELATED MEMBERS
   Backend m_model;
+  std::vector<std::string> settable_attributes;
   t_symbol *m_method, *m_path;
   std::unique_ptr<std::thread> m_compute_thread;
 
@@ -179,6 +180,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
 
   // GET MODEL'S METHOD PARAMETERS
   auto params = x->m_model.get_method_params(x->m_method->s_name);
+  x->settable_attributes = x->m_model.get_settable_attributes();
 
   if (!params.size()) {
     post("method not found, using forward instead");
@@ -237,6 +239,13 @@ void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
   std::vector<std::string> attribute_args;
 
   auto argname = argv[0].a_w.w_symbol->s_name;
+  std::string argname_str = argname;
+
+  if (!std::count(x->settable_attributes.begin(), x->settable_attributes.end(),
+                  argname_str)) {
+    post("argument name not settable in current model");
+    return;
+  }
 
   for (int i(1); i < argc; i++) {
     if (argv[i].a_type == A_SYMBOL) {
