@@ -4,7 +4,6 @@
 
 [![RAVE x nn~](http://img.youtube.com/vi/dMZs04TzxUI/mqdefault.jpg)](https://www.youtube.com/watch?v=dMZs04TzxUI)
 
-
 # Installation
 
 Grab the [latest release of nn~](https://github.com/acids-ircam/nn_tilde/releases/latest) ! Be sure to download the correct version for your installation.
@@ -110,6 +109,8 @@ Using Max/MSP and PureData graphical objects, this can lead to an intuitive way 
   </tr>
 </table>
 
+The attribute list and values are again **model dependant** and should retrieved in the documentation of the model.
+
 ## Buffer configuration
 
 Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonable computational load. You can modify its size through the use of an additional integer after the method declaration, as shown below
@@ -125,8 +126,6 @@ Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonab
   </tr>
 </table>
 
-The attribute list and values are again **model dependant** and should retrieved in the documentation of the model.
-
 ## Multicanal (Max/MSP)
 
 The Max/MSP release of `nn~` includes additional externals, namely `mc.nn~` and `mcs.nn~`, allowing the use of the multicanal abilities of Max 8+ to simplify the patching process with `nn~` and optionally decrease the computational load.
@@ -135,10 +134,9 @@ In the following examples, two audio files are being encoded then decoded by the
 
 ![regular](assets/max_regular.png)
 
-This patch can be improved both visually *and* computationally speaking by using `mc.nn~` and using *batch operations*
+This patch can be improved both visually _and_ computationally speaking by using `mc.nn~` and using _batch operations_
 
 ![mc](assets/max_mc.png)
-
 
 Using `mc.nn~` we build the multicanal signals **over the different batches**. In the example above, each multicanal signal will have 2 different canals. We also propose the `mcs.nn~` external that builds multicanal signals **over the different dimensions**, as shown in the example below
 
@@ -146,7 +144,7 @@ Using `mc.nn~` we build the multicanal signals **over the different batches**. I
 
 In the example above, the two multicanals signals yielded by the `nn~ rave encode 2` object have 16 canals each, corresponding to the 16 latent dimensions. This can help patching, while keeping the batching abilities of `mc.nn~` by creating an explicit number of inlets / oulets corresponding to the number of examples we want to process in parallel.
 
-To recap, the regular `nn~` operates on a single example, and has as many inlets / outlets as the model has inputs / outputs. The `mc.nn~` external is like `nn~`, but can process multiple examples *at the same time*. The `mcs.nn~` variant is a bit different, and can process mulitple examples at the same time, but will **have one inlet / outlet per examples**.
+To recap, the regular `nn~` operates on a single example, and has as many inlets / outlets as the model has inputs / outputs. The `mc.nn~` external is like `nn~`, but can process multiple examples _at the same time_. The `mcs.nn~` variant is a bit different, and can process mulitple examples at the same time, but will **have one inlet / outlet per examples**.
 
 # Build Instructions
 
