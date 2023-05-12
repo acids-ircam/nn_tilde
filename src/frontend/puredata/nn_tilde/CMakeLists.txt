@@ -4,6 +4,10 @@ find_package(Torch REQUIRED)
 
 file(GLOB SRC *.cpp)
 
+if (MSVC)
+       set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+endif()
+
 add_library(nn SHARED ${SRC})
 
 if (UNIX)
@@ -31,12 +35,24 @@ if (UNIX AND NOT APPLE)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_linux")
 endif()
 
+if (MSVC)
+       set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.dll")
+endif()
+
 if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
-message("VARIABLE ${CMAKE_CURRENT_BINARY_DIR}")
 add_custom_command( 
 		TARGET nn
 		POST_BUILD 
 		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_CURRENT_BINARY_DIR}/" 
+		COMMENT "Copy Torch Libraries" 
+	)
+endif()
+
+if (MSVC) # COPY TORCH DLL IN THE LOADER FOLDER
+add_custom_command( 
+		TARGET nn
+		POST_BUILD 
+		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dll" "${CMAKE_CURRENT_BINARY_DIR}/" 
 		COMMENT "Copy Torch Libraries" 
 	)
 endif()
@@ -54,4 +70,7 @@ endif()
 
 target_include_directories(nn PRIVATE "${PUREDATA_INCLUDE_DIR}")
 target_link_libraries(nn PRIVATE backend)
+if (MSVC)
+	target_link_libraries(nn PRIVATE "${PUREDATA_BIN_DIR}")
+endif()
 set_property(TARGET nn PROPERTY CXX_STANDARD 14)  

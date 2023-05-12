@@ -97,26 +97,38 @@ jobs:
           unzip libtorch.zip
       - name: Setup puredata
         run: |
-          mkdir puredata_include
-          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+          mkdir puredata
+          cd puredata
+          curl -L https://msp.puredata.info/Software/pd-0.53-2.msw.zip -o pd.zip
+          unzip pd.zip
+          mv pd*/src .
+          mv pd*/bin .
       - name: Build
         run: |
           mkdir build
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -A x64
+          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
           cmake --build . --config Release
-      - name: Package creation
+      - name: Max/MSP Package creation
         run: |
           mkdir nn_tilde
           mkdir nn_tilde/help
           mv src/externals nn_tilde
           cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
           tar -czvf nn_max_msp_windows_x64.tar.gz nn_tilde
+      - name: PureData Package creation
+        run: |
+          rm -fr nn_tilde
+          mkdir nn_tilde
+          mv build/frontend/puredata/nn_tilde/Release/* nn_tilde/
+          tar -czvf nn_puredata_windows_x64.tar.gz nn_tilde
       - name: Upload binaries
         uses: actions/upload-artifact@v2
         with:
           name: nn_tilde
-          path: nn_max_msp_windows_x64.tar.gz
+          path: |
+            nn_max_msp_windows_x64.tar.gz
+            nn_puredata_windows_x64.tar.gz
 
   AutomaticRelease:
     runs-on: ubuntu-latest
@@ -137,3 +149,4 @@ jobs:
             nn_max_msp_macOS_arm64.tar.gz
             nn_puredata_macOS_arm64.tar.gz
             nn_max_msp_windows_x64.tar.gz
+            nn_puredata_windows_x64.tar.gz
