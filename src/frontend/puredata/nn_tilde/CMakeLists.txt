@@ -50,7 +50,7 @@ endif()
 
 if (MSVC) # COPY TORCH DLL IN THE LOADER FOLDER
 add_custom_command(TARGET nn POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${TORCH_INSTALL_PREFIX}/lib/" ${CMAKE_CURRENT_BINARY_DIR}/
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${TORCH_INSTALL_PREFIX}/lib/" ${CMAKE_CURRENT_BINARY_DIR}/Release/
 )
 endif()
 
