@@ -49,12 +49,9 @@ add_custom_command(
 endif()
 
 if (MSVC) # COPY TORCH DLL IN THE LOADER FOLDER
-add_custom_command( 
-		TARGET nn
-		POST_BUILD 
-		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dll" "${CMAKE_CURRENT_BINARY_DIR}/" 
-		COMMENT "Copy Torch Libraries" 
-	)
+add_custom_command(TARGET nn POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${TORCH_INSTALL_PREFIX}/lib/" ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/
+)
 endif()
 
 if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
