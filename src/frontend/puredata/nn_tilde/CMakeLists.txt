@@ -19,11 +19,35 @@ endif()
 
 if (APPLE)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_darwin")
+	set_target_properties(nn PROPERTIES
+		BUILD_WITH_INSTALL_RPATH FALSE
+		LINK_FLAGS "-Wl,-rpath,@loader_path/"
+	)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -undefined dynamic_lookup -stdlib=libc++")
 endif()
 
+
 if (UNIX AND NOT APPLE)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_linux")
+endif()
+
+if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
+message("VARIABLE ${CMAKE_CURRENT_BINARY_DIR}")
+add_custom_command( 
+		TARGET nn
+		POST_BUILD 
+		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_CURRENT_BINARY_DIR}/" 
+		COMMENT "Copy Torch Libraries" 
+	)
+endif()
+
+if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+	add_custom_command( 
+		TARGET nn
+		POST_BUILD 
+		COMMAND "echo" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/nn~.pd_darwin"
+		COMMENT "Codesign external" 
+	)
 endif()
 
 target_include_directories(nn PRIVATE "${PUREDATA_INCLUDE_DIR}")
