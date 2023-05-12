@@ -1,7 +1,6 @@
 #include "../../../backend/backend.h"
 #include "../../maxmsp/shared/circular_buffer.h"
 #include "m_pd.h"
-#include "pthread.h"
 #include <memory>
 #include <string>
 #include <vector>
