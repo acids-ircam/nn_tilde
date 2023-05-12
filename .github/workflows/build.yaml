@@ -97,8 +97,8 @@ jobs:
           unzip libtorch.zip
       - name: Setup puredata
         run: |
-          mkdir puredata
-          cd puredata
+          mkdir pd
+          cd pd
           curl -L https://msp.puredata.info/Software/pd-0.53-2.msw.zip -o pd.zip
           unzip pd.zip
           mv pd*/src .
