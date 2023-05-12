@@ -229,10 +229,33 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
 
 void nn_tilde_enable(t_nn_tilde *x, t_floatarg arg) { x->m_enabled = int(arg); }
 
+void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
+  if (argc < 2) {
+    post("set needs at least 2 arguments [set argname argval1 ...)");
+    return;
+  }
+  std::vector<std::string> attribute_args;
+
+  auto argname = argv[0].a_w.w_symbol->s_name;
+
+  for (int i(1); i < argc; i++) {
+    if (argv[i].a_type == A_SYMBOL) {
+      attribute_args.push_back(argv[i].a_w.w_symbol->s_name);
+    } else if (argv[i].a_type == A_FLOAT) {
+      attribute_args.push_back(std::to_string(argv[i].a_w.w_float));
+    }
+  }
+  try {
+    x->m_model.set_attribute(argname, attribute_args);
+  } catch (const std::exception &e) {
+    post(e.what());
+  }
+}
+
 void startup_message() {
   std::string startmessage = "nn~ - ";
   startmessage += VERSION;
-  startmessage += " - 2022 - Antoine Caillon";
+  startmessage += " - 2023 - Antoine Caillon";
   post(startmessage.c_str());
 }
 
@@ -246,6 +269,8 @@ void nn_tilde_setup(void) {
                   0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_enable, gensym("enable"),
                   A_DEFFLOAT, A_NULL);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_set, gensym("set"),
+                  A_GIMME, A_NULL);
   CLASS_MAINSIGNALIN(nn_tilde_class, t_nn_tilde, f);
 }
 }
