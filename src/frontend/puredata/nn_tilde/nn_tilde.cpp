@@ -158,10 +158,17 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   }
 
   // SEARCH FOR FILE
+  // change this to open_via_canvas()
   if (!sys_isabsolutepath(x->m_path->s_name)) {
     char dirname[MAXPDSTRING], *dummy;
-    auto fd = open_via_path("", x->m_path->s_name, "", dirname, &dummy,
-                            MAXPDSTRING, 1);
+    auto fd = open_via_path("", x->m_path->s_name, "", dirname, &dummy, MAXPDSTRING, 1);
+    // auto fd = canvas_open("", x->m_path->s_name, "", dirname, &dummy, MAXPDSTRING, 1);
+    //
+    // refernce to containing canvas
+    // x->x_canvas = canvas_getcurrent();
+    //
+    // storing the resulting t_canvas* in the object.
+    // t_canvas *canvas
     std::string found_path;
     found_path += dirname;
     found_path += "/";

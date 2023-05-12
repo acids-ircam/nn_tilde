@@ -7,3 +7,6 @@ src/tests
 *DS_Store*
 src/docs
 *.ts
+*.pd_darwin
+nn~-help.pd
+*.dylib

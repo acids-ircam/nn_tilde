@@ -1,0 +1,35 @@
+#N canvas 600 153 620 554 12;
+#X obj 54 485 dac~;
+#X obj 53 128 osc~ 110;
+#X obj 121 282 tgl 15 0 empty empty empty 17 7 0 10 #fcfcfc #000000
+#000000 0 1;
+#X text 137 279 Enable;
+#X obj 54 316 nn~ /Users/megrimm/Development/puredata/pd-nn_tilde/models/percussion.ts
+encode, f 38;
+#X floatatom 53 104 5 0 0 0 - - - 0;
+#X obj 54 380 nn~ /Users/megrimm/Development/puredata/pd-nn_tilde/models/percussion.ts
+decode, f 38;
+#X text 340 322 <--need absolute path to model;
+#X obj 161 114 adc~;
+#X obj 191 162 / 100;
+#X floatatom 191 141 5 0 0 0 - - - 0;
+#X obj 161 191 *~ 0;
+#X obj 84 174 / 100;
+#X floatatom 84 153 5 0 0 0 - - - 0;
+#X obj 54 203 *~ 0;
+#X connect 1 0 14 0;
+#X connect 2 0 4 0;
+#X connect 4 0 6 0;
+#X connect 4 1 6 1;
+#X connect 4 2 6 2;
+#X connect 4 3 6 3;
+#X connect 5 0 1 0;
+#X connect 6 0 0 0;
+#X connect 6 1 0 1;
+#X connect 8 0 11 0;
+#X connect 9 0 11 1;
+#X connect 10 0 9 0;
+#X connect 11 0 4 0;
+#X connect 12 0 14 1;
+#X connect 13 0 12 0;
+#X connect 14 0 4 0;

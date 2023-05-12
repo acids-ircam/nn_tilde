@@ -1,6 +1,6 @@
 ![banner](https://github.com/acids-ircam/nn_tilde/raw/master/assets/banner.png)
 
-## Build Instructions
+## Build Instructions (MAX/MSP)
 
 ### macOS
 
@@ -41,6 +41,27 @@ Use `cmake --help` to find the generator name for your Visual Studio version
 
 - Copy all the DLLs from `<unzipped libtorch directory>\lib` to the Max 7/8 installation directory, next to `Max.exe`
 
+
+## Build Instructions (Pd)
+
+### macOS
+
+1. clone nn_tilde ( make sure you clone submodules and nested submodules)
+   $ git submodule update --init --recursive
+2. install libtorch via homebrew: brew install libtorch
+3. place this in the nn_tilde directory and make executable:
+   chmod +x build-nn_tilde-macos-brew.sh
+4. run: ./build-nn_tilde-macos-brew.sh
+
+notes:
+* this will build for the current arch, so should provide native builds for
+  both x86_64 (Intel) and arm64 (M1) systems
+* binary external is placed in root dir
+* there doesn't appear to be a help file, so check the Max docs and/or video
+  tutorials on youtube, ex. https://www.youtube.com/watch?v=dMZs04TzxUI
+* the built external will most likely *not* be portable to other systems as it
+  relies on finding the libtorch dylibs installed by homebrew
+
 ### Raspberry Pi
 
 While nn~ can be compiled and used on Raspberry Pi, you may have to consider using lighter deep learning models. We currently only support 64bit OS.
@@ -50,3 +71,8 @@ Install nn~ for PureData using
 ```bash
 curl -s https://raw.githubusercontent.com/acids-ircam/nn_tilde/master/install/raspberrypi.sh | bash
 ```
+
+### Models
+
+Some models can be downloaded from:
+https://caillonantoine.github.io/NIME_workshop/
