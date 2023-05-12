@@ -45,7 +45,9 @@ if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 	add_custom_command( 
 		TARGET nn
 		POST_BUILD 
-		COMMAND "echo" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/nn~.pd_darwin"
+		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.dylib"
+		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.pd_darwin"
+		COMMAND "xattr" "-r" "-d" "com.apple.quarantine" "${CMAKE_CURRENT_BINARY_DIR}"
 		COMMENT "Codesign external" 
 	)
 endif()
