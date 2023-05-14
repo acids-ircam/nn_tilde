@@ -10,6 +10,8 @@ private:
   torch::jit::script::Module m_model;
   int m_loaded;
   std::string m_filepath;
+  void lock();
+  void unlock();
 
   // This is a test
   static std::mutex m_render;

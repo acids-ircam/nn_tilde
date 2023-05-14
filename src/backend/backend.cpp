@@ -9,7 +9,10 @@
 std::mutex Backend::m_render;
 
 Backend::Backend()
-    : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+    : m_loaded(0), 
+    m_cuda_available(torch::cuda::is_available())
+    //m_cuda_available(false) 
+{
   at::init_num_threads();
   if (m_cuda_available)
     std::cout << "using cuda" << std::endl;
@@ -54,15 +57,20 @@ void Backend::perform(std::vector<float *> in_buffer,
   // std::cout << "processing tensor" << std::endl;
   at::Tensor tensor_out;
   try {
-    m_render.lock();
-    tensor_out = m_model.get_method(method)(inputs).toTensor();
-    m_render.unlock();
+    lock();
+    auto model_method = m_model.get_method(method);
+    unlock();
+    std::cout << cat_tensor_in.sizes()  << std::endl;
+    tensor_out = model_method(inputs).toTensor();
+    
+    // tensor_out = m_model.get_method(method)(inputs).toTensor();
+    //m_render.unlock();
 
     tensor_out = tensor_out.repeat_interleave(out_ratio).reshape(
         {n_batches, out_dim, -1});
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
-    m_render.unlock();
+    unlock();
     return;
   }
 
@@ -151,3 +159,20 @@ int Backend::get_higher_ratio() {
 }
 
 bool Backend::is_loaded() { return m_loaded; }
+
+
+// lock and unlock mutex - this only is done on windows when the model
+// on the GPU. Due to some dumb shenanigans on the windows side, the models
+// deadlock on the gpu when multithreaded. AFAIK this isn't a problem 
+// on other platforms. This of course affects performance.
+void Backend::lock() {
+#ifdef _WIN32
+    m_render.lock();
+#endif
+}
+
+void Backend::unlock() {
+#ifdef _WIN32
+    m_render.unlock();
+#endif
+}
