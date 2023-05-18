@@ -26,7 +26,7 @@ Right click on the `nn~` object to open the help patch, and follow the tabs to l
 
 ## PureData
 
-Uncompress the `.tar.gz` file in the Package folder of your Max installation, i.e. in `Documents/Pd/externals/`. You can then add a new path in the `Pd/File/Preferences/Path` menu pointing to the `nn_tilde` folder.
+Uncompress the `.tar.gz` file in the Package folder of your Pd installation, i.e. in `Documents/Pd/externals/`. You can then add a new path in the `Pd/File/Preferences/Path` menu pointing to the `nn_tilde` folder.
 
 On MacOS, unlike Max/MSP, PureData doesn't include an automatic quarantine removal procedure. Therefore we have to do it manually. Fire up a terminal, and `cd` to the `nn_tilde` folder. The following command will fix the issue
 
