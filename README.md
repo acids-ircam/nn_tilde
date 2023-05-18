@@ -9,6 +9,7 @@
 Grab the [latest release of nn~](https://github.com/acids-ircam/nn_tilde/releases/latest) ! Be sure to download the correct version for your installation.
 
 **Mac users**, you should download the arm64 version if _and only if_ your Mac is a M1-2, and your installation of Max/MSP or PureData is not using Rosetta !
+
 **Windows users**, for now it is required that all `.dll` files in the `nn~` package are copied next to the ˋMax.exeˋ executable. 
 
 ## MaxMSP
