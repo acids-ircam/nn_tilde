@@ -57,9 +57,10 @@ void Backend::perform(std::vector<float *> in_buffer,
   // std::cout << "processing tensor" << std::endl;
   at::Tensor tensor_out;
   try {
-    lock();
+    // don't need to lock if not on gpu
+    if (m_cuda_available) lock();
     tensor_out = m_model.get_method(method)(inputs).toTensor();
-    unlock();
+    if (m_cuda_available) unlock();
     
     // tensor_out = m_model.get_method(method)(inputs).toTensor();
     //m_render.unlock();
