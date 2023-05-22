@@ -58,10 +58,8 @@ void Backend::perform(std::vector<float *> in_buffer,
   at::Tensor tensor_out;
   try {
     lock();
-    auto model_method = m_model.get_method(method);
+    tensor_out = m_model.get_method(method)(inputs).toTensor();
     unlock();
-    std::cout << cat_tensor_in.sizes()  << std::endl;
-    tensor_out = model_method(inputs).toTensor();
     
     // tensor_out = m_model.get_method(method)(inputs).toTensor();
     //m_render.unlock();
