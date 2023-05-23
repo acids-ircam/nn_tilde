@@ -48,6 +48,7 @@ void circular_buffer<in_type, out_type>::put(in_type *input_array, int N) {
     return;
 
   while (N--) {
+    // std::cout << "input: " << input_array[0] << ", output: " << out_type(*(input_array)) << std::endl;
     _buffer[_head] = out_type(*(input_array++));
     _head = (_head + 1) % _max_size;
     if (_full)
@@ -63,6 +64,7 @@ void circular_buffer<in_type, out_type>::put_interleave(in_type* input_array, in
         return;
 
     while (N--) {
+        // std::cout << "input: " << input_array[0] << ", output: " << out_type(*(input_array)) << std::endl;
         _buffer[_head] = out_type(*(input_array));
         input_array += channels;
         _head = (_head + 1) % _max_size;
@@ -105,7 +107,7 @@ void circular_buffer<in_type, out_type>::get_interleave(out_type* output_array, 
             _full = false;
         }
         output_array += channels;
-    }
+        }
 }
 
 
