@@ -35,7 +35,7 @@ public:
   std::vector<std::unique_ptr<outlet<>>> m_outlets;
 
   // BACKEND RELATED MEMBERS
-  Backend m_model;
+  std::unique_ptr<Backend> m_model;
   std::string m_method;
   std::vector<std::string> settable_attributes;
   bool has_settable_attribute(std::string attribute);
@@ -88,7 +88,7 @@ public:
     }
     return {};
   } else if (attribute_name == "get_methods") {
-    for (std::string method : m_model.get_available_methods())
+    for (std::string method : m_model->get_available_methods())
       cout << method << endl;
     return {};
   } else if (attribute_name == "get") {
@@ -97,9 +97,9 @@ public:
       return {};
     }
     attribute_name = args[1];
-    if (m_model.has_settable_attribute(attribute_name)) {
+    if (m_model->has_settable_attribute(attribute_name)) {
       cout << attribute_name << ": "
-           << m_model.get_attribute_as_string(attribute_name) << endl;
+           << m_model->get_attribute_as_string(attribute_name) << endl;
     } else {
       cerr << "no attribute " << attribute_name << " found in model" << endl;
     }
@@ -117,7 +117,7 @@ public:
         attribute_args.push_back(args[i]);
       }
       try {
-        m_model.set_attribute(attribute_name, attribute_args);
+        m_model->set_attribute(attribute_name, attribute_args);
       } catch (std::string message) {
         cerr << message << endl;
       }
@@ -140,8 +140,8 @@ void model_perform(nn *nn_instance) {
     in_model.push_back(nn_instance->m_in_model[c].get());
   for (int c(0); c < nn_instance->m_out_dim; c++)
     out_model.push_back(nn_instance->m_out_model[c].get());
-  nn_instance->m_model.perform(in_model, out_model, nn_instance->m_buffer_size,
-                               nn_instance->m_method, 1);
+  nn_instance->m_model->perform(in_model, out_model, nn_instance->m_buffer_size,
+                                nn_instance->m_method, 1);
 }
 
 nn::nn(const atoms &args)
@@ -149,7 +149,7 @@ nn::nn(const atoms &args)
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
       m_use_thread(true) {
 
-  m_model = Backend();
+  m_model = std::make_unique<Backend>();
 
   // CHECK ARGUMENTS
   if (!args.size()) {
@@ -169,20 +169,20 @@ nn::nn(const atoms &args)
   }
 
   // TRY TO LOAD MODEL
-  if (m_model.load(std::string(m_path))) {
+  if (m_model->load(std::string(m_path))) {
     cerr << "error during loading" << endl;
     error();
     return;
   }
 
-  m_higher_ratio = m_model.get_higher_ratio();
+  m_higher_ratio = m_model->get_higher_ratio();
 
   // GET MODEL'S METHOD PARAMETERS
-  auto params = m_model.get_method_params(m_method);
+  auto params = m_model->get_method_params(m_method);
 
   // GET MODEL'S SETTABLE ATTRIBUTES
   try {
-    settable_attributes = m_model.get_settable_attributes();
+    settable_attributes = m_model->get_settable_attributes();
   } catch (...) {
   }
 
@@ -217,7 +217,7 @@ nn::nn(const atoms &args)
   for (int i(0); i < m_in_dim; i++) {
     std::string input_label = "";
     try {
-      input_label = m_model.get_model()
+      input_label = m_model->get_model()
                         .attr(m_method + "_input_labels")
                         .toList()
                         .get(i)
@@ -234,7 +234,7 @@ nn::nn(const atoms &args)
   for (int i(0); i < m_out_dim; i++) {
     std::string output_label = "";
     try {
-      output_label = m_model.get_model()
+      output_label = m_model->get_model()
                          .attr(m_method + "_output_labels")
                          .toList()
                          .get(i)
@@ -275,7 +275,7 @@ void nn::operator()(audio_bundle input, audio_bundle output) {
   auto dsp_vec_size = output.frame_count();
 
   // CHECK IF MODEL IS LOADED AND ENABLED
-  if (!m_model.is_loaded() || !enable) {
+  if (!m_model->is_loaded() || !enable) {
     fill_with_zero(output);
     return;
   }
