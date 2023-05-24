@@ -4,6 +4,7 @@
 #include <iostream>
 #include <stdlib.h>
 
+
 #define CUDA torch::kCUDA
 #define CPU torch::kCPU
 
@@ -85,18 +86,24 @@ void Backend::perform(std::vector<float *> in_buffer,
 
 int Backend::load(std::string path) {
   try {
-    m_model = torch::jit::load(path);
-    m_model.eval();
+    auto model = torch::jit::load(path);
+    model.eval();
     if (m_cuda_available) {
       std::cout << "sending model to gpu" << std::endl;
-      m_model.to(CUDA);
+      model.to(CUDA);
     }
+    m_model = model;
     m_loaded = 1;
+    m_path = path;
     return 0;
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
     return 1;
   }
+}
+
+int Backend::reload(){
+  return load(m_path);
 }
 
 bool Backend::has_method(std::string method_name) {
