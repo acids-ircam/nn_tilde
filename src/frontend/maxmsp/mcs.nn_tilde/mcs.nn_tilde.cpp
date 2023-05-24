@@ -38,6 +38,7 @@ public:
   // INLETS OUTLETS
   std::vector<std::unique_ptr<inlet<>>> m_inlets;
   std::vector<std::unique_ptr<outlet<>>> m_outlets;
+
   // CHANNELS
   std::vector<int> input_chans;
   int get_batches();

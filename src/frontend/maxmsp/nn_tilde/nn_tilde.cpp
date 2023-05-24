@@ -54,8 +54,6 @@ public:
   void operator()(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
 
-  // using vector_operator::operator();
-
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
                             "Absolute path to the pretrained model."};

@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include <string>
 #include <torch/script.h>
 #include <torch/torch.h>
@@ -9,6 +10,8 @@ private:
   torch::jit::script::Module m_model;
   int m_loaded;
   std::string m_path;
+  std::mutex m_model_mutex;
+  std::vector<std::string> m_available_methods;
 
 public:
   Backend();
