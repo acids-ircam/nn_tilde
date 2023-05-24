@@ -79,7 +79,9 @@ public:
 
   message<> anything{this, "anything", "callback for attributes",
                      MIN_FUNCTION{symbol attribute_name = args[0];
-  if (attribute_name == "get_attributes") {
+  if (attribute_name == "reload") {
+    m_model->reload();
+  } else if (attribute_name == "get_attributes") {
     for (std::string attr : settable_attributes) {
       cout << attr << endl;
     }
