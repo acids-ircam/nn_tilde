@@ -10,7 +10,7 @@ Grab the [latest release of nn~](https://github.com/acids-ircam/nn_tilde/release
 
 **Mac users**, you should download the arm64 version if _and only if_ your Mac is a M1-2, and your installation of Max/MSP or PureData is not using Rosetta !
 
-**Windows users**, for now it is required that all `.dll` files in the `nn~` package are copied next to the ˋMax.exeˋ executable. 
+**Windows users**, for now it is required that all `.dll` files in the `nn~` package are copied next to the ˋMax.exeˋ executable.
 
 ## MaxMSP
 
@@ -147,6 +147,16 @@ Using `mc.nn~` we build the multicanal signals **over the different batches**. I
 In the example above, the two multicanals signals yielded by the `nn~ rave encode 2` object have 16 canals each, corresponding to the 16 latent dimensions. This can help patching, while keeping the batching abilities of `mc.nn~` by creating an explicit number of inlets / oulets corresponding to the number of examples we want to process in parallel.
 
 To recap, the regular `nn~` operates on a single example, and has as many inlets / outlets as the model has inputs / outputs. The `mc.nn~` external is like `nn~`, but can process multiple examples _at the same time_. The `mcs.nn~` variant is a bit different, and can process mulitple examples at the same time, but will **have one inlet / outlet per examples**.
+
+## Special messages
+
+### enable [0 / 1]
+
+Enable / Disable computation to save up computation without deleting the model. Similar to how a _bypass_ function would work.
+
+### reload
+
+Dynamically reloads the model. Can be useful if you want to periodically update the state of a model during a training.
 
 # Build Instructions
 
