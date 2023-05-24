@@ -62,7 +62,6 @@ public:
   bool m_use_thread;
   std::unique_ptr<std::thread> m_compute_thread;
   void operator()(audio_bundle input, audio_bundle output);
-  void buffered_perform(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
 
   // using mc_operator::operator();
