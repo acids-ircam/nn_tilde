@@ -119,7 +119,7 @@ class Module(torch.nn.Module):
                               f"tested with buffer size {test_buffer_size}"))
             else:
                 logging.info(
-                    f"Skiping method {method_name} with mc.nn~ API as cc.MAX_BATCH_SIZE={cc.MAX_BATCH_SIZE}"
+                    f"Skipping method {method_name} with mc.nn~ API as cc.MAX_BATCH_SIZE={cc.MAX_BATCH_SIZE}"
                 )
         else:
             logging.warn(f"Added method \"{method_name}\" without testing it.")
