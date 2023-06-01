@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include <string>
 #include <torch/script.h>
 #include <torch/torch.h>
@@ -8,6 +9,9 @@ class Backend {
 private:
   torch::jit::script::Module m_model;
   int m_loaded;
+  std::string m_path;
+  std::mutex m_model_mutex;
+  std::vector<std::string> m_available_methods;
 
 public:
   Backend();
@@ -26,6 +30,7 @@ public:
   std::vector<int> get_method_params(std::string method);
   int get_higher_ratio();
   int load(std::string path);
+  int reload();
   bool is_loaded();
   bool m_cuda_available;
   torch::jit::script::Module get_model() { return m_model; }

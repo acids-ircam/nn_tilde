@@ -10,6 +10,8 @@ Grab the [latest release of nn~](https://github.com/acids-ircam/nn_tilde/release
 
 **Mac users**, you should download the arm64 version if _and only if_ your Mac is a M1-2, and your installation of Max/MSP or PureData is not using Rosetta !
 
+**Windows users**, for now it is required that all `.dll` files in the `nn~` package are copied next to the ˋMax.exeˋ executable.
+
 ## MaxMSP
 
 Uncompress the `.tar.gz` file in the Package folder of your Max installation, i.e. in `Documents/Max 8/Packages/`.
@@ -24,7 +26,7 @@ Right click on the `nn~` object to open the help patch, and follow the tabs to l
 
 ## PureData
 
-Uncompress the `.tar.gz` file in the Package folder of your Max installation, i.e. in `Documents/Pd/externals/`. You can then add a new path in the `Pd/File/Preferences/Path` menu pointing to the `nn_tilde` folder.
+Uncompress the `.tar.gz` file in the Package folder of your Pd installation, i.e. in `Documents/Pd/externals/`. You can then add a new path in the `Pd/File/Preferences/Path` menu pointing to the `nn_tilde` folder.
 
 On MacOS, unlike Max/MSP, PureData doesn't include an automatic quarantine removal procedure. Therefore we have to do it manually. Fire up a terminal, and `cd` to the `nn_tilde` folder. The following command will fix the issue
 
@@ -36,7 +38,7 @@ xattr -r -d com.apple.quarantine .
 
 ## Pretrained models
 
-At its core, `nn~` is a translation layer between Max/MSP or PureData and the [libtorch c++ interface for deep learning](https://pytorch.org/). Alone, `nn~` is like an empty shell, and **requires pretrained models** to operate. You can find a few [RAVE](https://github.com/acids-ircam/RAVE) models [here](https://acids-ircam.github.io/rave_models_download).
+At its core, `nn~` is a translation layer between Max/MSP or PureData and the [libtorch c++ interface for deep learning](https://pytorch.org/). Alone, `nn~` is like an empty shell, and **requires pretrained models** to operate. You can find a few [RAVE](https://github.com/acids-ircam/RAVE) models [here](https://acids-ircam.github.io/rave_models_download), or a few [vschaos2](https://github.com/acids-ircam/vschaos2) models [here](https://www.dropbox.com/sh/avdeiza7c6bn2of/AAAGZsnRo9ZVMa0iFhouCBL-a?dl=0).
 
 Pretrained model for `nn~` are **torchscript files**, with a `.ts` extension. Create a folder somewhere on your computer, for example in
 
@@ -145,6 +147,16 @@ Using `mc.nn~` we build the multicanal signals **over the different batches**. I
 In the example above, the two multicanals signals yielded by the `nn~ rave encode 2` object have 16 canals each, corresponding to the 16 latent dimensions. This can help patching, while keeping the batching abilities of `mc.nn~` by creating an explicit number of inlets / oulets corresponding to the number of examples we want to process in parallel.
 
 To recap, the regular `nn~` operates on a single example, and has as many inlets / outlets as the model has inputs / outputs. The `mc.nn~` external is like `nn~`, but can process multiple examples _at the same time_. The `mcs.nn~` variant is a bit different, and can process mulitple examples at the same time, but will **have one inlet / outlet per examples**.
+
+## Special messages
+
+### enable [0 / 1]
+
+Enable / Disable computation to save up computation without deleting the model. Similar to how a _bypass_ function would work.
+
+### reload
+
+Dynamically reloads the model. Can be useful if you want to periodically update the state of a model during a training.
 
 # Build Instructions
 
