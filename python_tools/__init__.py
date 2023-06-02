@@ -1,6 +1,6 @@
 import inspect
 import logging
-from typing import Any, Callable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import cached_conv as cc
 import torch
@@ -13,7 +13,7 @@ class Module(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self._methods = []
-        self._attributes = []
+        self._attributes = ["none"]
 
     def register_method(
         self,
@@ -160,7 +160,7 @@ class Module(torch.nn.Module):
         return self._methods
 
     @torch.jit.export
-    def get_attributes(self):
+    def get_attributes(self) -> List[str]:
         return self._attributes
 
     def export_to_ts(self, path):
