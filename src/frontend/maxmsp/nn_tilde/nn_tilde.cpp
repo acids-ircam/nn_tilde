@@ -36,6 +36,7 @@ public:
 
   // BACKEND RELATED MEMBERS
   std::unique_ptr<Backend> m_model;
+  bool m_is_backend_init = false;
   std::string m_method;
   std::vector<std::string> settable_attributes;
   bool has_settable_attribute(std::string attribute);
@@ -67,6 +68,16 @@ public:
   attribute<bool> enable{this, "enable", true,
                          description{"Enable / disable tensor computation"}};
 
+  // ENABLE / DISABLE ATTRIBUTE
+  attribute<bool> gpu{this, "gpu", false,
+                      description{"Enable / disable gpu usage when available"},
+                      setter{[this](const c74::min::atoms &args,
+                                    const int inlet) -> c74::min::atoms {
+                        if (m_is_backend_init)
+                          m_model->use_gpu(bool(args[0]));
+                        return args;
+                      }}};
+
   // BOOT STAMP
   message<> maxclass_setup{
       this, "maxclass_setup",
@@ -77,61 +88,62 @@ public:
         return {};
       }};
 
-  message<> anything{this, "anything", "callback for attributes",
-                     MIN_FUNCTION{symbol attribute_name = args[0];
-  if (attribute_name == "reload") {
-    m_model->reload();
-  } else if (attribute_name == "get_attributes") {
-    for (std::string attr : settable_attributes) {
-      cout << attr << endl;
-    }
-    return {};
-  } else if (attribute_name == "get_methods") {
-    for (std::string method : m_model->get_available_methods())
-      cout << method << endl;
-    return {};
-  } else if (attribute_name == "get") {
-    if (args.size() < 2) {
-      cerr << "get must be given an attribute name" << endl;
-      return {};
-    }
-    attribute_name = args[1];
-    if (m_model->has_settable_attribute(attribute_name)) {
-      cout << attribute_name << ": "
-           << m_model->get_attribute_as_string(attribute_name) << endl;
-    } else {
-      cerr << "no attribute " << attribute_name << " found in model" << endl;
-    }
-    return {};
-  } else if (attribute_name == "set") {
-    if (args.size() < 3) {
-      cerr << "set must be given an attribute name and corresponding arguments"
-           << endl;
-      return {};
-    }
-    attribute_name = args[1];
-    std::vector<std::string> attribute_args;
-    if (has_settable_attribute(attribute_name)) {
-      for (int i = 2; i < args.size(); i++) {
-        attribute_args.push_back(args[i]);
-      }
-      try {
-        m_model->set_attribute(attribute_name, attribute_args);
-      } catch (std::string message) {
-        cerr << message << endl;
-      }
-    } else {
-      cerr << "model does not have attribute " << attribute_name << endl;
-    }
-  } else {
-    cerr << "no corresponding method for " << attribute_name << endl;
-  }
-  return {};
-}
-}
-;
-}
-;
+  message<> anything{
+      this, "anything", "callback for attributes",
+      [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
+        symbol attribute_name = args[0];
+        if (attribute_name == "reload") {
+          m_model->reload();
+        } else if (attribute_name == "get_attributes") {
+          for (std::string attr : settable_attributes) {
+            cout << attr << endl;
+          }
+          return {};
+        } else if (attribute_name == "get_methods") {
+          for (std::string method : m_model->get_available_methods())
+            cout << method << endl;
+          return {};
+        } else if (attribute_name == "get") {
+          if (args.size() < 2) {
+            cerr << "get must be given an attribute name" << endl;
+            return {};
+          }
+          attribute_name = args[1];
+          if (m_model->has_settable_attribute(attribute_name)) {
+            cout << attribute_name << ": "
+                 << m_model->get_attribute_as_string(attribute_name) << endl;
+          } else {
+            cerr << "no attribute " << attribute_name << " found in model"
+                 << endl;
+          }
+          return {};
+        } else if (attribute_name == "set") {
+          if (args.size() < 3) {
+            cerr << "set must be given an attribute name and corresponding "
+                    "arguments"
+                 << endl;
+            return {};
+          }
+          attribute_name = args[1];
+          std::vector<std::string> attribute_args;
+          if (has_settable_attribute(attribute_name)) {
+            for (int i = 2; i < args.size(); i++) {
+              attribute_args.push_back(args[i]);
+            }
+            try {
+              m_model->set_attribute(attribute_name, attribute_args);
+            } catch (std::string message) {
+              cerr << message << endl;
+            }
+          } else {
+            cerr << "model does not have attribute " << attribute_name << endl;
+          }
+        } else {
+          cerr << "no corresponding method for " << attribute_name << endl;
+        }
+        return {};
+      }};
+};
 
 void model_perform(nn *nn_instance) {
   std::vector<float *> in_model, out_model;
@@ -149,6 +161,7 @@ nn::nn(const atoms &args)
       m_use_thread(true) {
 
   m_model = std::make_unique<Backend>();
+  m_is_backend_init = true;
 
   // CHECK ARGUMENTS
   if (!args.size()) {
@@ -173,6 +186,8 @@ nn::nn(const atoms &args)
     error();
     return;
   }
+
+  m_model->use_gpu(gpu);
 
   m_higher_ratio = m_model->get_higher_ratio();
 

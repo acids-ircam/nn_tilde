@@ -150,7 +150,6 @@ class Module(torch.nn.Module):
             raise TypeError(
                 f"Output type not defined for getter get_{attribute_name}")
 
-        # self.register_buffer(attribute_name, torch.Tensor(values))
         self.__setattr__(attribute_name, values)
         self.register_buffer(f"{attribute_name}_params",
                              torch.Tensor(type_hash))
