@@ -86,8 +86,12 @@ int Backend::load(std::string path) {
     auto model = torch::jit::load(path);
     model.eval();
     model.to(m_device);
+
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
     m_model = model;
     m_loaded = 1;
+    model_lock.unlock();
+
     m_available_methods = get_available_methods();
     m_path = path;
     return 0;
@@ -98,9 +102,7 @@ int Backend::load(std::string path) {
 }
 
 int Backend::reload() {
-  std::unique_lock<std::mutex> model_lock(m_model_mutex);
   auto return_code = load(m_path);
-  model_lock.unlock();
   return return_code;
 }
 
