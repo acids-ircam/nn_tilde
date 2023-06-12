@@ -4,6 +4,7 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
+#include <boost/interprocess/sync/scoped_lock.hpp>
 #include <iostream>
 #include <string>
 #include <torch/extension.h>
@@ -27,16 +28,22 @@ struct SharedTensor {
   };
 
   torch::Tensor get_shared_tensor() {
-    return torch::from_blob(matrix_input->values, {X_DIM, Y_DIM, PLANE_COUNT},
-                            torch::TensorOptions().dtype(torch::kFloat32))
-        .clone()
-        .permute({1, 0, 2});
+    ipc::scoped_lock<ipc::interprocess_mutex> lock(matrix_input->mutex);
+    auto tensor = torch::from_blob(
+                      matrix_input->values,
+                      {matrix_input->width, matrix_input->height, PLANE_COUNT},
+                      torch::TensorOptions().dtype(torch::kFloat32))
+                      .clone()
+                      .permute({1, 0, 2});
+    return tensor;
   };
 
   void set_shared_tensor(torch::Tensor tensor) {
+    ipc::scoped_lock<ipc::interprocess_mutex> lock(matrix_output->mutex);
     memcpy(matrix_output->values,
            tensor.permute({1, 0, 2}).contiguous().data_ptr<float>(),
-           X_DIM * Y_DIM * PLANE_COUNT * sizeof(float));
+           matrix_output->width * matrix_output->height * PLANE_COUNT *
+               sizeof(float));
   };
 
   ipc::shared_memory_object m_shm_input, m_shm_output;

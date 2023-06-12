@@ -9,6 +9,8 @@
 
 class Matrix {
 public:
+  boost::interprocess::interprocess_mutex mutex;
+  int width, height;
   float values[X_DIM * Y_DIM * PLANE_COUNT];
 };
 

@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils import cpp_extension
 from collections import OrderedDict
 import hashlib
-import numpy as np
+from typing import Optional, Sequence
 
 torch.set_grad_enabled(False)
 
@@ -19,17 +19,23 @@ shared_tensor_lib = cpp_extension.load(
 
 class SharedMatrixTransform(nn.Module):
 
-    def __init__(self, cache_len: int = 4) -> None:
+    def __init__(self,
+                 cache_len: int = 4,
+                 rescale: Optional[Sequence[int]] = None) -> None:
         super().__init__()
         self.cache = OrderedDict()
         self.cache_len = cache_len
         self.permute = torch.Tensor([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
+        self.rescale = rescale
+        if self.rescale is not None:
+            self.rescale = nn.Upsample(size=rescale)
 
     def start(self, name: str, fps: int) -> None:
         try:
             shared_tensor = shared_tensor_lib.SharedTensor(name)
         except RuntimeError:
-            raise Exception(f"Could't create shared tensor object with id \"{name}\"")
+            raise Exception(
+                f"Could't create shared tensor object with id \"{name}\"")
         dt = 1. / fps
         print(
             f"Starting processing stream '{name}' with '{self.__class__.__name__}' at {fps}fps."
@@ -39,6 +45,11 @@ class SharedMatrixTransform(nn.Module):
             try:
                 stream_name = f"{name}_input"
                 input_tensor = shared_tensor.get_shared_tensor()
+                if self.rescale is not None:
+                    original_size = input_tensor.shape[:2]
+                    input_tensor = input_tensor.permute(2, 0, 1)[None]
+                    input_tensor = self.rescale(input_tensor)
+                    input_tensor = input_tensor[0].permute(1, 2, 0)
             except RuntimeError:
                 raise RuntimeError(
                     f"Couldn't find shared stream with name {stream_name}")
@@ -59,6 +70,15 @@ class SharedMatrixTransform(nn.Module):
             else:
                 try:
                     stream_name = f"{name}_output"
+                    if self.rescale is not None:
+                        output_tensor = output_tensor.permute(2, 0, 1)[None]
+                        output_tensor = nn.functional.interpolate(
+                            output_tensor,
+                            size=original_size,
+                            recompute_scale_factor=self.rescale.
+                            recompute_scale_factor,
+                        )
+                        output_tensor = output_tensor[0].permute(1, 2, 0)
 
                     shared_tensor.set_shared_tensor(output_tensor)
                 except RuntimeError:

@@ -1,8 +1,10 @@
 #include "c74_min.h"
 #include "shared_tensor.hpp"
+#include <algorithm>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
+#include <boost/interprocess/sync/scoped_lock.hpp>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -40,9 +42,21 @@ public:
   cell<matrix_type, plane_count> calc_cell(cell<matrix_type, plane_count> input,
                                            const matrix_info &info,
                                            matrix_coord &position) {
+    long width = info.width();
+    long height = info.height();
+
+    width = width <= 0 ? 1 : width <= X_DIM ? width : X_DIM;
+    height = height <= 0 ? 1 : height <= Y_DIM ? height : Y_DIM;
+
+    if (position.x() == 0 && position.y() == 0) {
+      matrix_input->width = width;
+      matrix_output->width = width;
+      matrix_input->height = height;
+      matrix_output->height = height;
+    }
 
     cell<matrix_type, plane_count> output;
-    long pixel_index = position_to_index(position.x(), position.y(), Y_DIM,
+    long pixel_index = position_to_index(position.x(), position.y(), height,
                                          info.plane_count());
 
     for (int plane(0); plane < info.plane_count(); plane++) {
@@ -62,7 +76,7 @@ protected:
   Matrix *matrix_input, *matrix_output;
 };
 
-jit_nn::jit_nn(const atoms &args) {
+jit_nn::jit_nn(const atoms &args) : matrix_operator(false) {
   std::string stream_input = std::string("debug") + "_input";
   std::string stream_output = std::string("debug") + "_output";
   input_stream_handler = ShmRemove(stream_input);
