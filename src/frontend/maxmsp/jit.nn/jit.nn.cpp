@@ -41,33 +41,7 @@ public:
   template <class matrix_type, size_t plane_count>
   cell<matrix_type, plane_count> calc_cell(cell<matrix_type, plane_count> input,
                                            const matrix_info &info,
-                                           matrix_coord &position) {
-    long width = info.width();
-    long height = info.height();
-
-    width = width <= 0 ? 1 : width <= X_DIM ? width : X_DIM;
-    height = height <= 0 ? 1 : height <= Y_DIM ? height : Y_DIM;
-
-    if (position.x() == 0 && position.y() == 0) {
-      matrix_input->width = width;
-      matrix_output->width = width;
-      matrix_input->height = height;
-      matrix_output->height = height;
-    }
-
-    cell<matrix_type, plane_count> output;
-    long pixel_index = position_to_index(position.x(), position.y(), height,
-                                         info.plane_count());
-
-    for (int plane(0); plane < info.plane_count(); plane++) {
-      if (check_index_overflow(pixel_index + plane))
-        break;
-      matrix_input->values[pixel_index + plane] = float(input[plane]);
-      output[plane] = matrix_type(matrix_output->values[pixel_index + plane]);
-    }
-
-    return output;
-  }
+                                           matrix_coord &position);
 
 protected:
   ShmRemove input_stream_handler, output_stream_handler;
@@ -95,6 +69,38 @@ jit_nn::jit_nn(const atoms &args) : matrix_operator(false) {
 
   matrix_input = new (region_input.get_address()) Matrix;
   matrix_output = new (region_output.get_address()) Matrix;
+}
+
+template <class matrix_type, size_t plane_count>
+cell<matrix_type, plane_count>
+jit_nn::calc_cell(cell<matrix_type, plane_count> input, const matrix_info &info,
+                  matrix_coord &position) {
+  long width = info.width();
+  long height = info.height();
+
+  width = width <= 0 ? 1 : width <= X_DIM ? width : X_DIM;
+  height = height <= 0 ? 1 : height <= Y_DIM ? height : Y_DIM;
+
+  std::cout << position.x() << " " << position.y() << std::endl;
+  if (position.x() == 0 && position.y() == 0) {
+    matrix_input->width = width;
+    matrix_output->width = width;
+    matrix_input->height = height;
+    matrix_output->height = height;
+  }
+
+  cell<matrix_type, plane_count> output;
+  long pixel_index =
+      position_to_index(position.x(), position.y(), height, info.plane_count());
+
+  for (int plane(0); plane < info.plane_count(); plane++) {
+    if (check_index_overflow(pixel_index + plane))
+      break;
+    matrix_input->values[pixel_index + plane] = float(input[plane]);
+    output[plane] = matrix_type(matrix_output->values[pixel_index + plane]);
+  }
+
+  return output;
 }
 
 MIN_EXTERNAL(jit_nn);

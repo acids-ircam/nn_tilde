@@ -33,7 +33,6 @@ struct SharedTensor {
                       matrix_input->values,
                       {matrix_input->width, matrix_input->height, PLANE_COUNT},
                       torch::TensorOptions().dtype(torch::kFloat32))
-                      .clone()
                       .permute({1, 0, 2});
     return tensor;
   };

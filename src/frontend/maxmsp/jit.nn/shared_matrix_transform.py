@@ -40,16 +40,18 @@ class SharedMatrixTransform(nn.Module):
         print(
             f"Starting processing stream '{name}' with '{self.__class__.__name__}' at {fps}fps."
         )
+        input_tensor_ptr = shared_tensor.get_shared_tensor()
         while True:
             start_time = time()
             try:
                 stream_name = f"{name}_input"
-                input_tensor = shared_tensor.get_shared_tensor()
                 if self.rescale is not None:
-                    original_size = input_tensor.shape[:2]
-                    input_tensor = input_tensor.permute(2, 0, 1)[None]
+                    original_size = input_tensor_ptr.shape[:2]
+                    input_tensor = input_tensor_ptr.permute(2, 0, 1)[None]
                     input_tensor = self.rescale(input_tensor)
                     input_tensor = input_tensor[0].permute(1, 2, 0)
+                else:
+                    input_tensor = input_tensor_ptr
             except RuntimeError:
                 raise RuntimeError(
                     f"Couldn't find shared stream with name {stream_name}")
