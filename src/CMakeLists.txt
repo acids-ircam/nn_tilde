@@ -21,4 +21,5 @@ if(APPLE OR MSVC)
     add_subdirectory(frontend/maxmsp/nn_tilde) # MAX MSP EXTERNAL
     add_subdirectory(frontend/maxmsp/mc.nn_tilde) # MAX MSP EXTERNAL
     add_subdirectory(frontend/maxmsp/mcs.nn_tilde) # MAX MSP EXTERNAL
+    add_subdirectory(frontend/maxmsp/jit.nn) # MAX MSP EXTERNAL
 endif()
