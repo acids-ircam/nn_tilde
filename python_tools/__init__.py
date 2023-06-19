@@ -93,6 +93,8 @@ class Module(torch.nn.Module):
                     (f"Wrong output length for method \"{method_name}\", "
                      f"expected {test_buffer_size//out_ratio} "
                      f"got {y.shape[2]}"))
+            if y.dtype != torch.float:
+                raise ValueError(f"Output tensor must be of type float, got {y.dtype}")
 
             if cc.MAX_BATCH_SIZE > 1:
                 logging.info(f"Testing method {method_name} with mc.nn~ API")
