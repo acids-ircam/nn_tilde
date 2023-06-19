@@ -16,7 +16,7 @@ include_directories(
 	"${C74_INCLUDES}"
 )
 include_directories("/Users/acaillon/code/shared/boost_1_82_0")
-find_package(Torch REQUIRED)
+# find_package(Torch REQUIRED)
 
 set(
 SOURCE_FILES
@@ -43,22 +43,7 @@ add_library(
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 14)
 
 
-if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
-set_target_properties(${PROJECT_NAME} PROPERTIES
-BUILD_WITH_INSTALL_RPATH FALSE
-LINK_FLAGS "-Wl,-rpath,@loader_path/"
-)
-endif()
-
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
-
-if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
-add_custom_command( 
-		TARGET ${PROJECT_NAME} 
-		POST_BUILD 
-		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/" 
-		COMMENT "Copy Torch Libraries" 
-	)
 
 if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 	add_custom_command( 
@@ -67,11 +52,4 @@ if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo"
 		COMMENT "Codesign external" 
 	)
-endif()
-endif()
-
-if (MSVC) # COPY TORCH DLL IN THE LOADER FOLDER
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${TORCH_INSTALL_PREFIX}/lib/" ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/
-)
 endif()

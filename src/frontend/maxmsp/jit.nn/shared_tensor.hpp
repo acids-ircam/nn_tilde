@@ -3,8 +3,8 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 
-#define X_DIM 256
-#define Y_DIM 256
+#define X_DIM 1024
+#define Y_DIM 1024
 #define PLANE_COUNT 4
 
 class Matrix {

@@ -40,11 +40,11 @@ class SharedMatrixTransform(nn.Module):
         print(
             f"Starting processing stream '{name}' with '{self.__class__.__name__}' at {fps}fps."
         )
-        input_tensor_ptr = shared_tensor.get_shared_tensor()
         while True:
             start_time = time()
             try:
                 stream_name = f"{name}_input"
+                input_tensor_ptr = shared_tensor.get_shared_tensor()
                 if self.rescale is not None:
                     original_size = input_tensor_ptr.shape[:2]
                     input_tensor = input_tensor_ptr.permute(2, 0, 1)[None]
