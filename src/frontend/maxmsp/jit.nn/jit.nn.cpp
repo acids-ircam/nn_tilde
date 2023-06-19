@@ -3,9 +3,7 @@
 #include <algorithm>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/interprocess_mutex.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
-#include <mutex>
 #include <string>
 #include <vector>
 
@@ -37,6 +35,17 @@ public:
   outlet<> output{this, "(matrix) Output", "matrix"};
 
   jit_nn(const atoms &args = {});
+  void setup_stream(std::string stream_name);
+
+  attribute<symbol> attribute_stream_name{
+      this, "stream", "",
+      setter{[this](const c74::min::atoms &args,
+                    const int inlet) -> c74::min::atoms {
+        std::cout << args[0] << std::endl;
+        setup_stream(std::string(args[0]));
+        return args;
+      }},
+      description{"Define jit.nn stream name"}};
 
   template <class matrix_type, size_t plane_count>
   cell<matrix_type, plane_count> calc_cell(cell<matrix_type, plane_count> input,
@@ -50,16 +59,22 @@ protected:
   Matrix *matrix_input, *matrix_output;
 };
 
-jit_nn::jit_nn(const atoms &args) : matrix_operator(false) {
-  std::string stream_input = std::string("debug") + "_input";
-  std::string stream_output = std::string("debug") + "_output";
+jit_nn::jit_nn(const atoms &args) : matrix_operator(false) {}
+
+void jit_nn::setup_stream(std::string stream_name) {
+  if (stream_name == "")
+    return;
+
+  std::string stream_input = stream_name + "_input";
+  std::string stream_output = stream_name + "_output";
+
   input_stream_handler = ShmRemove(stream_input);
   output_stream_handler = ShmRemove(stream_output);
 
-  shm_input = ipc::shared_memory_object(ipc::create_only, "debug_input",
+  shm_input = ipc::shared_memory_object(ipc::create_only, stream_input.c_str(),
                                         ipc::read_write);
-  shm_output = ipc::shared_memory_object(ipc::create_only, "debug_output",
-                                         ipc::read_write);
+  shm_output = ipc::shared_memory_object(
+      ipc::create_only, stream_output.c_str(), ipc::read_write);
 
   shm_input.truncate(sizeof(Matrix));
   shm_output.truncate(sizeof(Matrix));
@@ -75,6 +90,11 @@ template <class matrix_type, size_t plane_count>
 cell<matrix_type, plane_count>
 jit_nn::calc_cell(cell<matrix_type, plane_count> input, const matrix_info &info,
                   matrix_coord &position) {
+  cell<matrix_type, plane_count> output;
+
+  if (std::string(attribute_stream_name.get()) == "none")
+    return output;
+
   long width = info.width();
   long height = info.height();
 
@@ -88,14 +108,20 @@ jit_nn::calc_cell(cell<matrix_type, plane_count> input, const matrix_info &info,
     matrix_output->height = height;
   }
 
-  cell<matrix_type, plane_count> output;
   long pixel_index =
       position_to_index(position.x(), position.y(), height, info.plane_count());
 
+  // TRANSFER DATA TO MODEL INPUT
   for (int plane(0); plane < info.plane_count(); plane++) {
     if (check_index_overflow(pixel_index + plane))
       break;
     matrix_input->values[pixel_index + plane] = float(input[plane]);
+  }
+
+  // TRANSFER DATA FROM MODEL OUTPUT
+  for (int plane(0); plane < info.plane_count(); plane++) {
+    if (check_index_overflow(pixel_index + plane))
+      break;
     output[plane] = matrix_type(matrix_output->values[pixel_index + plane]);
   }
 
