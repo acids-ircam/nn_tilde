@@ -108,7 +108,10 @@ class SharedMatrixTransform(nn.Module):
                 pass
             else:
                 self.previous_frame_hash = tensor_hash
-                output_tensor = self.buffer(input_tensor)
+                if self.buffer.batch_size == 1:
+                    output_tensor = self.forward(input_tensor[None])[0]
+                else:
+                    output_tensor = self.buffer(input_tensor)
 
                 if output_tensor.shape != input_tensor.shape:
                     raise ValueError(
