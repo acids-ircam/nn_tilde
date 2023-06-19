@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/interprocess_mutex.hpp>
-#include <boost/interprocess/sync/scoped_lock.hpp>
+#include <chrono>
 #include <iostream>
+#include <semaphore>
 #include <string>
 #include <torch/extension.h>
 #include <torch/torch.h>
@@ -28,21 +28,25 @@ struct SharedTensor {
   };
 
   torch::Tensor get_shared_tensor() {
-    ipc::scoped_lock<ipc::interprocess_mutex> lock(matrix_input->mutex);
-    auto tensor = torch::from_blob(
-                      matrix_input->values,
-                      {matrix_input->width, matrix_input->height, PLANE_COUNT},
-                      torch::TensorOptions().dtype(torch::kFloat32))
-                      .permute({1, 0, 2});
+    torch::Tensor tensor;
+    if (matrix_input->lock.try_acquire_for(std::chrono::seconds(1)))
+      tensor = torch::from_blob(
+                   matrix_input->values,
+                   {matrix_input->width, matrix_input->height, PLANE_COUNT},
+                   torch::TensorOptions().dtype(torch::kFloat32))
+                   .permute({1, 0, 2});
+    else {
+      tensor = torch::ones({});
+    }
     return tensor;
   };
 
   void set_shared_tensor(torch::Tensor tensor) {
-    ipc::scoped_lock<ipc::interprocess_mutex> lock(matrix_output->mutex);
     memcpy(matrix_output->values,
            tensor.permute({1, 0, 2}).contiguous().data_ptr<float>(),
            matrix_output->width * matrix_output->height * PLANE_COUNT *
                sizeof(float));
+    matrix_output->lock.release();
   };
 
   ipc::shared_memory_object m_shm_input, m_shm_output;

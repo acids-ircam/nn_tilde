@@ -2,6 +2,7 @@
 
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
+#include <semaphore>
 
 #define X_DIM 1024
 #define Y_DIM 1024
@@ -12,6 +13,7 @@ public:
   boost::interprocess::interprocess_mutex mutex;
   int width, height;
   float values[X_DIM * Y_DIM * PLANE_COUNT];
+  std::binary_semaphore lock{0};
 };
 
 class ShmRemove {

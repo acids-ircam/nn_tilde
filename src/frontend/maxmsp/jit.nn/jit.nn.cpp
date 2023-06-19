@@ -4,6 +4,7 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
+#include <chrono>
 #include <string>
 #include <vector>
 
@@ -57,6 +58,10 @@ protected:
   ipc::shared_memory_object shm_input, shm_output;
   ipc::mapped_region region_input, region_output;
   Matrix *matrix_input, *matrix_output;
+
+  template <class matrix_type, size_t plane_count>
+  cell<matrix_type, plane_count> get_cell(const matrix_info &info, int x,
+                                          int y);
 };
 
 jit_nn::jit_nn(const atoms &args) : matrix_operator(false) {}
@@ -106,17 +111,23 @@ jit_nn::calc_cell(cell<matrix_type, plane_count> input, const matrix_info &info,
     matrix_output->width = width;
     matrix_input->height = height;
     matrix_output->height = height;
+
+    for (long x(0); x < width; x++) {
+      for (long y(0); y < height; y++) {
+        auto cell = info.in_cell<matrix_type, plane_count>(x, y);
+        auto pixel_index = position_to_index(x, y, height, PLANE_COUNT);
+
+        for (int plane(0); plane < info.plane_count(); plane++) {
+          matrix_input->values[pixel_index + plane] = float(cell[plane]);
+        }
+      }
+    }
+    matrix_input->lock.release(); // SIGNAL MODEL THAT DATA IS READY
+    matrix_output->lock.try_acquire_for(std::chrono::milliseconds(50));
   }
 
   long pixel_index =
       position_to_index(position.x(), position.y(), height, info.plane_count());
-
-  // TRANSFER DATA TO MODEL INPUT
-  for (int plane(0); plane < info.plane_count(); plane++) {
-    if (check_index_overflow(pixel_index + plane))
-      break;
-    matrix_input->values[pixel_index + plane] = float(input[plane]);
-  }
 
   // TRANSFER DATA FROM MODEL OUTPUT
   for (int plane(0); plane < info.plane_count(); plane++) {
@@ -124,8 +135,17 @@ jit_nn::calc_cell(cell<matrix_type, plane_count> input, const matrix_info &info,
       break;
     output[plane] = matrix_type(matrix_output->values[pixel_index + plane]);
   }
-
   return output;
+}
+
+template <class matrix_type, size_t plane_count>
+cell<matrix_type, plane_count> jit_nn::get_cell(const matrix_info &info, int x,
+                                                int y) {
+  auto x1 = clamp<decltype(x)>(x, 0, info.width() - 1);
+  auto y1 = clamp<decltype(y)>(y, 0, info.height() - 1);
+  auto c = info.in_cell<matrix_type, plane_count>(x1, y1);
+  auto tesdt = info.m_bip;
+  return c;
 }
 
 MIN_EXTERNAL(jit_nn);

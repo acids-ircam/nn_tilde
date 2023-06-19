@@ -6,6 +6,7 @@ cmake_minimum_required(VERSION 3.0)
 set(C74_MIN_API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../min-api)
 include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0")
 
 #############################################################
 # MAX EXTERNAL
@@ -40,10 +41,10 @@ add_library(
 	${SOURCE_FILES}
 )
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 14)
-
-
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
+
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+
 
 if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 	add_custom_command( 

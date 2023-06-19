@@ -73,21 +73,21 @@ class SharedMatrixTransform(nn.Module):
 
         self.previous_frame_hash = None
 
-    def start(self, name: str, fps: int) -> None:
+    def start(self, name: str) -> None:
         try:
             shared_tensor = shared_tensor_lib.SharedTensor(name)
         except RuntimeError:
             raise Exception(
                 f"Could't create shared tensor object with id \"{name}\"")
-        dt = 1. / fps
         print(
-            f"Starting processing stream '{name}' with '{self.__class__.__name__}' at {fps}fps."
+            f"Starting processing stream '{name}' with '{self.__class__.__name__}'"
         )
         while True:
-            start_time = time()
             try:
                 stream_name = f"{name}_input"
                 input_tensor_ptr = shared_tensor.get_shared_tensor()
+                if not len(input_tensor_ptr.shape):
+                    continue
                 if self.rescale is not None:
                     original_size = input_tensor_ptr.shape[:2]
                     input_tensor = input_tensor_ptr.permute(2, 0, 1)[None]
@@ -136,11 +136,3 @@ class SharedMatrixTransform(nn.Module):
                         raise RuntimeError(
                             f"Couldn't find shared stream with name {stream_name}"
                         )
-
-            current_dt = time() - start_time
-
-            if current_dt < dt:
-                sleep(dt - current_dt)
-            else:
-                overtime = 1000 * (current_dt - dt)
-                print(f"process late by {overtime:.2f}ms" + 10 * " ", end="\r")
