@@ -52,6 +52,7 @@ class SharedMatrixTransform(nn.Module):
                     input_tensor = input_tensor[0].permute(1, 2, 0)
                 else:
                     input_tensor = input_tensor_ptr
+                input_tensor = input_tensor.clone()
             except RuntimeError:
                 raise RuntimeError(
                     f"Couldn't find shared stream with name {stream_name}")

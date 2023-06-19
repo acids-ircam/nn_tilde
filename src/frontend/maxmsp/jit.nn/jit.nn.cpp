@@ -81,7 +81,6 @@ jit_nn::calc_cell(cell<matrix_type, plane_count> input, const matrix_info &info,
   width = width <= 0 ? 1 : width <= X_DIM ? width : X_DIM;
   height = height <= 0 ? 1 : height <= Y_DIM ? height : Y_DIM;
 
-  std::cout << position.x() << " " << position.y() << std::endl;
   if (position.x() == 0 && position.y() == 0) {
     matrix_input->width = width;
     matrix_output->width = width;
