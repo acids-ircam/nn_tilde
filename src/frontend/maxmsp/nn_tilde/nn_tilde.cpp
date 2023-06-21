@@ -1,6 +1,8 @@
 #include "../../../backend/backend.h"
 #include "../shared/circular_buffer.h"
 #include "c74_min.h"
+#include <chrono>
+#include <semaphore>
 #include <string>
 #include <thread>
 #include <vector>
@@ -36,6 +38,7 @@ public:
 
   // BACKEND RELATED MEMBERS
   std::unique_ptr<Backend> m_model;
+  bool m_is_backend_init = false;
   std::string m_method;
   std::vector<std::string> settable_attributes;
   bool has_settable_attribute(std::string attribute);
@@ -49,8 +52,10 @@ public:
   std::vector<std::unique_ptr<float[]>> m_in_model, m_out_model;
 
   // AUDIO PERFORM
-  bool m_use_thread;
+  bool m_use_thread, m_should_stop_perform_thread;
   std::unique_ptr<std::thread> m_compute_thread;
+  std::binary_semaphore m_data_available_lock, m_result_available_lock;
+
   void operator()(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
 
@@ -67,6 +72,16 @@ public:
   attribute<bool> enable{this, "enable", true,
                          description{"Enable / disable tensor computation"}};
 
+  // ENABLE / DISABLE ATTRIBUTE
+  attribute<bool> gpu{this, "gpu", false,
+                      description{"Enable / disable gpu usage when available"},
+                      setter{[this](const c74::min::atoms &args,
+                                    const int inlet) -> c74::min::atoms {
+                        if (m_is_backend_init)
+                          m_model->use_gpu(bool(args[0]));
+                        return args;
+                      }}};
+
   // BOOT STAMP
   message<> maxclass_setup{
       this, "maxclass_setup",
@@ -77,61 +92,62 @@ public:
         return {};
       }};
 
-  message<> anything{this, "anything", "callback for attributes",
-                     MIN_FUNCTION{symbol attribute_name = args[0];
-  if (attribute_name == "reload") {
-    m_model->reload();
-  } else if (attribute_name == "get_attributes") {
-    for (std::string attr : settable_attributes) {
-      cout << attr << endl;
-    }
-    return {};
-  } else if (attribute_name == "get_methods") {
-    for (std::string method : m_model->get_available_methods())
-      cout << method << endl;
-    return {};
-  } else if (attribute_name == "get") {
-    if (args.size() < 2) {
-      cerr << "get must be given an attribute name" << endl;
-      return {};
-    }
-    attribute_name = args[1];
-    if (m_model->has_settable_attribute(attribute_name)) {
-      cout << attribute_name << ": "
-           << m_model->get_attribute_as_string(attribute_name) << endl;
-    } else {
-      cerr << "no attribute " << attribute_name << " found in model" << endl;
-    }
-    return {};
-  } else if (attribute_name == "set") {
-    if (args.size() < 3) {
-      cerr << "set must be given an attribute name and corresponding arguments"
-           << endl;
-      return {};
-    }
-    attribute_name = args[1];
-    std::vector<std::string> attribute_args;
-    if (has_settable_attribute(attribute_name)) {
-      for (int i = 2; i < args.size(); i++) {
-        attribute_args.push_back(args[i]);
-      }
-      try {
-        m_model->set_attribute(attribute_name, attribute_args);
-      } catch (std::string message) {
-        cerr << message << endl;
-      }
-    } else {
-      cerr << "model does not have attribute " << attribute_name << endl;
-    }
-  } else {
-    cerr << "no corresponding method for " << attribute_name << endl;
-  }
-  return {};
-}
-}
-;
-}
-;
+  message<> anything{
+      this, "anything", "callback for attributes",
+      [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
+        symbol attribute_name = args[0];
+        if (attribute_name == "reload") {
+          m_model->reload();
+        } else if (attribute_name == "get_attributes") {
+          for (std::string attr : settable_attributes) {
+            cout << attr << endl;
+          }
+          return {};
+        } else if (attribute_name == "get_methods") {
+          for (std::string method : m_model->get_available_methods())
+            cout << method << endl;
+          return {};
+        } else if (attribute_name == "get") {
+          if (args.size() < 2) {
+            cerr << "get must be given an attribute name" << endl;
+            return {};
+          }
+          attribute_name = args[1];
+          if (m_model->has_settable_attribute(attribute_name)) {
+            cout << attribute_name << ": "
+                 << m_model->get_attribute_as_string(attribute_name) << endl;
+          } else {
+            cerr << "no attribute " << attribute_name << " found in model"
+                 << endl;
+          }
+          return {};
+        } else if (attribute_name == "set") {
+          if (args.size() < 3) {
+            cerr << "set must be given an attribute name and corresponding "
+                    "arguments"
+                 << endl;
+            return {};
+          }
+          attribute_name = args[1];
+          std::vector<std::string> attribute_args;
+          if (has_settable_attribute(attribute_name)) {
+            for (int i = 2; i < args.size(); i++) {
+              attribute_args.push_back(args[i]);
+            }
+            try {
+              m_model->set_attribute(attribute_name, attribute_args);
+            } catch (std::string message) {
+              cerr << message << endl;
+            }
+          } else {
+            cerr << "model does not have attribute " << attribute_name << endl;
+          }
+        } else {
+          cerr << "no corresponding method for " << attribute_name << endl;
+        }
+        return {};
+      }};
+};
 
 void model_perform(nn *nn_instance) {
   std::vector<float *> in_model, out_model;
@@ -139,16 +155,39 @@ void model_perform(nn *nn_instance) {
     in_model.push_back(nn_instance->m_in_model[c].get());
   for (int c(0); c < nn_instance->m_out_dim; c++)
     out_model.push_back(nn_instance->m_out_model[c].get());
+
   nn_instance->m_model->perform(in_model, out_model, nn_instance->m_buffer_size,
                                 nn_instance->m_method, 1);
+}
+
+void model_perform_loop(nn *nn_instance) {
+  std::vector<float *> in_model, out_model;
+
+  for (auto &ptr : nn_instance->m_in_model)
+    in_model.push_back(ptr.get());
+
+  for (auto &ptr : nn_instance->m_out_model)
+    out_model.push_back(ptr.get());
+
+  while (!nn_instance->m_should_stop_perform_thread) {
+    if (nn_instance->m_data_available_lock.try_acquire_for(
+            std::chrono::milliseconds(200))) {
+      nn_instance->m_model->perform(in_model, out_model,
+                                    nn_instance->m_buffer_size,
+                                    nn_instance->m_method, 1);
+      nn_instance->m_result_available_lock.release();
+    }
+  }
 }
 
 nn::nn(const atoms &args)
     : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
-      m_use_thread(true) {
+      m_use_thread(true), m_data_available_lock(0), m_result_available_lock(1),
+      m_should_stop_perform_thread(false) {
 
   m_model = std::make_unique<Backend>();
+  m_is_backend_init = true;
 
   // CHECK ARGUMENTS
   if (!args.size()) {
@@ -173,6 +212,8 @@ nn::nn(const atoms &args)
     error();
     return;
   }
+
+  m_model->use_gpu(gpu);
 
   m_higher_ratio = m_model->get_higher_ratio();
 
@@ -246,9 +287,13 @@ nn::nn(const atoms &args)
     m_out_buffer[i].initialize(m_buffer_size);
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
+
+  if (m_use_thread)
+    m_compute_thread = std::make_unique<std::thread>(model_perform_loop, this);
 }
 
 nn::~nn() {
+  m_should_stop_perform_thread = true;
   if (m_compute_thread)
     m_compute_thread->join();
 }
@@ -303,24 +348,30 @@ void nn::perform(audio_bundle input, audio_bundle output) {
   }
 
   if (m_in_buffer[0].full()) { // BUFFER IS FULL
-    // IF USE THREAD, CHECK THAT COMPUTATION IS OVER
-    if (m_compute_thread && m_use_thread) {
-      m_compute_thread->join();
-    }
+    if (!m_use_thread) {
+      // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
+      for (int c(0); c < m_in_dim; c++)
+        m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
 
-    // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
-    for (int c(0); c < m_in_dim; c++)
-      m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
-
-    if (!m_use_thread) // PROCESS DATA RIGHT NOW
+      // CALL MODEL PERFORM IN CURRENT THREAD
       model_perform(this);
 
-    // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
-    for (int c(0); c < m_out_dim; c++)
-      m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
+      // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
+      for (int c(0); c < m_out_dim; c++)
+        m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
 
-    if (m_use_thread) // PROCESS DATA LATER
-      m_compute_thread = std::make_unique<std::thread>(model_perform, this);
+    } else if (m_result_available_lock.try_acquire()) {
+      // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
+      for (int c(0); c < m_in_dim; c++)
+        m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
+
+      // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
+      for (int c(0); c < m_out_dim; c++)
+        m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
+
+      // SIGNAL PERFORM THREAD THAT DATA IS AVAILABLE
+      m_data_available_lock.release();
+    }
   }
 
   // COPY CIRCULAR BUFFER TO OUTPUT

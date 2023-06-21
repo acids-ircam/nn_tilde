@@ -1,1 +1,2 @@
-torch
+torch>=1.13.1
+cached_conv>=2.5.0

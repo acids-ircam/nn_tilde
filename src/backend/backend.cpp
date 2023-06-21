@@ -4,16 +4,12 @@
 #include <iostream>
 #include <stdlib.h>
 
-#define CUDA torch::kCUDA
 #define CPU torch::kCPU
+#define CUDA torch::kCUDA
+#define MPS torch::kMPS
 
-Backend::Backend()
-    : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
   at::init_num_threads();
-  if (m_cuda_available)
-    std::cout << "using cuda" << std::endl;
-  else
-    std::cout << "using cpu" << std::endl;
 }
 
 void Backend::perform(std::vector<float *> in_buffer,
@@ -43,14 +39,13 @@ void Backend::perform(std::vector<float *> in_buffer,
   cat_tensor_in = cat_tensor_in.select(-1, -1);
   cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
 
-  if (m_cuda_available)
-    cat_tensor_in = cat_tensor_in.to(CUDA);
-
+  // SEND TENSOR TO DEVICE
+  std::unique_lock<std::mutex> model_lock(m_model_mutex);
+  cat_tensor_in = cat_tensor_in.to(m_device);
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
   // PROCESS TENSOR
   at::Tensor tensor_out;
-  std::unique_lock<std::mutex> model_lock(m_model_mutex);
   try {
     tensor_out = m_model.get_method(method)(inputs).toTensor();
     tensor_out = tensor_out.repeat_interleave(out_ratio).reshape(
@@ -90,12 +85,13 @@ int Backend::load(std::string path) {
   try {
     auto model = torch::jit::load(path);
     model.eval();
-    if (m_cuda_available) {
-      std::cout << "sending model to gpu" << std::endl;
-      model.to(CUDA);
-    }
+    model.to(m_device);
+
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
     m_model = model;
     m_loaded = 1;
+    model_lock.unlock();
+
     m_available_methods = get_available_methods();
     m_path = path;
     return 0;
@@ -105,7 +101,10 @@ int Backend::load(std::string path) {
   }
 }
 
-int Backend::reload() { return load(m_path); }
+int Backend::reload() {
+  auto return_code = load(m_path);
+  return return_code;
+}
 
 bool Backend::has_method(std::string method_name) {
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
@@ -357,3 +356,22 @@ int Backend::get_higher_ratio() {
 }
 
 bool Backend::is_loaded() { return m_loaded; }
+
+void Backend::use_gpu(bool value) {
+  std::unique_lock<std::mutex> model_lock(m_model_mutex);
+  if (value) {
+    if (torch::hasCUDA()) {
+      std::cout << "sending model to cuda" << std::endl;
+      m_device = CUDA;
+    } else if (torch::hasMPS()) {
+      std::cout << "sending model to mps" << std::endl;
+      m_device = MPS;
+    } else {
+      std::cout << "sending model to cpu" << std::endl;
+      m_device = CPU;
+    }
+  } else {
+    m_device = CPU;
+  }
+  m_model.to(m_device);
+}

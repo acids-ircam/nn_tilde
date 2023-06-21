@@ -1,6 +1,8 @@
-import subprocess
+import os
 
 import setuptools
+
+VERSION = os.environ["NN_TILDE_VERSION"]
 
 with open("README.md", "r") as readme:
     readme = readme.read()
@@ -10,11 +12,7 @@ with open("requirements.txt", "r") as requirements:
 
 setuptools.setup(
     name="nn_tilde",
-    version=subprocess.check_output([
-        "git",
-        "describe",
-        "--abbrev=0",
-    ]).strip().decode(),
+    version=VERSION,
     author="Antoine CAILLON",
     author_email="caillon@ircam.fr",
     description="Set of tools to create nn_tilde compatible models.",

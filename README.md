@@ -202,3 +202,13 @@ Install nn~ for PureData using
 ```bash
 curl -s https://raw.githubusercontent.com/acids-ircam/nn_tilde/master/install/raspberrypi.sh | bash
 ```
+
+# Funding
+
+This work is led at IRCAM, and has been funded by the following projects
+
+* [ANR MakiMono](https://acids.ircam.fr/course/makimono/)
+* [ACTOR](https://www.actorproject.org/)
+* [DAFNE+](https://dafneplus.eu/) N° 101061548
+
+<img src="https://ec.europa.eu/regional_policy/images/information-sources/logo-download-center/eu_co_funded_en.jpg" width=200px/>
