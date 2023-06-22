@@ -189,7 +189,7 @@ git clone https://github.com/acids-ircam/nn_tilde --recurse-submodules
 cd nn_tilde
 mkdir build
 cd build
-cmake ..\src -A x64 -DCMAKE_PREFIX_PATH="<unzipped libtorch directory>"
+cmake ..\src -A x64 -DCMAKE_PREFIX_PATH="<unzipped libtorch directory>" -DPUREDATA_INCLUDE_DIR="<path-to-pd/src>" -DPUREDATA_BIN_DIR="<path-to-pd/bin>"
 cmake --build . --config Release
 ```
 
