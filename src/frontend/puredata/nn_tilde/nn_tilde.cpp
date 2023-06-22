@@ -273,7 +273,11 @@ void startup_message() {
 }
 
 extern "C" {
+#ifdef _WIN32
+void __declspec(dllexport) nn_tilde_setup(void) {
+#else
 void nn_tilde_setup(void) {
+#endif
   startup_message();
   nn_tilde_class = class_new(gensym("nn~"), (t_newmethod)nn_tilde_new, 0,
                              sizeof(t_nn_tilde), CLASS_DEFAULT, A_GIMME, 0);
