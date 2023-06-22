@@ -13,7 +13,7 @@ endif()
 
 add_subdirectory(backend) # DEEP LEARNING BACKEND
 
-if ((APPLE AND NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
+if ((NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
     add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
 endif()
 

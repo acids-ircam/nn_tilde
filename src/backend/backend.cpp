@@ -1,18 +1,15 @@
 #include "backend.h"
+#include "parsing_utils.h"
 #include <algorithm>
 #include <iostream>
 #include <stdlib.h>
 
-#define CUDA torch::kCUDA
 #define CPU torch::kCPU
+#define CUDA torch::kCUDA
+#define MPS torch::kMPS
 
-Backend::Backend()
-    : m_loaded(0), m_cuda_available(torch::cuda::is_available()) {
+Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
   at::init_num_threads();
-  if (m_cuda_available)
-    std::cout << "using cuda" << std::endl;
-  else
-    std::cout << "using cpu" << std::endl;
 }
 
 void Backend::perform(std::vector<float *> in_buffer,
@@ -33,23 +30,21 @@ void Backend::perform(std::vector<float *> in_buffer,
     return;
 
   // COPY BUFFER INTO A TENSOR
-  // std::cout << "copying buffer in tensor" << std::endl;
   std::vector<at::Tensor> tensor_in;
-  for (int i(0); i < in_buffer.size(); i++) {
-    tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
-  }
+  for (auto buf : in_buffer)
+    tensor_in.push_back(torch::from_blob(buf, {1, 1, n_vec}));
+
   auto cat_tensor_in = torch::cat(tensor_in, 1);
-  cat_tensor_in = cat_tensor_in.reshape({n_batches, in_dim, -1, in_ratio});
+  cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
   cat_tensor_in = cat_tensor_in.select(-1, -1);
+  cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
 
-  if (m_cuda_available)
-    cat_tensor_in = cat_tensor_in.to(CUDA);
-
+  // SEND TENSOR TO DEVICE
+  std::unique_lock<std::mutex> model_lock(m_model_mutex);
+  cat_tensor_in = cat_tensor_in.to(m_device);
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
   // PROCESS TENSOR
-  // std::cout << "tensor shape = " << cat_tensor_in.sizes() << std::endl;
-  // std::cout << "processing tensor" << std::endl;
   at::Tensor tensor_out;
   try {
     tensor_out = m_model.get_method(method)(inputs).toTensor();
@@ -59,6 +54,7 @@ void Backend::perform(std::vector<float *> in_buffer,
     std::cerr << e.what() << '\n';
     return;
   }
+  model_lock.unlock();
 
   int out_batches(tensor_out.size(0)), out_channels(tensor_out.size(1)),
       out_n_vec(tensor_out.size(2));
@@ -87,13 +83,17 @@ void Backend::perform(std::vector<float *> in_buffer,
 
 int Backend::load(std::string path) {
   try {
-    m_model = torch::jit::load(path);
-    m_model.eval();
-    if (m_cuda_available) {
-      std::cout << "sending model to gpu" << std::endl;
-      m_model.to(CUDA);
-    }
+    auto model = torch::jit::load(path);
+    model.eval();
+    model.to(m_device);
+
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    m_model = model;
     m_loaded = 1;
+    model_lock.unlock();
+
+    m_available_methods = get_available_methods();
+    m_path = path;
     return 0;
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
@@ -101,27 +101,240 @@ int Backend::load(std::string path) {
   }
 }
 
+int Backend::reload() {
+  auto return_code = load(m_path);
+  return return_code;
+}
+
+bool Backend::has_method(std::string method_name) {
+  std::unique_lock<std::mutex> model_lock(m_model_mutex);
+  for (const auto &m : m_model.get_methods()) {
+    if (m.name() == method_name)
+      return true;
+  }
+  return false;
+}
+
+bool Backend::has_settable_attribute(std::string attribute) {
+  for (const auto &a : get_settable_attributes()) {
+    if (a == attribute)
+      return true;
+  }
+  return false;
+}
+
 std::vector<std::string> Backend::get_available_methods() {
   std::vector<std::string> methods;
-  for (const auto &m : m_model.get_methods())
-    methods.push_back(m.name());
+  try {
+    std::vector<c10::IValue> dumb_input = {};
+
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    auto methods_from_model =
+        m_model.get_method("get_methods")(dumb_input).toList();
+    model_lock.unlock();
+
+    for (int i = 0; i < methods_from_model.size(); i++) {
+      methods.push_back(methods_from_model.get(i).toStringRef());
+    }
+  } catch (...) {
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    for (const auto &m : m_model.get_methods()) {
+      try {
+        auto method_params = m_model.attr(m.name() + "_params");
+        methods.push_back(m.name());
+      } catch (...) {
+      }
+    }
+    model_lock.unlock();
+  }
   return methods;
 }
 
 std::vector<std::string> Backend::get_available_attributes() {
   std::vector<std::string> attributes;
+  std::unique_lock<std::mutex> model_lock(m_model_mutex);
   for (const auto &attribute : m_model.named_attributes())
     attributes.push_back(attribute.name);
   return attributes;
 }
 
+std::vector<std::string> Backend::get_settable_attributes() {
+  std::vector<std::string> attributes;
+  try {
+    std::vector<c10::IValue> dumb_input = {};
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    auto methods_from_model =
+        m_model.get_method("get_attributes")(dumb_input).toList();
+    model_lock.unlock();
+    for (int i = 0; i < methods_from_model.size(); i++) {
+      attributes.push_back(methods_from_model.get(i).toStringRef());
+    }
+  } catch (...) {
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    for (const auto &a : m_model.named_attributes()) {
+      try {
+        auto method_params = m_model.attr(a.name + "_params");
+        attributes.push_back(a.name);
+      } catch (...) {
+      }
+    }
+    model_lock.unlock();
+  }
+  return attributes;
+}
+
+std::vector<c10::IValue> Backend::get_attribute(std::string attribute_name) {
+  std::string attribute_getter_name = "get_" + attribute_name;
+  try {
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    auto attribute_getter = m_model.get_method(attribute_getter_name);
+    model_lock.unlock();
+  } catch (...) {
+    throw "getter for attribute " + attribute_name + " not found in model";
+  }
+  std::vector<c10::IValue> getter_inputs = {}, attributes;
+  try {
+    try {
+      std::unique_lock<std::mutex> model_lock(m_model_mutex);
+      attributes = m_model.get_method(attribute_getter_name)(getter_inputs)
+                       .toList()
+                       .vec();
+      model_lock.unlock();
+    } catch (...) {
+      std::unique_lock<std::mutex> model_lock(m_model_mutex);
+      auto output_tuple =
+          m_model.get_method(attribute_getter_name)(getter_inputs).toTuple();
+      attributes = (*output_tuple.get()).elements();
+      model_lock.unlock();
+    }
+  } catch (...) {
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    attributes.push_back(
+        m_model.get_method(attribute_getter_name)(getter_inputs));
+    model_lock.unlock();
+  }
+  return attributes;
+}
+
+std::string Backend::get_attribute_as_string(std::string attribute_name) {
+  std::vector<c10::IValue> getter_outputs = get_attribute(attribute_name);
+  // finstringd arguments
+  torch::Tensor setter_params;
+  try {
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    setter_params = m_model.attr(attribute_name + "_params").toTensor();
+    model_lock.unlock();
+  } catch (...) {
+    throw "parameters to set attribute " + attribute_name +
+        " not found in model";
+  }
+  std::string current_attr = "";
+  for (int i = 0; i < setter_params.size(0); i++) {
+    int current_id = setter_params[i].item().toInt();
+    switch (current_id) {
+    // bool case
+    case 0: {
+      current_attr += (getter_outputs[i].toBool()) ? "true" : "false";
+      break;
+    }
+    // int case
+    case 1: {
+      current_attr += std::to_string(getter_outputs[i].toInt());
+      break;
+    }
+    // float case
+    case 2: {
+      float result = getter_outputs[i].to<float>();
+      current_attr += std::to_string(result);
+      break;
+    }
+    // str case
+    case 3: {
+      current_attr += getter_outputs[i].toStringRef();
+      break;
+    }
+    default: {
+      throw "bad type id : " + std::to_string(current_id) + "at index " +
+          std::to_string(i);
+      break;
+    }
+    }
+    if (i < setter_params.size(0) - 1)
+      current_attr += " ";
+  }
+  return current_attr;
+}
+
+void Backend::set_attribute(std::string attribute_name,
+                            std::vector<std::string> attribute_args) {
+  // find setter
+  std::string attribute_setter_name = "set_" + attribute_name;
+  try {
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    auto attribute_setter = m_model.get_method(attribute_setter_name);
+    model_lock.unlock();
+  } catch (...) {
+    throw "setter for attribute " + attribute_name + " not found in model";
+  }
+  // find arguments
+  torch::Tensor setter_params;
+  try {
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    setter_params = m_model.attr(attribute_name + "_params").toTensor();
+    model_lock.unlock();
+  } catch (...) {
+    throw "parameters to set attribute " + attribute_name +
+        " not found in model";
+  }
+  // process inputs
+  std::vector<c10::IValue> setter_inputs = {};
+  for (int i = 0; i < setter_params.size(0); i++) {
+    int current_id = setter_params[i].item().toInt();
+    switch (current_id) {
+    // bool case
+    case 0:
+      setter_inputs.push_back(c10::IValue(to_bool(attribute_args[i])));
+      break;
+    // int case
+    case 1:
+      setter_inputs.push_back(c10::IValue(to_int(attribute_args[i])));
+      break;
+    // float case
+    case 2:
+      setter_inputs.push_back(c10::IValue(to_float(attribute_args[i])));
+      break;
+    // str case
+    case 3:
+      setter_inputs.push_back(c10::IValue(attribute_args[i]));
+      break;
+    default:
+      throw "bad type id : " + std::to_string(current_id) + "at index " +
+          std::to_string(i);
+      break;
+    }
+  }
+  try {
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    auto setter_out = m_model.get_method(attribute_setter_name)(setter_inputs);
+    model_lock.unlock();
+    int setter_result = setter_out.toInt();
+    if (setter_result != 0) {
+      throw "setter returned -1";
+    }
+  } catch (...) {
+    throw "setter for " + attribute_name + " failed";
+  }
+}
+
 std::vector<int> Backend::get_method_params(std::string method) {
-  auto am = get_available_methods();
   std::vector<int> params;
 
-  if (std::find(am.begin(), am.end(), method) != am.end()) {
+  if (std::find(m_available_methods.begin(), m_available_methods.end(),
+                method) != m_available_methods.end()) {
     try {
+      std::unique_lock<std::mutex> model_lock(m_model_mutex);
       auto p = m_model.attr(method + "_params").toTensor();
+      model_lock.unlock();
       for (int i(0); i < 4; i++)
         params.push_back(p[i].item().to<int>());
     } catch (...) {
@@ -132,8 +345,7 @@ std::vector<int> Backend::get_method_params(std::string method) {
 
 int Backend::get_higher_ratio() {
   int higher_ratio = 1;
-  auto model_methods = get_available_methods();
-  for (const auto &method : model_methods) {
+  for (const auto &method : m_available_methods) {
     auto params = get_method_params(method);
     if (!params.size())
       continue; // METHOD NOT USABLE, SKIPPING
@@ -144,3 +356,22 @@ int Backend::get_higher_ratio() {
 }
 
 bool Backend::is_loaded() { return m_loaded; }
+
+void Backend::use_gpu(bool value) {
+  std::unique_lock<std::mutex> model_lock(m_model_mutex);
+  if (value) {
+    if (torch::hasCUDA()) {
+      std::cout << "sending model to cuda" << std::endl;
+      m_device = CUDA;
+    } else if (torch::hasMPS()) {
+      std::cout << "sending model to mps" << std::endl;
+      m_device = MPS;
+    } else {
+      std::cout << "sending model to cpu" << std::endl;
+      m_device = CPU;
+    }
+  } else {
+    m_device = CPU;
+  }
+  m_model.to(m_device);
+}

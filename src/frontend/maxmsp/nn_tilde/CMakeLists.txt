@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 3.0)
 set(C74_MIN_API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../min-api)
 include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 
+if (APPLE)
+	set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0")
+endif()
 
 #############################################################
 # MAX EXTERNAL
@@ -40,9 +43,6 @@ add_library(
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE backend)
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
-
-
 if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
 set_target_properties(${PROJECT_NAME} PROPERTIES
 BUILD_WITH_INSTALL_RPATH FALSE
@@ -70,3 +70,12 @@ if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 endif()
 endif()
 
+if (MSVC) # COPY TORCH DLL IN THE LOADER FOLDER
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${TORCH_INSTALL_PREFIX}/lib/" ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/
+)
+endif()
+
+if (MSVC)
+	set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+endif()

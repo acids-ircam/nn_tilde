@@ -7,3 +7,5 @@ src/tests
 *DS_Store*
 src/docs
 *.ts
+dist/
+*.egg-info*
