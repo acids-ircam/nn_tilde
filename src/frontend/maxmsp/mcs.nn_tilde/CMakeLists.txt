@@ -7,6 +7,10 @@ set(C74_MIN_API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../min-api)
 include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 
 
+if (APPLE)
+	set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0")
+endif()
+
 #############################################################
 # MAX EXTERNAL
 #############################################################
@@ -70,3 +74,6 @@ if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 endif()
 endif()
 
+if (MSVC)
+	set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+endif()

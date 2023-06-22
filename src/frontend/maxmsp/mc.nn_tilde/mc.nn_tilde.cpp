@@ -1,6 +1,8 @@
 #include "../../../backend/backend.h"
 #include "../shared/circular_buffer.h"
 #include "c74_min.h"
+#include <chrono>
+#include <semaphore>
 #include <string>
 #include <thread>
 #include <vector>
@@ -59,8 +61,10 @@ public:
   void reset_buffers();
 
   // AUDIO PERFORM
-  bool m_use_thread;
+  bool m_use_thread, m_should_stop_perform_thread;
   std::unique_ptr<std::thread> m_compute_thread;
+  std::binary_semaphore m_data_available_lock, m_result_available_lock;
+
   void operator()(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
 
@@ -160,20 +164,42 @@ int mc_nn_tilde::get_batches() {
 void model_perform(mc_nn_tilde *mc_nn_instance) {
   std::vector<float *> in_model, out_model;
 
-  for (int c(0); c < mc_nn_instance->m_in_dim; c++)
-    in_model.push_back(mc_nn_instance->m_in_model[c].get());
-  for (int c(0); c < mc_nn_instance->m_out_dim; c++)
-    out_model.push_back(mc_nn_instance->m_out_model[c].get());
+  for (auto &ptr : mc_nn_instance->m_in_model)
+    in_model.push_back(ptr.get());
+
+  for (auto &ptr : mc_nn_instance->m_out_model)
+    out_model.push_back(ptr.get());
 
   mc_nn_instance->m_model->perform(
       in_model, out_model, mc_nn_instance->m_buffer_size,
       mc_nn_instance->m_method, mc_nn_instance->get_batches());
 }
 
+void model_perform_loop(mc_nn_tilde *mc_nn_instance) {
+  std::vector<float *> in_model, out_model;
+
+  for (auto &ptr : mc_nn_instance->m_in_model)
+    in_model.push_back(ptr.get());
+
+  for (auto &ptr : mc_nn_instance->m_out_model)
+    out_model.push_back(ptr.get());
+
+  while (!mc_nn_instance->m_should_stop_perform_thread) {
+    if (mc_nn_instance->m_data_available_lock.try_acquire_for(
+            std::chrono::milliseconds(200))) {
+      mc_nn_instance->m_model->perform(
+          in_model, out_model, mc_nn_instance->m_buffer_size,
+          mc_nn_instance->m_method, mc_nn_instance->get_batches());
+      mc_nn_instance->m_result_available_lock.release();
+    }
+  }
+}
+
 mc_nn_tilde::mc_nn_tilde(const atoms &args)
     : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
-      m_use_thread(true) {
+      m_use_thread(true), m_data_available_lock(0), m_result_available_lock(1),
+      m_should_stop_perform_thread(false) {
   m_model = std::make_unique<Backend>();
   // CHECK ARGUMENTS
   if (!args.size()) {
@@ -284,6 +310,9 @@ mc_nn_tilde::mc_nn_tilde(const atoms &args)
     m_out_buffer[i].initialize(m_buffer_size);
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
+
+  if (m_use_thread)
+    m_compute_thread = std::make_unique<std::thread>(model_perform_loop, this);
 }
 
 bool mc_nn_tilde::has_settable_attribute(std::string attribute) {
@@ -313,6 +342,7 @@ void mc_nn_tilde::reset_buffers() {
 }
 
 mc_nn_tilde::~mc_nn_tilde() {
+  m_should_stop_perform_thread = true;
   if (m_compute_thread)
     m_compute_thread->join();
 }
@@ -372,24 +402,30 @@ void mc_nn_tilde::perform(audio_bundle input, audio_bundle output) {
   }
 
   if (m_in_buffer[0].full()) { // BUFFER IS FULL
-    // IF USE THREAD, CHECK THAT COMPUTATION IS OVER
-    if (m_compute_thread && m_use_thread) {
-      m_compute_thread->join();
-    }
+    if (!m_use_thread) {
+      // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
+      for (int c(0); c < m_in_dim; c++)
+        m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
 
-    // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
-    for (int c(0); c < m_in_dim; c++)
-      m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
-
-    if (!m_use_thread) // PROCESS DATA RIGHT NOW
+      // CALL MODEL PERFORM IN CURRENT THREAD
       model_perform(this);
 
-    // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
-    for (int c(0); c < m_out_dim; c++)
-      m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
+      // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
+      for (int c(0); c < m_out_dim; c++)
+        m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
 
-    if (m_use_thread) // PROCESS DATA LATER
-      m_compute_thread = std::make_unique<std::thread>(model_perform, this);
+    } else if (m_result_available_lock.try_acquire()) {
+      // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
+      for (int c(0); c < m_in_dim; c++)
+        m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
+
+      // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
+      for (int c(0); c < m_out_dim; c++)
+        m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
+
+      // SIGNAL PERFORM THREAD THAT DATA IS AVAILABLE
+      m_data_available_lock.release();
+    }
   }
 
   // COPY CIRCULAR BUFFER TO OUTPUT
