@@ -7,13 +7,26 @@
 #define CPU torch::kCPU
 
 std::mutex Backend::m_render;
+bool Backend::init = true;
 
 Backend::Backend()
     : m_loaded(0), 
     m_cuda_available(torch::cuda::is_available())
     //m_cuda_available(false) 
 {
-  at::init_num_threads();
+    // at::init_num_threads();
+
+
+    if (init) {
+        std::cout << "disabling the interop thread pool" << std::endl;
+        at::set_num_threads(1);           // Disables the intraop thread pool.
+        at::set_num_interop_threads(1);  // Disables the interop thread pool.
+        init = false;
+    }
+
+    std::cout << at::get_num_threads() << std::endl;
+    std::cout << at::get_num_interop_threads() << std::endl;
+
   if (m_cuda_available)
     std::cout << "using cuda" << std::endl;
   else
@@ -24,6 +37,7 @@ void Backend::perform(std::vector<float *> in_buffer,
                       std::vector<float *> out_buffer, int n_vec,
                       std::string method, int n_batches) {
   c10::InferenceMode guard;
+  torch::NoGradGuard no_grad_guard;
 
   auto params = get_method_params(method);
   if (!params.size())
@@ -41,7 +55,9 @@ void Backend::perform(std::vector<float *> in_buffer,
   // std::cout << "copying buffer in tensor" << std::endl;
   std::vector<at::Tensor> tensor_in;
   for (int i(0); i < in_buffer.size(); i++) {
-    tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
+      at::Tensor in_buf = torch::from_blob(in_buffer[i], { 1, 1, n_vec });
+      in_buf.set_requires_grad(false);
+      tensor_in.push_back(in_buf);
   }
   auto cat_tensor_in = torch::cat(tensor_in, 1);
   cat_tensor_in = cat_tensor_in.reshape({n_batches, in_dim, -1, in_ratio});
@@ -52,6 +68,8 @@ void Backend::perform(std::vector<float *> in_buffer,
 
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
+  torch::Tensor input_tensor = torch::rand({ n_batches, in_dim, n_vec });
+
   // PROCESS TENSOR
   // std::cout << "tensor shape = " << cat_tensor_in.sizes() << std::endl;
   // std::cout << "processing tensor" << std::endl;
@@ -59,12 +77,29 @@ void Backend::perform(std::vector<float *> in_buffer,
   try {
     // don't need to lock if not on gpu
     if (m_cuda_available) lock();
+    torch::NoGradGuard no_grad_guard;
+    // tensor_out = m_model.forward(inputs).toTensor();
+    /*
+    if (method == "encode") {
+        tensor_out = m_model.forward(inputs).toTensor();
+    }
+    else if (method == "decode") {
+        tensor_out = m_model.decode(inputs).toTensor();
+    }
+    else {
+        tensor_out = m_model.encode(inputs).toTensor();
+    }
+    */
+    // tensor_out = m_model.get_method("forward")(inputs).toTensor();
     tensor_out = m_model.get_method(method)(inputs).toTensor();
+    //tensor_out = torch::rand({ n_batches, out_dim, n_vec});
     if (m_cuda_available) unlock();
+    //std::cout << tensor_out.size(0) << "," << tensor_out.size(1) << "," << tensor_out.size(2) << std::endl;
+    // std::cout << out_dim << std::endl << std::endl;
     
     // tensor_out = m_model.get_method(method)(inputs).toTensor();
     //m_render.unlock();
-
+        
     tensor_out = tensor_out.repeat_interleave(out_ratio).reshape(
         {n_batches, out_dim, -1});
   } catch (const std::exception &e) {
