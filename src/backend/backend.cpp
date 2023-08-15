@@ -14,15 +14,17 @@ Backend::Backend()
     m_cuda_available(torch::cuda::is_available())
     //m_cuda_available(false) 
 {
-    // at::init_num_threads();
+    at::init_num_threads();
 
-
+    init = false;
+    
     if (init) {
         std::cout << "disabling the interop thread pool" << std::endl;
         at::set_num_threads(1);           // Disables the intraop thread pool.
         at::set_num_interop_threads(1);  // Disables the interop thread pool.
         init = false;
     }
+    
 
     std::cout << at::get_num_threads() << std::endl;
     std::cout << at::get_num_interop_threads() << std::endl;
@@ -68,7 +70,7 @@ void Backend::perform(std::vector<float *> in_buffer,
 
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
 
-  torch::Tensor input_tensor = torch::rand({ n_batches, in_dim, n_vec });
+  //torch::Tensor input_tensor = torch::rand({ n_batches, in_dim, n_vec });
 
   // PROCESS TENSOR
   // std::cout << "tensor shape = " << cat_tensor_in.sizes() << std::endl;
