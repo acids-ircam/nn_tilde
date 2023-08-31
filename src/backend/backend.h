@@ -15,6 +15,7 @@ private:
 
   // This is a test
   static std::mutex m_render;
+  static bool init;
 
 public:
   Backend();
