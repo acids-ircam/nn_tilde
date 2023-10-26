@@ -4,6 +4,10 @@ project(backend)
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS} -fPIC")
 
+include_directories(
+    "${TORCH_INCLUDE_DIRS}" # libtorch headers
+)
+
 add_library(backend STATIC parsing_utils.cpp backend.cpp)
 target_link_libraries(backend "${TORCH_LIBRARIES}")
 set_property(TARGET backend PROPERTY CXX_STANDARD 17)

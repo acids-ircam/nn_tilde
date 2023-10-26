@@ -12,8 +12,8 @@ bool Backend::init = true;
 
 Backend::Backend()
     : m_loaded(0), 
-    m_cuda_available(torch::cuda::is_available())
-    //m_cuda_available(false) 
+    // m_cuda_available(torch::cuda::is_available())
+    m_cuda_available(false)
 {
     at::init_num_threads();
 
