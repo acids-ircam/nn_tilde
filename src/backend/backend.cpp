@@ -18,6 +18,9 @@ void Backend::perform(std::vector<float *> in_buffer,
   c10::InferenceMode guard;
 
   auto params = get_method_params(method);
+  // std::cout << "in_buffer length : " << in_buffer.size() << std::endl;
+  // std::cout << "out_buffer length : " << out_buffer.size() << std::endl;
+
   if (!params.size())
     return;
 
@@ -31,13 +34,20 @@ void Backend::perform(std::vector<float *> in_buffer,
 
   // COPY BUFFER INTO A TENSOR
   std::vector<at::Tensor> tensor_in;
-  for (auto buf : in_buffer)
-    tensor_in.push_back(torch::from_blob(buf, {1, 1, n_vec}));
+  // for (auto buf : in_buffer)
+  for (int i(0); i < in_buffer.size(); i++) {
+    tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
+    // std::cout << i << " : " << tensor_in[i].min().item<float>() << std::endl;
+  }
 
   auto cat_tensor_in = torch::cat(tensor_in, 1);
   cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
   cat_tensor_in = cat_tensor_in.select(-1, -1);
   cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
+  // std::cout << cat_tensor_in.size(0) << ";" << cat_tensor_in.size(1) << ";" << cat_tensor_in.size(2) << std::endl;
+  // for (int i = 0; i < cat_tensor_in.size(1); i++ ) 
+    // std::cout << cat_tensor_in[0][i][0] << ";";
+  // std::cout << std::endl;
 
   // SEND TENSOR TO DEVICE
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
@@ -58,6 +68,12 @@ void Backend::perform(std::vector<float *> in_buffer,
 
   int out_batches(tensor_out.size(0)), out_channels(tensor_out.size(1)),
       out_n_vec(tensor_out.size(2));
+
+  // for (int b(0); b < out_batches; b++) {
+  //   for (int c(0); c < out_channels; c++) {
+  //     std::cout << b << ";" << c << ";" << tensor_out[b][c].min().item<float>() << std::endl;
+  //   }
+  // }
 
   // CHECKS ON TENSOR SHAPE
   if (out_batches * out_channels != out_buffer.size()) {

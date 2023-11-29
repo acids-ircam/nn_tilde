@@ -386,13 +386,14 @@ void mc_bnn_tilde::perform(audio_bundle input, audio_bundle output) {
     for (int d(0); d < m_in_dim; d++) {
       auto in = input.samples(b * m_in_dim + d);
       m_in_buffer[d * get_batches() + b].put(in, vec_size);
+      std::cout << "populate batch " << b << "; channel " << d << " into buffer" <<  d * get_batches() + b << "; value : " << in[0] << std::endl;
     }
   }
 
   if (m_in_buffer[0].full()) { // BUFFER IS FULL
     if (!m_use_thread) {
       // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
-      for (int c(0); c < m_in_dim; c++)
+      for (int c(0); c < m_in_dim * get_batches(); c++)
         m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
 
       // CALL MODEL PERFORM IN CURRENT THREAD
@@ -404,11 +405,11 @@ void mc_bnn_tilde::perform(audio_bundle input, audio_bundle output) {
 
     } else if (m_result_available_lock.try_acquire()) {
       // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
-      for (int c(0); c < m_in_dim; c++)
+      for (int c(0); c < m_in_dim * get_batches(); c++)
         m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
 
       // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
-      for (int c(0); c < m_out_dim; c++)
+      for (int c(0); c < m_out_dim * get_batches(); c++)
         m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
 
       // SIGNAL PERFORM THREAD THAT DATA IS AVAILABLE
