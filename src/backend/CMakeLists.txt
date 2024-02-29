@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 add_library(backend STATIC parsing_utils.cpp backend.cpp)
 target_link_libraries(backend "${TORCH_LIBRARIES}")
-set_property(TARGET backend PROPERTY CXX_STANDARD 14)
+set_property(TARGET backend PROPERTY CXX_STANDARD 17)
 
 if(MSVC)
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")

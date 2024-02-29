@@ -175,6 +175,22 @@ void model_perform(mc_nn_tilde *mc_nn_instance) {
       mc_nn_instance->m_method, mc_nn_instance->get_batches());
 }
 
+void check_loop_buffers(mc_nn_tilde *mc_nn_instance, std::vector<float *> &in_model, std::vector<float *> &out_model) {
+  if (mc_nn_instance->m_in_model.size() != in_model.size())
+  {
+    in_model.clear();
+    for (auto &ptr : mc_nn_instance->m_in_model)
+      in_model.push_back(ptr.get());
+
+  }
+  if (mc_nn_instance->m_out_model.size() != out_model.size())
+  {
+    out_model.clear();
+    for (auto &ptr : mc_nn_instance->m_out_model)
+      out_model.push_back(ptr.get());
+  }
+}
+
 void model_perform_loop(mc_nn_tilde *mc_nn_instance) {
   std::vector<float *> in_model, out_model;
 
@@ -185,6 +201,7 @@ void model_perform_loop(mc_nn_tilde *mc_nn_instance) {
     out_model.push_back(ptr.get());
 
   while (!mc_nn_instance->m_should_stop_perform_thread) {
+    check_loop_buffers(mc_nn_instance, in_model, out_model);
     if (mc_nn_instance->m_data_available_lock.try_acquire_for(
             std::chrono::milliseconds(200))) {
       mc_nn_instance->m_model->perform(
@@ -275,7 +292,7 @@ mc_nn_tilde::mc_nn_tilde(const atoms &args)
   // CREATE INLETS, OUTLETS and BUFFERS
   m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(
       m_in_dim * get_batches());
-  for (int i(0); i < m_in_dim; i++) {
+  for (int i(0); i < m_in_dim * get_batches(); i++) {
     std::string input_label = "";
     try {
       input_label = m_model->get_model()
@@ -294,7 +311,7 @@ mc_nn_tilde::mc_nn_tilde(const atoms &args)
 
   m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(
       m_out_dim * get_batches());
-  for (int i(0); i < m_out_dim; i++) {
+  for (int i(0); i < m_out_dim * get_batches(); i++) {
     std::string output_label = "";
     try {
       output_label = m_model->get_model()
@@ -404,7 +421,7 @@ void mc_nn_tilde::perform(audio_bundle input, audio_bundle output) {
   if (m_in_buffer[0].full()) { // BUFFER IS FULL
     if (!m_use_thread) {
       // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
-      for (int c(0); c < m_in_dim; c++)
+      for (int c(0); c < m_in_dim * get_batches(); c++)
         m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
 
       // CALL MODEL PERFORM IN CURRENT THREAD
