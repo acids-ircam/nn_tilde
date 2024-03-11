@@ -41,13 +41,18 @@ void Backend::perform(std::vector<float *> in_buffer,
   }
 
   auto cat_tensor_in = torch::cat(tensor_in, 1);
-  cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
-  cat_tensor_in = cat_tensor_in.select(-1, -1);
-  cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
-  // std::cout << cat_tensor_in.size(0) << ";" << cat_tensor_in.size(1) << ";" << cat_tensor_in.size(2) << std::endl;
-  // for (int i = 0; i < cat_tensor_in.size(1); i++ ) 
-    // std::cout << cat_tensor_in[0][i][0] << ";";
-  // std::cout << std::endl;
+  try {
+    cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
+    cat_tensor_in = cat_tensor_in.select(-1, -1);
+    cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
+    // std::cout << cat_tensor_in.size(0) << ";" << cat_tensor_in.size(1) << ";" << cat_tensor_in.size(2) << std::endl;
+    // for (int i = 0; i < cat_tensor_in.size(1); i++ ) 
+      // std::cout << cat_tensor_in[0][i][0] << ";";
+    // std::cout << std::endl;
+  } catch (const std::exception &e) {
+    std::cout << e.what() << std::endl;
+    return;
+  }
 
   // SEND TENSOR TO DEVICE
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
