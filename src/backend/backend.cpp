@@ -68,12 +68,12 @@ void Backend::perform(std::vector<float *> in_buffer,
         TI::Slice(0, (tensor_in_size - in_cursor + in_ratio - 1) / in_ratio)
       }
     );
-    std::cout << "Tensor in size: " << cat_tensor_in.size(-1) << std::endl;
+    // std::cout << "Tensor in size: " << cat_tensor_in.size(-1) << std::endl;
 
     // move cursor
     in_cursor += ciel_mult - tensor_in_size;
     in_cursor %= in_ratio;
-    std::cout << "In cursor: " << in_cursor << std::endl;
+    // std::cout << "In cursor: " << in_cursor << std::endl;
 
     cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
     // std::cout << cat_tensor_in.size(0) << ";" << cat_tensor_in.size(1) << ";" << cat_tensor_in.size(2) << std::endl;
@@ -123,16 +123,23 @@ void Backend::perform(std::vector<float *> in_buffer,
   //             << " samples, got " << out_n_vec << "!\n";
   //   return;
   // }
-  std::cout << "Tensor out size: " << out_n_vec << ", output vector size: "
-    << n_vec << std::endl;
+
+  // std::cout << "Tensor out size: " << out_n_vec << ", output vector size: "
+  //   << n_vec << std::endl;
 
   tensor_out = tensor_out.to(CPU);
   tensor_out = tensor_out.reshape({out_batches * out_channels, -1});
 
   // split tensor into current and future buffer parts
   // copy future part to new tensor
-  auto tensor_future = tensor_out.index({TI::Slice(n_vec - out_cursor, TI::None)});
-  tensor_out = tensor_out.index({TI::Slice(0, n_vec - out_cursor)});
+  auto tensor_future = tensor_out.index({
+    "...", TI::Slice(n_vec - out_cursor, TI::None)
+  });
+  tensor_out = tensor_out.index({
+    "...", TI::Slice(0, n_vec - out_cursor)
+  });
+  // std::cout << "Out tensor shape: " << tensor_out.sizes() 
+  //   << ", future tensor shape: " << tensor_future.sizes() << std::endl;
 
   // Copy data from future buffer into output buffer
   for (int i(0); i < out_buffer.size(); i++)
@@ -156,7 +163,7 @@ void Backend::perform(std::vector<float *> in_buffer,
       fut_ptr + i * out_cursor, 
       out_cursor * sizeof(float)
     );
-  std::cout << "Out cursor: " << out_cursor << std::endl;
+  // std::cout << "Out cursor: " << out_cursor << std::endl;
 }
 
 int Backend::load(std::string path) {
