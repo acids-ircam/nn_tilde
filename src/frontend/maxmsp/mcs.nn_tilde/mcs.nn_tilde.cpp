@@ -36,6 +36,10 @@ public:
 
   mc_bnn_tilde(const atoms &args = {});
   ~mc_bnn_tilde();
+  
+  std::atomic<bool> m_dsp_running;
+  int loadModelAndInit(std::string pathArg);
+  void cleanup();
 
   // INLETS OUTLETS
   std::vector<std::unique_ptr<inlet<>>> m_inlets;
@@ -52,6 +56,7 @@ public:
   std::vector<std::string> settable_attributes;
   bool has_settable_attribute(std::string attribute);
   c74::min::path m_path;
+  std::string m_rawPath;
   int m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio, m_batches;
 
   // BUFFER RELATED MEMBERS
@@ -108,6 +113,18 @@ public:
                      MIN_FUNCTION{symbol attribute_name = args[0];
   if (attribute_name == "reload") {
     m_model->reload();
+  } else if (attribute_name == "load") {
+      if (args.size() < 2) {
+          cerr << "load must be given a path" << endl;
+          return {};
+      }
+      auto rawPath = std::string(args[1]);
+      if (loadModelAndInit(std::string(rawPath))) {
+          cerr << "error during loading" << endl;
+          error();
+          return {};
+      }
+      return {};
   } else if (attribute_name == "get_attributes") {
     for (std::string attr : settable_attributes) {
       cout << attr << endl;
@@ -208,10 +225,7 @@ mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
     return;
   }
   if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
-    auto model_path = std::string(args[0]);
-    if (model_path.substr(model_path.length() - 3) != ".ts")
-      model_path = model_path + ".ts";
-    m_path = path(model_path);
+    m_rawPath = std::string(args[0]);
   }
   if (args.size() > 1) { // TWO ARGUMENTS ARE GIVEN
     m_method = std::string(args[1]);
@@ -222,12 +236,61 @@ mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
   if (args.size() > 3) { // FOUR ARGUMENTS ARE GIVEN
     m_buffer_size = int(args[3]);
   }
+          
+  loadModelAndInit(m_rawPath);
+          
+  for (int i(0); i < m_batches; i++)
+    input_chans.push_back(1);
+  
+  // CREATE INLETS, OUTLETS
+  for (int i(0); i < get_batches(); i++) {
+    std::string input_label, output_label;
+    try {
+      input_label = m_model->get_model()
+                        .attr(m_method + "_input_labels")
+                        .toList()
+                        .get(i)
+                        .toStringRef();
+    } catch (...) {
+      input_label = "(signal) model input " + std::to_string(i);
+    }
+    try {
+      output_label = m_model->get_model()
+                         .attr(m_method + "_output_labels")
+                         .toList()
+                         .get(i)
+                         .toStringRef();
+    } catch (...) {
+      output_label = "(signal) model output " + std::to_string(i);
+    }
+    m_inlets.push_back(
+        std::make_unique<inlet<>>(this, input_label, "multichannelsignal"));
+    m_outlets.push_back(
+        std::make_unique<outlet<>>(this, output_label, "multichannelsignal"));
+  }
+          
+}
 
+mc_bnn_tilde::~mc_bnn_tilde() {
+  m_should_stop_perform_thread = true;
+  if (m_compute_thread)
+    m_compute_thread->join();
+}
+
+int mc_bnn_tilde::loadModelAndInit(std::string pathArg) {
+
+  cleanup();
+  
+  auto model_path = pathArg;
+  if (model_path.substr(model_path.length() - 3) != ".ts")
+    model_path = model_path + ".ts";
+  m_path = path(model_path);
+      
   // TRY TO LOAD MODEL
   if (m_model->load(std::string(m_path))) {
     cerr << "error during loading" << endl;
     error();
-    return;
+    return 1;
   }
 
   // FIND MINIMUM BUFFER SIZE GIVEN MODEL RATIO
@@ -258,8 +321,7 @@ mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
   m_in_ratio = params[1];
   m_out_dim = params[2];
   m_out_ratio = params[3];
-  for (int i(0); i < m_batches; i++)
-    input_chans.push_back(1);
+  
 
   if (!m_buffer_size) {
     // NO THREAD MODE
@@ -271,39 +333,12 @@ mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
   } else {
     m_buffer_size = power_ceil(m_buffer_size);
   }
-
-// Calling forward in a thread causes memory leak in windows.
-// See https://github.com/pytorch/pytorch/issues/24237
-#ifdef _WIN32
+  
+  // Calling forward in a thread causes memory leak in windows.
+  // See https://github.com/pytorch/pytorch/issues/24237
+  #ifdef _WIN32
   m_use_thread = false;
-#endif
-
-  // CREATE INLETS, OUTLETS
-  for (int i(0); i < get_batches(); i++) {
-    std::string input_label, output_label;
-    try {
-      input_label = m_model->get_model()
-                        .attr(m_method + "_input_labels")
-                        .toList()
-                        .get(i)
-                        .toStringRef();
-    } catch (...) {
-      input_label = "(signal) model input " + std::to_string(i);
-    }
-    try {
-      output_label = m_model->get_model()
-                         .attr(m_method + "_output_labels")
-                         .toList()
-                         .get(i)
-                         .toStringRef();
-    } catch (...) {
-      output_label = "(signal) model output " + std::to_string(i);
-    }
-    m_inlets.push_back(
-        std::make_unique<inlet<>>(this, input_label, "multichannelsignal"));
-    m_outlets.push_back(
-        std::make_unique<outlet<>>(this, output_label, "multichannelsignal"));
-  }
+  #endif
 
   // CREATE BUFFERS
   m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(
@@ -319,15 +354,37 @@ mc_bnn_tilde::mc_bnn_tilde(const atoms &args)
     m_out_buffer[i].initialize(m_buffer_size);
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
-
+  
+  m_should_stop_perform_thread = false;
+  enable = true;
+  
   if (m_use_thread)
     m_compute_thread = std::make_unique<std::thread>(model_perform_loop, this);
+  
+  return 0;
 }
 
-mc_bnn_tilde::~mc_bnn_tilde() {
+void mc_bnn_tilde::cleanup() {
+    
+  enable = false;
+  
+  if (!m_use_thread) {
+      while(m_dsp_running.load(std::memory_order_acquire)) {
+          std::this_thread::sleep_for(std::chrono::microseconds(100));
+      }
+  }
+  
   m_should_stop_perform_thread = true;
-  if (m_compute_thread)
-    m_compute_thread->join();
+  
+  if (m_compute_thread && m_compute_thread->joinable()) {
+      m_compute_thread->join();
+      m_compute_thread.reset();
+  }
+  
+  m_in_buffer.reset();
+  m_out_buffer.reset();
+  m_in_model.clear();
+  m_out_model.clear();
 }
 
 bool mc_bnn_tilde::has_settable_attribute(std::string attribute) {
@@ -357,6 +414,7 @@ bool mc_bnn_tilde::check_inputs() {
 }
 
 void mc_bnn_tilde::operator()(audio_bundle input, audio_bundle output) {
+
   auto dsp_vec_size = output.frame_count();
 
   // CHECK IF MODEL IS LOADED AND ENABLED
@@ -375,7 +433,14 @@ void mc_bnn_tilde::operator()(audio_bundle input, audio_bundle output) {
     fill_with_zero(output);
     return;
   }
+  
+  if (!m_use_thread)
+    m_dsp_running.store(true, std::memory_order_release);
+    
   perform(input, output);
+    
+  if (!m_use_thread)
+    m_dsp_running.store(false, std::memory_order_release);
 }
 
 void mc_bnn_tilde::perform(audio_bundle input, audio_bundle output) {

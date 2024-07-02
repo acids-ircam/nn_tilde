@@ -31,6 +31,12 @@ public:
 
   nn(const atoms &args = {});
   ~nn();
+  
+  std::atomic<bool> m_dsp_running;
+  int loadModelAndTest(std::string path);
+  void stopProcessing();
+  void resumeProcessing();
+  void reset_buffers();
 
   // INLETS OUTLETS
   std::vector<std::unique_ptr<inlet<>>> m_inlets;
@@ -43,6 +49,7 @@ public:
   std::vector<std::string> settable_attributes;
   bool has_settable_attribute(std::string attribute);
   c74::min::path m_path;
+  std::string m_rawPath;
   int m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
 
   // BUFFER RELATED MEMBERS
@@ -98,6 +105,18 @@ public:
         symbol attribute_name = args[0];
         if (attribute_name == "reload") {
           m_model->reload();
+        } else if (attribute_name == "load") {
+            if (args.size() < 2) {
+                cerr << "load must be given a path" << endl;
+                return {};
+            }
+            auto rawPath = std::string(args[1]);
+            if (loadModelAndTest(std::string(rawPath))) {
+                cerr << "error during loading" << endl;
+                error();
+                return {};
+            }
+            return {};
         } else if (attribute_name == "get_attributes") {
           for (std::string attr : settable_attributes) {
             cout << attr << endl;
@@ -292,6 +311,127 @@ nn::nn(const atoms &args)
     m_compute_thread = std::make_unique<std::thread>(model_perform_loop, this);
 }
 
+int nn::loadModelAndTest(std::string pathRaw) {
+  
+  stopProcessing();
+
+  auto old_path = m_path;
+  
+  auto model_path = pathRaw;
+  if (model_path.substr(model_path.length() - 3) != ".ts")
+    model_path = model_path + ".ts";
+  m_path = path(model_path);
+      
+  // TRY TO LOAD MODEL
+  if (m_model->load(std::string(m_path))) {
+    cerr << "error during loading" << endl;
+    error();
+    return 1;
+  }
+  
+  // GET MODEL'S METHOD PARAMETERS
+  auto params = m_model->get_method_params(m_method);
+
+  if (!params.size()) {
+    error("method " + m_method + " not found !");
+  }
+
+  // GET MODEL'S SETTABLE ATTRIBUTES
+  try {
+    settable_attributes = m_model->get_settable_attributes();
+  } catch (...) {
+  }
+  
+  int in_dim_tmp(params[0]), in_ratio_tmp(params[1]), out_dim_tmp(params[2]), out_ratio_tmp(params[3]);
+  
+  if(m_in_dim != in_dim_tmp || m_in_ratio != in_ratio_tmp || m_out_dim != out_dim_tmp || m_out_ratio != out_ratio_tmp) {
+      cerr << "Dimensions and ratios of loaded models by message have to be same as the one originally specified model, use mcs-Version instead for variable dimensions." << endl;
+      //Loading back original model
+      m_path = old_path;
+      if (m_model->load(std::string(m_path))) {
+        cerr << "error during loading original model" << endl;
+        error();
+        return 1;
+      }
+  }
+
+  int old_buffSize =  m_buffer_size;
+  m_higher_ratio = m_model->get_higher_ratio();
+
+  if (!m_buffer_size) {
+    // NO THREAD MODE
+    m_use_thread = false;
+    m_buffer_size = m_higher_ratio;
+  } else if (m_buffer_size < m_higher_ratio) {
+    m_buffer_size = m_higher_ratio;
+    cerr << "buffer size too small, switching to " << m_buffer_size << endl;
+  } else {
+    m_buffer_size = power_ceil(m_buffer_size);
+  }
+
+  // Calling forward in a thread causes memory leak in windows.
+  // See https://github.com/pytorch/pytorch/issues/24237
+  #ifdef _WIN32
+  m_use_thread = false;
+  #endif
+
+  if (old_buffSize == m_buffer_size) {
+    resumeProcessing();
+    return 0;
+  }
+
+  reset_buffers();
+
+  resumeProcessing();
+  
+  return 0;
+}
+
+void nn::stopProcessing() {
+  enable = false;
+  
+  if (!m_use_thread) {
+      while(m_dsp_running.load(std::memory_order_acquire)) {
+          std::this_thread::sleep_for(std::chrono::microseconds(100));
+      }
+  }
+  
+  m_should_stop_perform_thread = true;
+  
+  if (m_compute_thread && m_compute_thread->joinable()) {
+      m_compute_thread->join();
+      m_compute_thread.reset();
+  }
+}
+
+void nn::resumeProcessing() {
+  m_should_stop_perform_thread = false;
+  enable = true;
+  
+  if (m_use_thread)
+    m_compute_thread = std::make_unique<std::thread>(model_perform_loop, this);
+}
+
+void nn::reset_buffers() {
+  m_in_buffer.reset();
+  m_out_buffer.reset();
+  m_in_model.clear();
+  m_out_model.clear();
+  
+  // CREATE BUFFERS
+  m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(m_in_dim);
+  for (int i(0); i < m_in_dim; i++) {
+    m_in_buffer[i].initialize(m_buffer_size);
+    m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
+  }
+
+  m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(m_out_dim);
+  for (int i(0); i < m_out_dim; i++) {
+    m_out_buffer[i].initialize(m_buffer_size);
+    m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
+  }
+}
+
 nn::~nn() {
   m_should_stop_perform_thread = true;
   if (m_compute_thread)
@@ -335,7 +475,13 @@ void nn::operator()(audio_bundle input, audio_bundle output) {
     return;
   }
 
+  if (!m_use_thread)
+      m_dsp_running.store(true, std::memory_order_release);
+    
   perform(input, output);
+    
+  if (!m_use_thread)
+    m_dsp_running.store(false, std::memory_order_release);
 }
 
 void nn::perform(audio_bundle input, audio_bundle output) {
