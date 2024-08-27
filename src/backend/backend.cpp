@@ -166,6 +166,28 @@ void Backend::perform(std::vector<float *> in_buffer,
   // std::cout << "Out cursor: " << out_cursor << std::endl;
 }
 
+// Load compiled-in binary data
+int Backend::load(const void* modelData, const size_t modelDataSize) {
+  try {
+    const char* md = reinterpret_cast<const char*>(modelData);
+    std::istringstream modelStream(std::string(md, modelDataSize));
+    auto model = torch::jit::load(modelStream);
+    model.eval();
+    model.to(m_device);
+
+    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    m_model = model;
+    m_loaded = 1;
+    model_lock.unlock();
+
+    m_available_methods = get_available_methods();
+    return 0;
+  } catch (const std::exception &e) {
+    std::cerr << e.what() << '\n';
+    return 1;
+  }
+}
+
 int Backend::load(std::string path) {
   try {
     auto model = torch::jit::load(path);

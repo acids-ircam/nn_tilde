@@ -35,6 +35,7 @@ public:
 
   std::vector<int> get_method_params(std::string method);
   int get_higher_ratio();
+  int load(const void *modelData, const size_t modelDataSize);
   int load(std::string path);
   int reload();
   void prepare(int chans, std::string method);
