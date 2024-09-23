@@ -15,6 +15,10 @@ protected:
   c10::DeviceType m_device;
   bool m_use_gpu;
 
+  size_t in_cursor;
+  size_t out_cursor;
+  std::vector<std::unique_ptr<float[]>> future_buffer;
+
 public:
   Backend();
   void perform(std::vector<float *> in_buffer, std::vector<float *> out_buffer,
@@ -33,6 +37,7 @@ public:
   int get_higher_ratio();
   int load(std::string path);
   int reload();
+  void prepare(int chans, std::string method);
   bool is_loaded();
   torch::jit::script::Module get_model() { return m_model; }
   void use_gpu(bool value);

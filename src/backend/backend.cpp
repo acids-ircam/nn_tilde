@@ -8,7 +8,13 @@
 #define CUDA torch::kCUDA
 #define MPS torch::kMPS
 
-Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
+namespace F = torch::nn::functional;
+namespace TI = torch::indexing;
+
+Backend::Backend() 
+    : m_loaded(0), m_device(CPU), m_use_gpu(false), in_cursor(0),
+      out_cursor(0) {
+
   at::init_num_threads();
 }
 
@@ -41,13 +47,43 @@ void Backend::perform(std::vector<float *> in_buffer,
   }
 
   auto cat_tensor_in = torch::cat(tensor_in, 1);
-  cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
-  cat_tensor_in = cat_tensor_in.select(-1, -1);
-  cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
-  // std::cout << cat_tensor_in.size(0) << ";" << cat_tensor_in.size(1) << ";" << cat_tensor_in.size(2) << std::endl;
-  // for (int i = 0; i < cat_tensor_in.size(1); i++ ) 
-    // std::cout << cat_tensor_in[0][i][0] << ";";
-  // std::cout << std::endl;
+
+  // pad tensor to be broadcastable with in_ratio
+  int tensor_in_size = cat_tensor_in.size(-1);
+  int ciel_mult = ((tensor_in_size + in_ratio - 1) / in_ratio) * in_ratio;
+  int pad = ciel_mult - tensor_in_size;
+  // std::cout << pad << std::endl;
+  try {
+    cat_tensor_in = F::pad(cat_tensor_in, F::PadFuncOptions({0, pad}));
+
+    cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
+
+    // select slice for input
+    cat_tensor_in = cat_tensor_in.select(-1, in_cursor);
+
+    // trim end when padding included
+    cat_tensor_in = cat_tensor_in.index(
+      {
+        "...", 
+        TI::Slice(0, (tensor_in_size - in_cursor + in_ratio - 1) / in_ratio)
+      }
+    );
+    // std::cout << "Tensor in size: " << cat_tensor_in.size(-1) << std::endl;
+
+    // move cursor
+    in_cursor += ciel_mult - tensor_in_size;
+    in_cursor %= in_ratio;
+    // std::cout << "In cursor: " << in_cursor << std::endl;
+
+    cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
+    // std::cout << cat_tensor_in.size(0) << ";" << cat_tensor_in.size(1) << ";" << cat_tensor_in.size(2) << std::endl;
+    // for (int i = 0; i < cat_tensor_in.size(1); i++ ) 
+      // std::cout << cat_tensor_in[0][i][0] << ";";
+    // std::cout << std::endl;
+  } catch (const std::exception &e) {
+    std::cout << e.what() << std::endl;
+    return;
+  }
 
   // SEND TENSOR TO DEVICE
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
@@ -82,19 +118,52 @@ void Backend::perform(std::vector<float *> in_buffer,
     return;
   }
 
-  if (out_n_vec != n_vec) {
-    std::cout << "model output size is not consistent, expected " << n_vec
-              << " samples, got " << out_n_vec << "!\n";
-    return;
-  }
+  // if (out_n_vec != n_vec) {
+  //   std::cout << "model output size is not consistent, expected " << n_vec
+  //             << " samples, got " << out_n_vec << "!\n";
+  //   return;
+  // }
+
+  // std::cout << "Tensor out size: " << out_n_vec << ", output vector size: "
+  //   << n_vec << std::endl;
 
   tensor_out = tensor_out.to(CPU);
   tensor_out = tensor_out.reshape({out_batches * out_channels, -1});
-  auto out_ptr = tensor_out.contiguous().data_ptr<float>();
 
-  for (int i(0); i < out_buffer.size(); i++) {
-    memcpy(out_buffer[i], out_ptr + i * n_vec, n_vec * sizeof(float));
-  }
+  // split tensor into current and future buffer parts
+  // copy future part to new tensor
+  auto tensor_future = tensor_out.index({
+    "...", TI::Slice(n_vec - out_cursor, TI::None)
+  });
+  tensor_out = tensor_out.index({
+    "...", TI::Slice(0, n_vec - out_cursor)
+  });
+  // std::cout << "Out tensor shape: " << tensor_out.sizes() 
+  //   << ", future tensor shape: " << tensor_future.sizes() << std::endl;
+
+  // Copy data from future buffer into output buffer
+  for (int i(0); i < out_buffer.size(); i++)
+    memcpy(out_buffer[i], future_buffer[i].get(), out_cursor * sizeof(float));
+
+  // Fill rest of output buffer with tensor values
+  auto out_ptr = tensor_out.contiguous().data_ptr<float>();
+  for (int i(0); i < out_buffer.size(); i++)
+    memcpy(
+      out_buffer[i] + out_cursor, 
+      out_ptr + i * (n_vec - out_cursor), 
+      (n_vec - out_cursor) * sizeof(float)
+    );
+
+  // Copy remaining tensor values to future buffer and set out cursor
+  auto fut_ptr = tensor_future.contiguous().data_ptr<float>();
+  out_cursor += out_n_vec - n_vec;
+  for (int i(0); i < out_buffer.size(); i++)
+    memcpy(
+      future_buffer[i].get(), 
+      fut_ptr + i * out_cursor, 
+      out_cursor * sizeof(float)
+    );
+  // std::cout << "Out cursor: " << out_cursor << std::endl;
 }
 
 int Backend::load(std::string path) {
@@ -120,6 +189,15 @@ int Backend::load(std::string path) {
 int Backend::reload() {
   auto return_code = load(m_path);
   return return_code;
+}
+
+void Backend::prepare(int chans, std::string method) {
+  // future buffer should be preallocated with out_dim * batches arrays
+  // of size in_ratio * out_ratio
+  future_buffer.clear();
+  auto params = get_method_params(method);
+  for (; chans > 0; chans--)
+    future_buffer.push_back(std::make_unique<float[]>(params[1] * params[3]));
 }
 
 bool Backend::has_method(std::string method_name) {

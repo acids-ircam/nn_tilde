@@ -288,6 +288,8 @@ nn::nn(const atoms &args)
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
 
+  m_model->prepare(m_out_dim, m_method);
+
   if (m_use_thread)
     m_compute_thread = std::make_unique<std::thread>(model_perform_loop, this);
 }
