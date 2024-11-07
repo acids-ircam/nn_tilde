@@ -6,10 +6,26 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
+using t_signal_setmultiout = void (*)(t_signal **, int);
+static t_signal_setmultiout g_signal_setmultiout;
+
 static t_class *nn_tilde_class;
 
 #ifndef VERSION
 #define VERSION "UNDEFINED"
+#endif
+
+#if PD_MINOR_VERSION >= 54
+# define PD_HAVE_MULTICHANNEL
+#else
+# pragma message("building without multi-channel support; requires Pd 0.54+")
+# define CLASS_MULTICHANNEL 0
 #endif
 
 unsigned power_ceil(unsigned x) {
@@ -26,6 +42,7 @@ unsigned power_ceil(unsigned x) {
 typedef struct _nn_tilde {
   t_object x_obj;
   t_sample f;
+  int m_multichannel;  // Flag for multichannel mode
 
   int m_enabled;
   // BACKEND RELATED MEMBERS
@@ -114,11 +131,31 @@ void nn_tilde_dsp(t_nn_tilde *x, t_signal **sp) {
   x->m_dsp_in_vec.clear();
   x->m_dsp_out_vec.clear();
 
-  for (int i(0); i < x->m_in_dim; i++) {
-    x->m_dsp_in_vec.push_back(sp[i]->s_vec);
-  }
-  for (int i(x->m_in_dim); i < x->m_in_dim + x->m_out_dim; i++) {
-    x->m_dsp_out_vec.push_back(sp[i]->s_vec);
+  if (x->m_multichannel) {
+    // Get number of available input channels
+    int nchans = sp[0]->s_nchans;
+
+    // Map input channels, wrapping if needed
+    for (int i = 0; i < x->m_in_dim; i++) {
+      x->m_dsp_in_vec.push_back(sp[0]->s_vec + x->m_dsp_vec_size * (i % nchans));
+    }
+
+    // Configure multichannel output
+    g_signal_setmultiout(&sp[1], x->m_out_dim);
+    for (int i = 0; i < x->m_out_dim; i++) {
+      x->m_dsp_out_vec.push_back(sp[1]->s_vec + x->m_dsp_vec_size * i);
+    }
+  } else {
+    // Standard mode - separate signals
+    for (int i = 0; i < x->m_in_dim; i++) {
+      x->m_dsp_in_vec.push_back(sp[i]->s_vec);
+    }
+    for (int i(x->m_in_dim); i < x->m_in_dim + x->m_out_dim; i++) {
+      if (g_signal_setmultiout) {
+        g_signal_setmultiout(&sp[i], 1); // Ensure single channel
+      }
+      x->m_dsp_out_vec.push_back(sp[i]->s_vec);
+    }
   }
   dsp_add(nn_tilde_perform, 1, x);
 }
@@ -143,8 +180,23 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_method = gensym("forward");
   x->m_enabled = 1;
   x->m_use_thread = true;
+  x->m_multichannel = 0;  // Default to non-multichannel mode
 
   // CHECK ARGUMENTS
+  // Check for -m flag as first argument
+  if (argc > 0 && argv->a_type == A_SYMBOL && atom_getsymbol(argv) == gensym("-m")) {
+    if (g_signal_setmultiout) {
+      x->m_multichannel = 1;
+    } else {
+      int maj = 0, min = 0, bug = 0;
+      sys_getversion(&maj, &min, &bug);
+      pd_error(x, "[nn~]: no multichannel support in Pd %i.%i-%i, ignoring '-m' flag", 
+              maj, min, bug);
+    }
+    argc--;
+    argv++;
+  }
+
   if (!argc) {
     return (void *)x;
   }
@@ -212,8 +264,6 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_in_buffer =
       std::make_unique<circular_buffer<float, float>[]>(x->m_in_dim);
   for (int i(0); i < x->m_in_dim; i++) {
-    if (i < x->m_in_dim - 1)
-      inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
     x->m_in_buffer[i].initialize(x->m_buffer_size);
     x->m_in_model.push_back(std::make_unique<float[]>(x->m_buffer_size));
   }
@@ -221,11 +271,22 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_out_buffer =
       std::make_unique<circular_buffer<float, float>[]>(x->m_out_dim);
   for (int i(0); i < x->m_out_dim; i++) {
-    outlet_new(&x->x_obj, &s_signal);
     x->m_out_buffer[i].initialize(x->m_buffer_size);
     x->m_out_model.push_back(std::make_unique<float[]>(x->m_buffer_size));
   }
 
+  // Create inlets and outlets based on multichannel mode
+  if (!x->m_multichannel) {
+    // Standard mode: create individual inlets/outlets
+    for (int i(0); i < x->m_in_dim - 1; i++)
+      inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
+    for (int i(0); i < x->m_out_dim; i++)
+      outlet_new(&x->x_obj, &s_signal);
+  } else {
+    // Multichannel mode: only create a single outlet
+    // Note: The first inlet is created automatically by CLASS_MAINSIGNALIN
+    outlet_new(&x->x_obj, &s_signal);
+  }
   return (void *)x;
 }
 
@@ -268,20 +329,42 @@ void startup_message() {
   startmessage += " - ";
   startmessage += "torch ";
   startmessage += TORCH_VERSION;
-  startmessage += " - 2023 - Antoine Caillon";
+  startmessage += " - 2024 - Antoine Caillon et al.";
   post(startmessage.c_str());
 }
 
-extern "C" {
 #ifdef _WIN32
-void __declspec(dllexport) nn_tilde_setup(void) {
+#define EXPORT extern "C" __declspec(dllexport)
+#elif __GNUC__ >= 4
+#define EXPORT extern "C" __attribute__((visibility("default")))
 #else
-void nn_tilde_setup(void) {
+#define EXPORT extern "C"
 #endif
+
+EXPORT void nn_tilde_setup(void) {
+// multichannel handling copied from
+// https://github.com/Spacechild1/vstplugin/blob/v0.6.0/pd/src/vstplugin~.cpp#L4120
+#ifdef PD_HAVE_MULTICHANNEL
+  // runtime check for multichannel support:
+#ifdef _WIN32
+  // get a handle to the module containing the Pd API functions.
+  // NB: GetModuleHandle("pd.dll") does not cover all cases.
+  HMODULE module;
+  if (GetModuleHandleEx(
+      GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+      (LPCSTR)&pd_typedmess, &module)) {
+    g_signal_setmultiout = (t_signal_setmultiout)(void *)GetProcAddress(
+      module, "signal_setmultiout");
+  }
+#else
+  // search recursively, starting from the main program
+  g_signal_setmultiout = (t_signal_setmultiout)dlsym(
+    dlopen(nullptr, RTLD_NOW), "signal_setmultiout");
+#endif
+#endif // PD_HAVE_MULTICHANNEL
   startup_message();
   nn_tilde_class = class_new(gensym("nn~"), (t_newmethod)nn_tilde_new, 0,
-                             sizeof(t_nn_tilde), CLASS_DEFAULT, A_GIMME, 0);
-
+                             sizeof(t_nn_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_dsp, gensym("dsp"), A_CANT,
                   0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_enable, gensym("enable"),
@@ -291,5 +374,4 @@ void nn_tilde_setup(void) {
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_set, gensym("set"),
                   A_GIMME, A_NULL);
   CLASS_MAINSIGNALIN(nn_tilde_class, t_nn_tilde, f);
-}
 }
