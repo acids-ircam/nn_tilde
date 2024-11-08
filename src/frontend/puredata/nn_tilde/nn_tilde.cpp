@@ -190,7 +190,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     } else {
       int maj = 0, min = 0, bug = 0;
       sys_getversion(&maj, &min, &bug);
-      pd_error(x, "[nn~]: no multichannel support in Pd %i.%i-%i, ignoring '-m' flag", 
+      pd_error(x, "nn~: no multichannel support in Pd %i.%i-%i, ignoring '-m' flag", 
               maj, min, bug);
     }
     argc--;
@@ -224,7 +224,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
 
   // TRY TO LOAD MODEL
   if (x->m_model->load(x->m_path->s_name)) {
-    post("error during loading");
+    pd_error(x, "error during loading");
     return (void *)x;
   } else {
     // cout << "successfully loaded model" << endl;
@@ -295,7 +295,7 @@ void nn_tilde_reload(t_nn_tilde *x) { x->m_model->reload(); }
 
 void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
   if (argc < 2) {
-    post("set needs at least 2 arguments [set argname argval1 ...)");
+    pd_error(x, "set needs at least 2 arguments [set argname argval1 ...)");
     return;
   }
   std::vector<std::string> attribute_args;
@@ -305,7 +305,7 @@ void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
 
   if (!std::count(x->settable_attributes.begin(), x->settable_attributes.end(),
                   argname_str)) {
-    post("argument name not settable in current model");
+    pd_error(x, "argument name not settable in current model");
     return;
   }
 
@@ -319,7 +319,7 @@ void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
   try {
     x->m_model->set_attribute(argname, attribute_args);
   } catch (const std::exception &e) {
-    post(e.what());
+    pd_error(x, e.what());
   }
 }
 
@@ -342,8 +342,8 @@ void startup_message() {
 #endif
 
 EXPORT void nn_tilde_setup(void) {
-// multichannel handling copied from
-// https://github.com/Spacechild1/vstplugin/blob/v0.6.0/pd/src/vstplugin~.cpp#L4120
+  // multichannel handling copied from
+  // https://github.com/Spacechild1/vstplugin/blob/v0.6.0/pd/src/vstplugin~.cpp#L4120
 #ifdef PD_HAVE_MULTICHANNEL
   // runtime check for multichannel support:
 #ifdef _WIN32
