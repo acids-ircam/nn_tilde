@@ -166,6 +166,81 @@ void nn_tilde_free(t_nn_tilde *x) {
   }
 }
 
+std::string resolve_file_path(t_object *obj, const char *filename) {
+    // Normalize a path - resolve .. and . components, standardize separators
+    auto normalize_path = [](const std::string& path) {
+        char buf[MAXPDSTRING];
+        char *bufptr = buf;
+        strncpy(buf, path.c_str(), MAXPDSTRING);
+        // Convert backslashes to forward slashes on Windows
+        for (char *p = buf; *p; p++) {
+            if (*p == '\\') *p = '/';
+        }
+        // Remove any "//" 
+        char *p1 = buf;
+        char *p2 = buf;
+        while (*p2) {
+            if (*p2 == '/' && *(p2+1) == '/') {
+                p2++;
+            } else {
+                *p1++ = *p2++;
+            }
+        }
+        *p1 = '\0';
+        return std::string(buf);
+    };
+
+    // Helper to try opening with both original name and .ts extension
+    auto try_open = [](t_canvas *canvas, const char *fname, char *path, char **name) {
+        // Try with original filename
+        int fd = canvas_open(canvas, fname, "", path, name, MAXPDSTRING, 1);
+        if (fd >= 0) {
+            return fd;
+        }
+
+        // If no extension was given, try with .ts
+        if (!strrchr(fname, '.')) {
+            std::string with_ext = std::string(fname) + ".ts";
+            fd = canvas_open(canvas, with_ext.c_str(), "", path, name, MAXPDSTRING, 1);
+            if (fd >= 0) {
+                return fd;
+            }
+        }
+        return -1;
+    };
+
+    // if it's already an absolute path, normalize and return it
+    if (sys_isabsolutepath(filename)) {
+        return normalize_path(filename);
+    }
+
+    // try canvas-relative path first
+    char path[MAXPDSTRING];
+    char *name = nullptr;
+    t_canvas *canvas = canvas_getcurrent();
+    int fd = try_open(canvas, filename, path, &name);
+    if (fd >= 0) {
+        sys_close(fd);
+        char fullpath[MAXPDSTRING];
+        snprintf(fullpath, MAXPDSTRING, "%s/%s", path, name);
+        return normalize_path(fullpath);
+    }
+
+    // then try Pd's search paths
+    char dirresult[MAXPDSTRING];
+    fd = open_via_path("", filename, ".ts", dirresult, &name, MAXPDSTRING, 1);
+    if (fd >= 0) {
+        sys_close(fd);
+        char fullpath[MAXPDSTRING];
+        snprintf(fullpath, MAXPDSTRING, "%s/%s", dirresult, name);
+        return normalize_path(fullpath);
+    }
+
+    // file not found - return empty string to indicate failure
+    pd_error(obj, "could not find file '%s' (or %s.ts)", filename, filename);
+    return "";
+}
+
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   t_nn_tilde *x = (t_nn_tilde *)pd_new(nn_tilde_class);
 
@@ -211,15 +286,10 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   }
 
   // SEARCH FOR FILE
-  if (!sys_isabsolutepath(x->m_path->s_name)) {
-    char dirname[MAXPDSTRING], *dummy;
-    auto fd = open_via_path("", x->m_path->s_name, "", dirname, &dummy,
-                            MAXPDSTRING, 1);
-    std::string found_path;
-    found_path += dirname;
-    found_path += "/";
-    found_path += x->m_path->s_name;
-    x->m_path = gensym(found_path.c_str());
+  std::string fullpath = resolve_file_path((t_object *)x, x->m_path->s_name);
+  if (!fullpath.empty()) {
+      x->m_path = gensym(fullpath.c_str());
+      // proceed with using the file...
   }
 
   // TRY TO LOAD MODEL
@@ -319,7 +389,7 @@ void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
   try {
     x->m_model->set_attribute(argname, attribute_args);
   } catch (const std::exception &e) {
-    pd_error(x, e.what());
+    pd_error(x, "nn~: %s", e.what());
   }
 }
 
