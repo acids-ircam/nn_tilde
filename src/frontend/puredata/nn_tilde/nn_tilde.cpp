@@ -42,7 +42,8 @@ unsigned power_ceil(unsigned x) {
 typedef struct _nn_tilde {
   t_object x_obj;
   t_sample f;
-  int m_multichannel;  // Flag for multichannel mode
+  int m_multichannel;
+  bool m_outchannels_changed;
 
   int m_enabled;
   // BACKEND RELATED MEMBERS
@@ -85,23 +86,20 @@ t_int *nn_tilde_perform(t_int *w) {
 
   if (!x->m_model->is_loaded() || !x->m_enabled) {
     for (int c(0); c < x->m_out_dim; c++) {
-      for (int i(0); i < x->m_dsp_vec_size; i++) {
+      for (int i(0); i < x->m_dsp_vec_size; i++)
         x->m_dsp_out_vec[c][i] = 0;
-      }
     }
     return w + 2;
   }
 
   // COPY INPUT TO CIRCULAR BUFFER
-  for (int c(0); c < x->m_in_dim; c++) {
+  for (int c(0); c < x->m_in_dim; c++)
     x->m_in_buffer[c].put(x->m_dsp_in_vec[c], x->m_dsp_vec_size);
-  }
 
   if (x->m_in_buffer[0].full()) { // BUFFER IS FULL
     // IF USE THREAD, CHECK THAT COMPUTATION IS OVER
-    if (x->m_compute_thread && x->m_use_thread) {
+    if (x->m_compute_thread && x->m_use_thread)
       x->m_compute_thread->join();
-    }
 
     // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
     for (int c(0); c < x->m_in_dim; c++)
@@ -119,9 +117,8 @@ t_int *nn_tilde_perform(t_int *w) {
   }
 
   // COPY CIRCULAR BUFFER TO OUTPUT
-  for (int c(0); c < x->m_out_dim; c++) {
+  for (int c(0); c < x->m_out_dim; c++)
     x->m_out_buffer[c].get(x->m_dsp_out_vec[c], x->m_dsp_vec_size);
-  }
 
   return w + 2;
 }
@@ -136,24 +133,20 @@ void nn_tilde_dsp(t_nn_tilde *x, t_signal **sp) {
     int nchans = sp[0]->s_nchans;
 
     // Map input channels, wrapping if needed
-    for (int i = 0; i < x->m_in_dim; i++) {
+    for (int i(0); i < x->m_in_dim; i++)
       x->m_dsp_in_vec.push_back(sp[0]->s_vec + x->m_dsp_vec_size * (i % nchans));
-    }
 
     // Configure multichannel output
     g_signal_setmultiout(&sp[1], x->m_out_dim);
-    for (int i = 0; i < x->m_out_dim; i++) {
+    for (int i(0); i < x->m_out_dim; i++)
       x->m_dsp_out_vec.push_back(sp[1]->s_vec + x->m_dsp_vec_size * i);
-    }
   } else {
     // Standard mode - separate signals
-    for (int i = 0; i < x->m_in_dim; i++) {
+    for (int i(0); i < x->m_in_dim; i++)
       x->m_dsp_in_vec.push_back(sp[i]->s_vec);
-    }
     for (int i(x->m_in_dim); i < x->m_in_dim + x->m_out_dim; i++) {
-      if (g_signal_setmultiout) {
+      if (g_signal_setmultiout)
         g_signal_setmultiout(&sp[i], 1); // Ensure single channel
-      }
       x->m_dsp_out_vec.push_back(sp[i]->s_vec);
     }
   }
@@ -161,84 +154,164 @@ void nn_tilde_dsp(t_nn_tilde *x, t_signal **sp) {
 }
 
 void nn_tilde_free(t_nn_tilde *x) {
-  if (x->m_compute_thread) {
-    x->m_compute_thread->join();
-  }
+  if (x->m_compute_thread) x->m_compute_thread->join();
+  // FIXME: inlet_free / outlet_free?
 }
 
 std::string resolve_file_path(t_object *obj, const char *filename) {
-    // Normalize a path - resolve .. and . components, standardize separators
-    auto normalize_path = [](const std::string& path) {
-        char buf[MAXPDSTRING];
-        char *bufptr = buf;
-        strncpy(buf, path.c_str(), MAXPDSTRING);
-        // Convert backslashes to forward slashes on Windows
-        for (char *p = buf; *p; p++) {
-            if (*p == '\\') *p = '/';
-        }
-        // Remove any "//" 
-        char *p1 = buf;
-        char *p2 = buf;
-        while (*p2) {
-            if (*p2 == '/' && *(p2+1) == '/') {
-                p2++;
-            } else {
-                *p1++ = *p2++;
-            }
-        }
-        *p1 = '\0';
-        return std::string(buf);
-    };
-
-    // Helper to try opening with both original name and .ts extension
-    auto try_open = [](t_canvas *canvas, const char *fname, char *path, char **name) {
-        // Try with original filename
-        int fd = canvas_open(canvas, fname, "", path, name, MAXPDSTRING, 1);
-        if (fd >= 0) {
-            return fd;
-        }
-
-        // If no extension was given, try with .ts
-        if (!strrchr(fname, '.')) {
-            std::string with_ext = std::string(fname) + ".ts";
-            fd = canvas_open(canvas, with_ext.c_str(), "", path, name, MAXPDSTRING, 1);
-            if (fd >= 0) {
-                return fd;
-            }
-        }
-        return -1;
-    };
-
-    // if it's already an absolute path, normalize and return it
-    if (sys_isabsolutepath(filename)) {
-        return normalize_path(filename);
+  // Normalize a path - resolve .. and . components, standardize separators
+  auto normalize_path = [](const std::string& path) {
+    char buf[MAXPDSTRING];
+    char *bufptr = buf;
+    strncpy(buf, path.c_str(), MAXPDSTRING);
+    // Convert backslashes to forward slashes on Windows
+    for (char *p = buf; *p; p++) {
+      if (*p == '\\') *p = '/';
     }
-
-    // try canvas-relative path first
-    char path[MAXPDSTRING];
-    char *name = nullptr;
-    t_canvas *canvas = canvas_getcurrent();
-    int fd = try_open(canvas, filename, path, &name);
-    if (fd >= 0) {
-        sys_close(fd);
-        char fullpath[MAXPDSTRING];
-        snprintf(fullpath, MAXPDSTRING, "%s/%s", path, name);
-        return normalize_path(fullpath);
+    // Remove any "//" 
+    char *p1 = buf;
+    char *p2 = buf;
+    while (*p2) {
+      if (*p2 == '/' && *(p2+1) == '/') {
+        p2++;
+      } else {
+        *p1++ = *p2++;
+      }
     }
+    *p1 = '\0';
+    return std::string(buf);
+  };
 
-    // then try Pd's search paths
-    char dirresult[MAXPDSTRING];
-    fd = open_via_path("", filename, ".ts", dirresult, &name, MAXPDSTRING, 1);
-    if (fd >= 0) {
-        sys_close(fd);
-        char fullpath[MAXPDSTRING];
-        snprintf(fullpath, MAXPDSTRING, "%s/%s", dirresult, name);
-        return normalize_path(fullpath);
+  // Helper to try opening with both original name and .ts extension
+  auto try_open = [](t_canvas *canvas, const char *fname, char *path, char **name) {
+    // Try with original filename
+    int fd = canvas_open(canvas, fname, "", path, name, MAXPDSTRING, 1);
+    if (fd >= 0) return fd;
+
+    // If no extension was given, try with .ts
+    if (!strrchr(fname, '.')) {
+      std::string with_ext = std::string(fname) + ".ts";
+      fd = canvas_open(canvas, with_ext.c_str(), "", path, name, MAXPDSTRING, 1);
+      if (fd >= 0) return fd;
     }
+    return -1;
+  };
 
-    // file not found - return empty string to indicate failure
-    pd_error(obj, "could not find file '%s' (or %s.ts)", filename, filename);
-    return "";
+  // if it's already an absolute path, normalize and return it
+  if (sys_isabsolutepath(filename)) return normalize_path(filename);
+
+  // try canvas-relative path first
+  char path[MAXPDSTRING];
+  char *name = nullptr;
+  t_canvas *canvas = canvas_getcurrent();
+  int fd = try_open(canvas, filename, path, &name);
+  if (fd >= 0) {
+    sys_close(fd);
+    char fullpath[MAXPDSTRING];
+    snprintf(fullpath, MAXPDSTRING, "%s/%s", path, name);
+    return normalize_path(fullpath);
+  }
+
+  // then try Pd's search paths
+  char dirresult[MAXPDSTRING];
+  fd = open_via_path("", filename, ".ts", dirresult, &name, MAXPDSTRING, 1);
+  if (fd >= 0) {
+    sys_close(fd);
+    char fullpath[MAXPDSTRING];
+    snprintf(fullpath, MAXPDSTRING, "%s/%s", dirresult, name);
+    return normalize_path(fullpath);
+  }
+
+  // file not found - return empty string to indicate failure
+  pd_error(obj, "could not find file '%s' (or %s.ts)", filename, filename);
+  return "";
+}
+
+void create_buffers(t_nn_tilde *x, int in_dim, int out_dim) {
+  x->m_in_buffer = std::make_unique<circular_buffer<float, float>[]>(in_dim);
+  x->m_out_buffer = std::make_unique<circular_buffer<float, float>[]>(out_dim);
+  
+  x->m_in_model.clear();
+  x->m_out_model.clear();
+  
+  for (int i(0); i < in_dim; i++) {
+    x->m_in_buffer[i].initialize(x->m_buffer_size);
+    x->m_in_model.push_back(std::make_unique<float[]>(x->m_buffer_size));
+  }
+  
+  for (int i(0); i < out_dim; i++) {
+    x->m_out_buffer[i].initialize(x->m_buffer_size);
+    x->m_out_model.push_back(std::make_unique<float[]>(x->m_buffer_size));
+  }
+}
+
+// MODEL LOADER
+bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
+  // Store old dimensions to check if they changed
+  int old_in_dim = x->m_in_dim;
+  int old_out_dim = x->m_out_dim;
+
+  // Resolve the file path
+  std::string fullpath = resolve_file_path((t_object *)x, path);
+  if (fullpath.empty()) return false;
+
+  // Create a new backend instance
+  auto new_model = std::make_unique<Backend>();
+  if (new_model->load(fullpath.c_str())) {
+    pd_error(x, "error loading model %s", path);
+    return false;
+  }
+
+  // Get the method parameters
+  auto params = new_model->get_method_params(x->m_method->s_name);
+  if (!params.size()) {
+    post("method %s not found in model, using forward instead", x->m_method->s_name);
+    x->m_method = gensym("forward");
+    params = new_model->get_method_params("forward");
+    if (!params.size()) {
+      pd_error(x, "forward method not found in model");
+      return false;
+    }
+  }
+
+  // Store dimensions and ratios
+  int new_in_dim = params[0];
+  int new_in_ratio = params[1];
+  int new_out_dim = params[2];
+  int new_out_ratio = params[3];
+
+  // Check if dimensions changed - this affects whether we need DSP update
+  bool dims_changed = (new_in_dim != old_in_dim) || (new_out_dim != old_out_dim);
+
+  // Check/adjust buffer size
+  auto higher_ratio = new_model->get_higher_ratio();
+  if (!x->m_buffer_size) {
+    // NO THREAD MODE
+    x->m_use_thread = false;
+    x->m_buffer_size = higher_ratio;
+  } else if (x->m_buffer_size < higher_ratio) {
+    x->m_buffer_size = higher_ratio;
+    post("buffer size adjusted to %d", x->m_buffer_size);
+  } else {
+    x->m_buffer_size = power_ceil(x->m_buffer_size);
+  }
+
+  // Only create new buffers if dimensions changed
+  if (dims_changed) {
+    create_buffers(x, new_in_dim, new_out_dim);
+    x->m_outchannels_changed = true;
+  }
+
+  // Update model and parameters
+  x->m_model = std::move(new_model);
+  x->m_path = gensym(fullpath.c_str());
+  x->m_in_dim = new_in_dim;
+  x->m_in_ratio = new_in_ratio;
+  x->m_out_dim = new_out_dim;
+  x->m_out_ratio = new_out_ratio;
+  x->settable_attributes = x->m_model->get_settable_attributes();
+
+  return true;
 }
 
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
@@ -255,7 +328,12 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_method = gensym("forward");
   x->m_enabled = 1;
   x->m_use_thread = true;
-  x->m_multichannel = 0;  // Default to non-multichannel mode
+  x->m_multichannel = 0;
+  x->m_outchannels_changed = true;
+
+  // Create minimum outlet (we already have main inlet from CLASS_MAINSIGNALIN)
+  outlet_new(&x->x_obj, &s_signal);
+  create_buffers(x, 1, 1);  // minimum buffers for one in/out
 
   // CHECK ARGUMENTS
   // Check for -m flag as first argument
@@ -272,92 +350,43 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     argv++;
   }
 
-  if (!argc) {
-    return (void *)x;
-  }
-  if (argc > 0) {
-    x->m_path = atom_gensym(argv);
-  }
-  if (argc > 1) {
-    x->m_method = atom_gensym(argv + 1);
-  }
-  if (argc > 2) {
-    x->m_buffer_size = atom_getint(argv + 2);
+  if (!argc) return (void *)x;
+
+  x->m_path = atom_getsymbol(argv);
+  if (argc > 1) x->m_method = atom_gensym(argv + 1);
+  if (argc > 2) x->m_buffer_size = atom_getint(argv + 2);
+
+  if (nn_tilde_load_model(x, x->m_path->s_name)) {
+    // Add any additional inlets/outlets needed for model
+    if (!x->m_multichannel) {
+      for (int i(1); i < x->m_in_dim; i++)
+        inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
+      for (int i(1); i < x->m_out_dim; i++)
+        outlet_new(&x->x_obj, &s_signal);
+    }
   }
 
-  // SEARCH FOR FILE
-  std::string fullpath = resolve_file_path((t_object *)x, x->m_path->s_name);
-  if (!fullpath.empty()) {
-      x->m_path = gensym(fullpath.c_str());
-      // proceed with using the file...
-  }
-
-  // TRY TO LOAD MODEL
-  if (x->m_model->load(x->m_path->s_name)) {
-    pd_error(x, "error during loading");
-    return (void *)x;
-  } else {
-    // cout << "successfully loaded model" << endl;
-  }
-
-  // GET MODEL'S METHOD PARAMETERS
-  auto params = x->m_model->get_method_params(x->m_method->s_name);
-  x->settable_attributes = x->m_model->get_settable_attributes();
-
-  if (!params.size()) {
-    post("method not found, using forward instead");
-    x->m_method = gensym("forward");
-    params = x->m_model->get_method_params(x->m_method->s_name);
-  }
-
-  x->m_in_dim = params[0];
-  x->m_in_ratio = params[1];
-  x->m_out_dim = params[2];
-  x->m_out_ratio = params[3];
-
-  auto higher_ratio = x->m_model->get_higher_ratio();
-
-  if (!x->m_buffer_size) {
-    // NO THREAD MODE
-    x->m_use_thread = false;
-    x->m_buffer_size = higher_ratio;
-  } else if (x->m_buffer_size < higher_ratio) {
-    x->m_buffer_size = higher_ratio;
-    std::string err_message = "buffer size too small, switching to ";
-    err_message += std::to_string(higher_ratio);
-    post(err_message.c_str());
-  } else {
-    x->m_buffer_size = power_ceil(x->m_buffer_size);
-  }
-
-  // CREATE INLETS, OUTLETS and BUFFERS
-  x->m_in_buffer =
-      std::make_unique<circular_buffer<float, float>[]>(x->m_in_dim);
-  for (int i(0); i < x->m_in_dim; i++) {
-    x->m_in_buffer[i].initialize(x->m_buffer_size);
-    x->m_in_model.push_back(std::make_unique<float[]>(x->m_buffer_size));
-  }
-
-  x->m_out_buffer =
-      std::make_unique<circular_buffer<float, float>[]>(x->m_out_dim);
-  for (int i(0); i < x->m_out_dim; i++) {
-    x->m_out_buffer[i].initialize(x->m_buffer_size);
-    x->m_out_model.push_back(std::make_unique<float[]>(x->m_buffer_size));
-  }
-
-  // Create inlets and outlets based on multichannel mode
-  if (!x->m_multichannel) {
-    // Standard mode: create individual inlets/outlets
-    for (int i(0); i < x->m_in_dim - 1; i++)
-      inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
-    for (int i(0); i < x->m_out_dim; i++)
-      outlet_new(&x->x_obj, &s_signal);
-  } else {
-    // Multichannel mode: only create a single outlet
-    // Note: The first inlet is created automatically by CLASS_MAINSIGNALIN
-    outlet_new(&x->x_obj, &s_signal);
-  }
   return (void *)x;
+}
+
+void nn_tilde_load(t_nn_tilde *x, t_symbol *s) {
+  if (!x->m_multichannel) {
+    pd_error(x, "nn~: load message is only supported in multichannel mode");
+    return;
+  }
+
+  // Wait for any ongoing computation
+  if (x->m_compute_thread) {
+    x->m_compute_thread->join();
+    x->m_compute_thread = nullptr;
+  }
+
+  // Load the new model
+  if (nn_tilde_load_model(x, s->s_name)) {
+    if (x->m_outchannels_changed)
+      canvas_update_dsp();
+    post("loaded model %s", s->s_name);
+  }
 }
 
 void nn_tilde_enable(t_nn_tilde *x, t_floatarg arg) { x->m_enabled = int(arg); }
@@ -365,7 +394,7 @@ void nn_tilde_reload(t_nn_tilde *x) { x->m_model->reload(); }
 
 void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
   if (argc < 2) {
-    pd_error(x, "set needs at least 2 arguments [set argname argval1 ...)");
+    pd_error(x, "set needs at least 2 arguments [set argname argval1 ...(");
     return;
   }
   std::vector<std::string> attribute_args;
@@ -439,6 +468,8 @@ EXPORT void nn_tilde_setup(void) {
                   0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_enable, gensym("enable"),
                   A_DEFFLOAT, A_NULL);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_load, gensym("load"),
+                  A_SYMBOL, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_reload, gensym("reload"),
                   A_NULL);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_set, gensym("set"),
