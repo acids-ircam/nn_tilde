@@ -324,6 +324,13 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
   x->m_out_ratio = new_out_ratio;
   x->settable_attributes = x->m_model->get_settable_attributes();
 
+  // Output loaded message if in multichannel mode
+  if (x->m_multichannel) {
+    t_atom path_atom;
+    SETSYMBOL(&path_atom, x->m_path);
+    outlet_anything(x->m_info_outlet, gensym("loaded"), 1, &path_atom);
+  }
+
   return true;
 }
 
@@ -333,11 +340,56 @@ void nn_tilde_bang(t_nn_tilde *x) {
     return;
   }
 
+  // Output "is_loaded" status
+  t_atom is_loaded;
+  SETFLOAT(&is_loaded, x->m_model->is_loaded());
+  outlet_anything(x->m_info_outlet, gensym("is_loaded"), 1, &is_loaded);
+
+  // Return if no model is loaded
+  if (!x->m_model->is_loaded()) return;
+
   // Output dimensions
   t_atom dims[2];
   SETFLOAT(dims, x->m_in_dim);
   SETFLOAT(dims + 1, x->m_out_dim);
   outlet_anything(x->m_info_outlet, gensym("dim"), 2, dims);
+
+  // Output ratios
+  t_atom ratios[2];
+  SETFLOAT(ratios, x->m_in_ratio);
+  SETFLOAT(ratios + 1, x->m_out_ratio);
+  outlet_anything(x->m_info_outlet, gensym("ratio"), 2, ratios);
+
+  // Output buffer size
+  t_atom bufsize;
+  SETFLOAT(&bufsize, x->m_buffer_size);
+  outlet_anything(x->m_info_outlet, gensym("bufsize"), 1, &bufsize);
+
+  // Output "enabled" status
+  t_atom enabled;
+  SETFLOAT(&enabled, x->m_enabled);
+  outlet_anything(x->m_info_outlet, gensym("enabled"), 1, &enabled);
+
+  t_atom model;
+  SETSYMBOL(&model, x->m_path);
+  outlet_anything(x->m_info_outlet, gensym("model"), 1, &model);
+
+  // Output dimensions
+  std::vector<std::string> methods = x->m_model->get_available_methods();
+  std::vector<t_atom> method_atoms(methods.size());    
+  for (size_t i = 0; i < methods.size(); i++)
+    SETSYMBOL(&method_atoms[i], gensym(methods[i].c_str()));
+
+  outlet_anything(x->m_info_outlet, gensym("methods"), 
+                 methods.size(), method_atoms.data());
+
+  // Output settable attributes
+  std::vector<t_atom> attr_atoms(x->settable_attributes.size());
+  for (size_t i = 0; i < x->settable_attributes.size(); i++)
+      SETSYMBOL(&attr_atoms[i], gensym(x->settable_attributes[i].c_str()));
+  
+  outlet_anything(x->m_info_outlet, gensym("attributes"), 
+                 attr_atoms.size(), attr_atoms.data());
 }
 
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
@@ -366,6 +418,8 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   if (argc > 0 && argv->a_type == A_SYMBOL && atom_getsymbol(argv) == gensym("-m")) {
     if (g_signal_setmultiout) {
       x->m_multichannel = 1;
+      // Add info outlet in multichannel mode
+      x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
     } else {
       int maj = 0, min = 0, bug = 0;
       sys_getversion(&maj, &min, &bug);
@@ -376,12 +430,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     argv++;
   }
 
-  if (!argc) {
-    // Create info outlet last (rightmost) for default 1-in/1-out case
-    if (x->m_multichannel)
-      x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
-    return (void *)x;
-  }
+  if (!argc) return (void *)x;
 
   x->m_path = atom_getsymbol(argv);
   if (argc > 1) x->m_method = atom_gensym(argv + 1);
@@ -395,9 +444,6 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
       for (int i(1); i < x->m_out_dim; i++)
         outlet_new(&x->x_obj, &s_signal);
     }
-    // Create info outlet last (rightmost) after all signal outlets are created
-    if (x->m_multichannel)
-      x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
   }
 
   return (void *)x;
@@ -405,7 +451,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
 
 void nn_tilde_load(t_nn_tilde *x, t_symbol *s) {
   if (!x->m_multichannel) {
-    pd_error(x, "nn~: load message is only supported in multichannel mode");
+    pd_error(x, "nn~: dynamically loading models is only supported in multichannel mode");
     return;
   }
 
@@ -416,11 +462,8 @@ void nn_tilde_load(t_nn_tilde *x, t_symbol *s) {
   }
 
   // Load the new model
-  if (nn_tilde_load_model(x, s->s_name)) {
-    if (x->m_outchannels_changed)
+  if (nn_tilde_load_model(x, s->s_name) && x->m_outchannels_changed)
       canvas_update_dsp();
-    post("loaded model %s", s->s_name);
-  }
 }
 
 void nn_tilde_enable(t_nn_tilde *x, t_floatarg arg) { x->m_enabled = int(arg); }
