@@ -42,6 +42,7 @@ unsigned power_ceil(unsigned x) {
 typedef struct _nn_tilde {
   t_object x_obj;
   t_sample f;
+  int m_gpu;
   int m_multichannel;
   bool m_outchannels_changed;
   t_outlet* m_info_outlet;
@@ -313,6 +314,7 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
   x->m_model = std::move(new_model);
   x->m_path = gensym(fullpath.c_str());
   x->settable_attributes = x->m_model->get_settable_attributes();
+  x->m_model->use_gpu(x->m_gpu);
 
   // Update parameters using current method (or fallback to forward)
   if (!nn_tilde_update_model_params(x, x->m_method)) {
@@ -345,6 +347,11 @@ void nn_tilde_bang(t_nn_tilde *x) {
   t_atom enabled;
   SETFLOAT(&enabled, x->m_enabled);
   outlet_anything(x->m_info_outlet, gensym("enabled"), 1, &enabled);
+
+  // Output "gpu" status
+  t_atom gpu;
+  SETFLOAT(&gpu, x->m_gpu);
+  outlet_anything(x->m_info_outlet, gensym("gpu"), 1, &gpu);
 
   // Output model path
   t_atom model;
@@ -410,6 +417,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_enabled = 1;
   x->m_use_thread = true;
   x->m_multichannel = 0;
+  x->m_gpu = 0;
   x->m_outchannels_changed = true;
 
   // Create minimum outlet (we already have main inlet from CLASS_MAINSIGNALIN)
@@ -417,24 +425,35 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   create_buffers(x, 1, 1);  // minimum buffers for one in/out
 
   // CHECK ARGUMENTS
-  // Check for -m flag as first argument
-  if (argc > 0 && argv->a_type == A_SYMBOL && atom_getsymbol(argv) == gensym("-m")) {
-    if (g_signal_setmultiout) {
-      x->m_multichannel = 1;
-      // Add info outlet in multichannel mode
-      x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
-    } else {
-      int maj = 0, min = 0, bug = 0;
-      sys_getversion(&maj, &min, &bug);
-      pd_error(x, "nn~: no multichannel support in Pd %i.%i-%i, ignoring '-m' flag", 
-              maj, min, bug);
+  // First check for optional flags
+  while (argc > 0 && argv->a_type == A_SYMBOL) {
+    t_symbol *flag = atom_getsymbol(argv);
+    
+    if (flag == gensym("-m")) {
+      if (g_signal_setmultiout) {
+        x->m_multichannel = 1;
+        // Add info outlet in multichannel mode
+        x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
+      } else {
+        int maj = 0, min = 0, bug = 0;
+        sys_getversion(&maj, &min, &bug);
+        pd_error(x, "nn~: no multichannel support in Pd %i.%i-%i, ignoring '-m' flag", 
+                maj, min, bug);
+      }
+      argc--;
+      argv++;
     }
-    argc--;
-    argv++;
+    else if (flag == gensym("-gpu")) {
+      x->m_gpu = 1;
+      argc--;
+      argv++;
+    }
+    else break;  // Not a flag, should be the model path
   }
 
   if (!argc) return (void *)x;
 
+  // Process remaining regular arguments
   x->m_path = atom_getsymbol(argv);
   if (argc > 1) x->m_method = atom_gensym(argv + 1);
   if (argc > 2) x->m_buffer_size = atom_getint(argv + 2);
@@ -514,6 +533,11 @@ void nn_tilde_load(t_nn_tilde *x, t_symbol *s) {
       canvas_update_dsp();
 }
 
+void nn_tilde_gpu(t_nn_tilde *x, t_floatarg arg) {
+  x->m_gpu = (bool)arg;
+  if (x->m_model->is_loaded()) x->m_model->use_gpu(x->m_gpu); 
+}
+
 void nn_tilde_enable(t_nn_tilde *x, t_floatarg arg) { x->m_enabled = int(arg); }
 void nn_tilde_reload(t_nn_tilde *x) { x->m_model->reload(); }
 
@@ -590,11 +614,12 @@ EXPORT void nn_tilde_setup(void) {
   nn_tilde_class = class_new(gensym("nn~"), (t_newmethod)nn_tilde_new, 0,
                              sizeof(t_nn_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_dsp,     gensym("dsp"),     A_CANT, 0);
-  class_addmethod(nn_tilde_class, (t_method)nn_tilde_enable,  gensym("enable"),  A_DEFFLOAT, 0);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_enable,  gensym("enable"),  A_FLOAT, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_load,    gensym("load"),    A_SYMBOL, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_reload,  gensym("reload"),  A_NULL);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_set,     gensym("set"),     A_GIMME, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_bufsize, gensym("bufsize"), A_FLOAT, 0);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_gpu,     gensym("gpu"),     A_FLOAT, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_mode,    gensym("mode"),    A_SYMBOL, 0);
   class_addbang(nn_tilde_class, (t_method)nn_tilde_bang);
   CLASS_MAINSIGNALIN(nn_tilde_class, t_nn_tilde, f);
