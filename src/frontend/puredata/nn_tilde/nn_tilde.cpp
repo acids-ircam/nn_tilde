@@ -225,7 +225,7 @@ std::string resolve_file_path(t_object *obj, const char *filename) {
   }
 
   // file not found - return empty string to indicate failure
-  pd_error(obj, "could not find file '%s' (or %s.ts)", filename, filename);
+  pd_error(obj, "nn~: could not find file '%s' (or %s.ts)", filename, filename);
   return "";
 }
 
@@ -262,7 +262,7 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
   // Get the method parameters
   auto params = x->m_model->get_method_params(method->s_name);
   if (!params.size()) {
-    pd_error(x, "method %s not found in model", method->s_name);
+    pd_error(x, "nn~: method %s not found in model", method->s_name);
     return false;
   }
 
@@ -316,10 +316,10 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
 
   // Update parameters using current method (or fallback to forward)
   if (!nn_tilde_update_model_params(x, x->m_method)) {
-    post("method %s not found in model, using forward instead", x->m_method->s_name);
+    post("nn~: method %s not found in model, using forward instead", x->m_method->s_name);
     x->m_method = gensym("forward");
     if (!nn_tilde_update_model_params(x, x->m_method)) {
-      pd_error(x, "forward method not found in model");
+      pd_error(x, "nn~: forward method not found in model");
       return false;
     }
   }
@@ -509,7 +509,7 @@ void nn_tilde_reload(t_nn_tilde *x) { x->m_model->reload(); }
 
 void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
   if (argc < 2) {
-    pd_error(x, "set needs at least 2 arguments [set argname argval1 ...(");
+    pd_error(x, "nn~: set needs at least 2 arguments [set argname argval1 ...(");
     return;
   }
   std::vector<std::string> attribute_args;
@@ -519,7 +519,7 @@ void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
 
   if (!std::count(x->settable_attributes.begin(), x->settable_attributes.end(),
                   argname_str)) {
-    pd_error(x, "argument name not settable in current model");
+    pd_error(x, "nn~: argument name not settable in current model");
     return;
   }
 
