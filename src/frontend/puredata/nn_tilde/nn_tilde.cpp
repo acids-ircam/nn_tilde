@@ -364,13 +364,19 @@ void nn_tilde_bang(t_nn_tilde *x) {
   SETSYMBOL(&mode, x->m_method);
   outlet_anything(x->m_info_outlet, gensym("mode"), 1, &mode);
 
-  // Output settable attributes
-  std::vector<t_atom> attr_atoms(x->settable_attributes.size());
-  for (size_t i = 0; i < x->settable_attributes.size(); i++)
-      SETSYMBOL(&attr_atoms[i], gensym(x->settable_attributes[i].c_str()));
-  outlet_anything(x->m_info_outlet, gensym("attributes"), 
-                 attr_atoms.size(), attr_atoms.data());
-
+  if (x->settable_attributes.empty()) {
+    // Output empty symbol when no attributes
+    t_atom empty;
+    SETSYMBOL(&empty, gensym(""));  // or you could use gensym("none")
+    outlet_anything(x->m_info_outlet, gensym("attributes"), 1, &empty);
+  } else {
+    std::vector<t_atom> attr_atoms(x->settable_attributes.size());
+    for (size_t i = 0; i < x->settable_attributes.size(); i++) {
+        SETSYMBOL(&attr_atoms[i], gensym(x->settable_attributes[i].c_str()));
+    }
+    outlet_anything(x->m_info_outlet, gensym("attributes"), 
+                   attr_atoms.size(), attr_atoms.data());
+  }
   // Output buffer size
   t_atom bufsize;
   SETFLOAT(&bufsize, x->m_buffer_size);
