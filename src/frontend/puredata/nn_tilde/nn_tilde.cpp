@@ -336,10 +336,45 @@ void nn_tilde_bang(t_nn_tilde *x) {
   // Output "is_loaded" status
   t_atom is_loaded;
   SETFLOAT(&is_loaded, x->m_model->is_loaded());
-  outlet_anything(x->m_info_outlet, gensym("is_loaded"), 1, &is_loaded);
+  outlet_anything(x->m_info_outlet, gensym("loaded"), 1, &is_loaded);
 
   // Return if no model is loaded
   if (!x->m_model->is_loaded()) return;
+
+  // Output "enabled" status
+  t_atom enabled;
+  SETFLOAT(&enabled, x->m_enabled);
+  outlet_anything(x->m_info_outlet, gensym("enabled"), 1, &enabled);
+
+  // Output model path
+  t_atom model;
+  SETSYMBOL(&model, x->m_path);
+  outlet_anything(x->m_info_outlet, gensym("model"), 1, &model);
+
+  // Output modes
+  std::vector<std::string> methods = x->m_model->get_available_methods();
+  std::vector<t_atom> method_atoms(methods.size());    
+  for (size_t i = 0; i < methods.size(); i++)
+    SETSYMBOL(&method_atoms[i], gensym(methods[i].c_str()));
+  outlet_anything(x->m_info_outlet, gensym("modes"), 
+                 methods.size(), method_atoms.data());
+
+  // Output selected mode
+  t_atom mode;
+  SETSYMBOL(&mode, x->m_method);
+  outlet_anything(x->m_info_outlet, gensym("mode"), 1, &mode);
+
+  // Output settable attributes
+  std::vector<t_atom> attr_atoms(x->settable_attributes.size());
+  for (size_t i = 0; i < x->settable_attributes.size(); i++)
+      SETSYMBOL(&attr_atoms[i], gensym(x->settable_attributes[i].c_str()));
+  outlet_anything(x->m_info_outlet, gensym("attributes"), 
+                 attr_atoms.size(), attr_atoms.data());
+
+  // Output buffer size
+  t_atom bufsize;
+  SETFLOAT(&bufsize, x->m_buffer_size);
+  outlet_anything(x->m_info_outlet, gensym("bufsize"), 1, &bufsize);
 
   // Output dimensions
   t_atom dims[2];
@@ -352,37 +387,6 @@ void nn_tilde_bang(t_nn_tilde *x) {
   SETFLOAT(ratios, x->m_in_ratio);
   SETFLOAT(ratios + 1, x->m_out_ratio);
   outlet_anything(x->m_info_outlet, gensym("ratio"), 2, ratios);
-
-  // Output buffer size
-  t_atom bufsize;
-  SETFLOAT(&bufsize, x->m_buffer_size);
-  outlet_anything(x->m_info_outlet, gensym("bufsize"), 1, &bufsize);
-
-  // Output "enabled" status
-  t_atom enabled;
-  SETFLOAT(&enabled, x->m_enabled);
-  outlet_anything(x->m_info_outlet, gensym("enabled"), 1, &enabled);
-
-  t_atom model;
-  SETSYMBOL(&model, x->m_path);
-  outlet_anything(x->m_info_outlet, gensym("model"), 1, &model);
-
-  // Output dimensions
-  std::vector<std::string> methods = x->m_model->get_available_methods();
-  std::vector<t_atom> method_atoms(methods.size());    
-  for (size_t i = 0; i < methods.size(); i++)
-    SETSYMBOL(&method_atoms[i], gensym(methods[i].c_str()));
-
-  outlet_anything(x->m_info_outlet, gensym("methods"), 
-                 methods.size(), method_atoms.data());
-
-  // Output settable attributes
-  std::vector<t_atom> attr_atoms(x->settable_attributes.size());
-  for (size_t i = 0; i < x->settable_attributes.size(); i++)
-      SETSYMBOL(&attr_atoms[i], gensym(x->settable_attributes[i].c_str()));
-  
-  outlet_anything(x->m_info_outlet, gensym("attributes"), 
-                 attr_atoms.size(), attr_atoms.data());
 }
 
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
