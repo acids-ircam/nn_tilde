@@ -258,77 +258,70 @@ void create_buffers(t_nn_tilde *x, int in_dim, int out_dim) {
     x->m_out_model_ptrs.push_back(x->m_out_model[i].get());
 }
 
-// MODEL LOADER
-bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
+bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
+  // Get the method parameters
+  auto params = x->m_model->get_method_params(method->s_name);
+  if (!params.size()) {
+    pd_error(x, "method %s not found in model", method->s_name);
+    return false;
+  }
+
   // Store old dimensions to check if they changed
   int old_in_dim = x->m_in_dim;
   int old_out_dim = x->m_out_dim;
 
-  // Resolve the file path
-  std::string fullpath = resolve_file_path((t_object *)x, path);
-  if (fullpath.empty()) return false;
-
-  // Create a new backend instance
-  auto new_model = std::make_unique<Backend>();
-  if (new_model->load(fullpath.c_str())) {
-    pd_error(x, "error loading model %s", path);
-    return false;
-  }
-
-  // Get the method parameters
-  auto params = new_model->get_method_params(x->m_method->s_name);
-  if (!params.size()) {
-    post("method %s not found in model, using forward instead", x->m_method->s_name);
-    x->m_method = gensym("forward");
-    params = new_model->get_method_params("forward");
-    if (!params.size()) {
-      pd_error(x, "forward method not found in model");
-      return false;
-    }
-  }
-
-  // Store dimensions and ratios
-  int new_in_dim = params[0];
-  int new_in_ratio = params[1];
-  int new_out_dim = params[2];
-  int new_out_ratio = params[3];
-
-  // Check if dimensions changed - this affects whether we need DSP update
-  bool dims_changed = (new_in_dim != old_in_dim) || (new_out_dim != old_out_dim);
+  // Update dimensions and ratios
+  x->m_method = method;
+  x->m_in_dim = params[0];
+  x->m_in_ratio = params[1];
+  x->m_out_dim = params[2];
+  x->m_out_ratio = params[3];
 
   // Check/adjust buffer size
-  auto higher_ratio = new_model->get_higher_ratio();
-  if (!x->m_buffer_size) {
-    // NO THREAD MODE
-    x->m_use_thread = false;
-    x->m_buffer_size = higher_ratio;
-  } else if (x->m_buffer_size < higher_ratio) {
+  auto higher_ratio = x->m_model->get_higher_ratio();
+  if (x->m_buffer_size < higher_ratio) {
     x->m_buffer_size = higher_ratio;
     post("buffer size adjusted to %d", x->m_buffer_size);
   } else {
     x->m_buffer_size = power_ceil(x->m_buffer_size);
   }
 
-  // Only create new buffers if dimensions changed
+  // Create new buffers if dimensions changed
+  bool dims_changed = (x->m_in_dim != old_in_dim) || (x->m_out_dim != old_out_dim);
   if (dims_changed) {
-    create_buffers(x, new_in_dim, new_out_dim);
+    create_buffers(x, x->m_in_dim, x->m_out_dim);
     x->m_outchannels_changed = true;
   }
 
-  // Update model and parameters
+  return true;
+}
+
+// MODEL LOADER
+bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
+  // Resolve the file path
+  std::string fullpath = resolve_file_path((t_object *)x, path);
+  if (fullpath.empty()) return false;
+
+  // Create and load new backend instance
+  auto new_model = std::make_unique<Backend>();
+  if (new_model->load(fullpath.c_str())) {
+    pd_error(x, "error loading model %s", path);
+    return false;
+  }
+
+  // Store the new model and path
   x->m_model = std::move(new_model);
   x->m_path = gensym(fullpath.c_str());
-  x->m_in_dim = new_in_dim;
-  x->m_in_ratio = new_in_ratio;
-  x->m_out_dim = new_out_dim;
-  x->m_out_ratio = new_out_ratio;
   x->settable_attributes = x->m_model->get_settable_attributes();
 
-  // Output loaded message if in multichannel mode
-  if (x->m_multichannel) {
-    t_atom path_atom;
-    SETSYMBOL(&path_atom, x->m_path);
-    outlet_anything(x->m_info_outlet, gensym("loaded"), 1, &path_atom);
+  // Update parameters using current method (or fallback to forward)
+  if (!nn_tilde_update_model_params(x, x->m_method)) {
+    post("method %s not found in model, using forward instead", x->m_method->s_name);
+    x->m_method = gensym("forward");
+    if (!nn_tilde_update_model_params(x, x->m_method)) {
+      pd_error(x, "forward method not found in model");
+      return false;
+    }
   }
 
   return true;
@@ -449,6 +442,52 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   return (void *)x;
 }
 
+void nn_tilde_mode(t_nn_tilde *x, t_symbol *s) {
+  if (!x->m_multichannel) {
+    pd_error(x, "nn~: mode message is only supported in multichannel mode");
+    return;
+  }
+
+  // Wait for any ongoing computation
+  if (x->m_compute_thread) {
+    x->m_compute_thread->join();
+    x->m_compute_thread = nullptr;
+  }
+
+  // Update parameters
+  if (nn_tilde_update_model_params(x, s) && x->m_outchannels_changed) {
+    canvas_update_dsp();
+  }
+}
+
+// Simple bufsize change
+void nn_tilde_bufsize(t_nn_tilde *x, t_floatarg size) {
+  if (!x->m_multichannel) {
+    pd_error(x, "nn~: bufsize message is only supported in multichannel mode");
+    return;
+  }
+
+  // Wait for any ongoing computation
+  if (x->m_compute_thread) {
+    x->m_compute_thread->join();
+    x->m_compute_thread = nullptr;
+  }
+
+  // Store and validate new size
+  auto higher_ratio = x->m_model->get_higher_ratio();
+  x->m_buffer_size = (int)size;
+  
+  if (x->m_buffer_size < higher_ratio) {
+    pd_error(x, "nn~: buffer size must be at least %d for this model", higher_ratio);
+    x->m_buffer_size = higher_ratio;
+  } else {
+    x->m_buffer_size = power_ceil(x->m_buffer_size);
+  }
+
+  // Recreate buffers with new size
+  create_buffers(x, x->m_in_dim, x->m_out_dim);
+}
+
 void nn_tilde_load(t_nn_tilde *x, t_symbol *s) {
   if (!x->m_multichannel) {
     pd_error(x, "nn~: dynamically loading models is only supported in multichannel mode");
@@ -541,16 +580,13 @@ EXPORT void nn_tilde_setup(void) {
   startup_message();
   nn_tilde_class = class_new(gensym("nn~"), (t_newmethod)nn_tilde_new, 0,
                              sizeof(t_nn_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
-  class_addmethod(nn_tilde_class, (t_method)nn_tilde_dsp, gensym("dsp"), A_CANT,
-                  0);
-  class_addmethod(nn_tilde_class, (t_method)nn_tilde_enable, gensym("enable"),
-                  A_DEFFLOAT, A_NULL);
-  class_addmethod(nn_tilde_class, (t_method)nn_tilde_load, gensym("load"),
-                  A_SYMBOL, 0);
-  class_addmethod(nn_tilde_class, (t_method)nn_tilde_reload, gensym("reload"),
-                  A_NULL);
-  class_addmethod(nn_tilde_class, (t_method)nn_tilde_set, gensym("set"),
-                  A_GIMME, A_NULL);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_dsp,     gensym("dsp"),     A_CANT, 0);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_enable,  gensym("enable"),  A_DEFFLOAT, 0);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_load,    gensym("load"),    A_SYMBOL, 0);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_reload,  gensym("reload"),  A_NULL);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_set,     gensym("set"),     A_GIMME, 0);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_bufsize, gensym("bufsize"), A_FLOAT, 0);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_mode,    gensym("mode"),    A_SYMBOL, 0);
   class_addbang(nn_tilde_class, (t_method)nn_tilde_bang);
   CLASS_MAINSIGNALIN(nn_tilde_class, t_nn_tilde, f);
 }
