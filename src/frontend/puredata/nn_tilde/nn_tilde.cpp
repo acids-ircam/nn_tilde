@@ -281,7 +281,7 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
   auto higher_ratio = x->m_model->get_higher_ratio();
   if (x->m_buffer_size < higher_ratio) {
     x->m_buffer_size = higher_ratio;
-    post("buffer size adjusted to %d", x->m_buffer_size);
+    post("nn~: buffer size too small. adjusted to %d", x->m_buffer_size);
   } else {
     x->m_buffer_size = power_ceil(x->m_buffer_size);
   }
@@ -463,7 +463,7 @@ void nn_tilde_mode(t_nn_tilde *x, t_symbol *s) {
 // Simple bufsize change
 void nn_tilde_bufsize(t_nn_tilde *x, t_floatarg size) {
   if (!x->m_multichannel) {
-    pd_error(x, "nn~: bufsize message is only supported in multichannel mode");
+    pd_error(x, "nn~: buffer size change is only supported in multichannel mode");
     return;
   }
 
@@ -476,14 +476,13 @@ void nn_tilde_bufsize(t_nn_tilde *x, t_floatarg size) {
   // Store and validate new size
   auto higher_ratio = x->m_model->get_higher_ratio();
   x->m_buffer_size = (int)size;
-  
   if (x->m_buffer_size < higher_ratio) {
-    pd_error(x, "nn~: buffer size must be at least %d for this model", higher_ratio);
     x->m_buffer_size = higher_ratio;
+    post("nn~: buffer size too small. adjusted to %d", x->m_buffer_size);
   } else {
     x->m_buffer_size = power_ceil(x->m_buffer_size);
   }
-
+  
   // Recreate buffers with new size
   create_buffers(x, x->m_in_dim, x->m_out_dim);
 }
