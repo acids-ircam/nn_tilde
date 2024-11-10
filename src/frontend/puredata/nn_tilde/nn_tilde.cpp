@@ -155,7 +155,7 @@ void nn_tilde_free(t_nn_tilde *x) {
   for (int i(1); i < x->m_in_dim; i++)
     inlet_free(x->x_obj.ob_inlet);
 
-  outlet_free(x->m_info_outlet);
+  if (x->m_multichannel) outlet_free(x->m_info_outlet);
   for (int i(0); i < x->m_out_dim; i++)
     outlet_free(x->x_obj.ob_outlet);
 }
@@ -328,6 +328,12 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
 }
 
 void nn_tilde_bang(t_nn_tilde *x) {
+  if (!x->m_multichannel) {
+    pd_error(x, "nn~: info output only available in multichannel mode");
+    return;
+  }
+
+  // Output dimensions
   t_atom dims[2];
   SETFLOAT(dims, x->m_in_dim);
   SETFLOAT(dims + 1, x->m_out_dim);
@@ -372,7 +378,8 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
 
   if (!argc) {
     // Create info outlet last (rightmost) for default 1-in/1-out case
-    x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
+    if (x->m_multichannel)
+      x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
     return (void *)x;
   }
 
@@ -389,7 +396,8 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
         outlet_new(&x->x_obj, &s_signal);
     }
     // Create info outlet last (rightmost) after all signal outlets are created
-    x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
+    if (x->m_multichannel)
+      x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
   }
 
   return (void *)x;
