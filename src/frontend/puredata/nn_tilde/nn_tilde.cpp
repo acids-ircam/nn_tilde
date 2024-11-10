@@ -44,10 +44,13 @@ typedef struct _nn_tilde {
   t_sample f;
   int m_multichannel;
   bool m_outchannels_changed;
+  t_outlet* m_info_outlet;
 
   int m_enabled;
   // BACKEND RELATED MEMBERS
   std::unique_ptr<Backend> m_model;
+  std::vector<float*> m_in_model_ptrs;
+  std::vector<float*> m_out_model_ptrs;
   std::vector<std::string> settable_attributes;
   t_symbol *m_method, *m_path;
   std::unique_ptr<std::thread> m_compute_thread;
@@ -65,19 +68,12 @@ typedef struct _nn_tilde {
   int m_dsp_vec_size;
   std::vector<float *> m_dsp_in_vec;
   std::vector<float *> m_dsp_out_vec;
-
 } t_nn_tilde;
 
-void model_perform(t_nn_tilde *nn_instance) {
-  std::vector<float *> in_model, out_model;
-
-  for (int c(0); c < nn_instance->m_in_dim; c++)
-    in_model.push_back(nn_instance->m_in_model[c].get());
-  for (int c(0); c < nn_instance->m_out_dim; c++)
-    out_model.push_back(nn_instance->m_out_model[c].get());
-
-  nn_instance->m_model->perform(in_model, out_model, nn_instance->m_buffer_size,
-                                nn_instance->m_method->s_name, 1);
+void model_perform(t_nn_tilde *x) {
+  // Use pre-allocated vectors
+  x->m_model->perform(x->m_in_model_ptrs, x->m_out_model_ptrs, 
+                     x->m_buffer_size, x->m_method->s_name, 1);
 }
 
 // DSP CALL
@@ -86,8 +82,8 @@ t_int *nn_tilde_perform(t_int *w) {
 
   if (!x->m_model->is_loaded() || !x->m_enabled) {
     for (int c(0); c < x->m_out_dim; c++) {
-      for (int i(0); i < x->m_dsp_vec_size; i++)
-        x->m_dsp_out_vec[c][i] = 0;
+      float *out = x->m_dsp_out_vec[c];
+      memset(out, 0, x->m_dsp_vec_size * sizeof(float));
     }
     return w + 2;
   }
@@ -155,7 +151,13 @@ void nn_tilde_dsp(t_nn_tilde *x, t_signal **sp) {
 
 void nn_tilde_free(t_nn_tilde *x) {
   if (x->m_compute_thread) x->m_compute_thread->join();
-  // FIXME: inlet_free / outlet_free?
+
+  for (int i(1); i < x->m_in_dim; i++)
+    inlet_free(x->x_obj.ob_inlet);
+
+  outlet_free(x->m_info_outlet);
+  for (int i(0); i < x->m_out_dim; i++)
+    outlet_free(x->x_obj.ob_outlet);
 }
 
 std::string resolve_file_path(t_object *obj, const char *filename) {
@@ -243,6 +245,17 @@ void create_buffers(t_nn_tilde *x, int in_dim, int out_dim) {
     x->m_out_buffer[i].initialize(x->m_buffer_size);
     x->m_out_model.push_back(std::make_unique<float[]>(x->m_buffer_size));
   }
+
+  // Pre-allocate pointer vectors
+  x->m_in_model_ptrs.clear();
+  x->m_out_model_ptrs.clear();
+  x->m_in_model_ptrs.reserve(in_dim);
+  x->m_out_model_ptrs.reserve(out_dim);
+  
+  for (int i(0); i < in_dim; i++)
+    x->m_in_model_ptrs.push_back(x->m_in_model[i].get());
+  for (int i(0); i < out_dim; i++)
+    x->m_out_model_ptrs.push_back(x->m_out_model[i].get());
 }
 
 // MODEL LOADER
@@ -314,6 +327,13 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
   return true;
 }
 
+void nn_tilde_bang(t_nn_tilde *x) {
+  t_atom dims[2];
+  SETFLOAT(dims, x->m_in_dim);
+  SETFLOAT(dims + 1, x->m_out_dim);
+  outlet_anything(x->m_info_outlet, gensym("dim"), 2, dims);
+}
+
 void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   t_nn_tilde *x = (t_nn_tilde *)pd_new(nn_tilde_class);
 
@@ -350,7 +370,11 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     argv++;
   }
 
-  if (!argc) return (void *)x;
+  if (!argc) {
+    // Create info outlet last (rightmost) for default 1-in/1-out case
+    x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
+    return (void *)x;
+  }
 
   x->m_path = atom_getsymbol(argv);
   if (argc > 1) x->m_method = atom_gensym(argv + 1);
@@ -364,6 +388,8 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
       for (int i(1); i < x->m_out_dim; i++)
         outlet_new(&x->x_obj, &s_signal);
     }
+    // Create info outlet last (rightmost) after all signal outlets are created
+    x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
   }
 
   return (void *)x;
@@ -474,5 +500,6 @@ EXPORT void nn_tilde_setup(void) {
                   A_NULL);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_set, gensym("set"),
                   A_GIMME, A_NULL);
+  class_addbang(nn_tilde_class, (t_method)nn_tilde_bang);
   CLASS_MAINSIGNALIN(nn_tilde_class, t_nn_tilde, f);
 }
