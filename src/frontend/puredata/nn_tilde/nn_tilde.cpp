@@ -314,7 +314,14 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
   x->m_model = std::move(new_model);
   x->m_path = gensym(fullpath.c_str());
   x->settable_attributes = x->m_model->get_settable_attributes();
-  x->m_model->use_gpu(x->m_gpu);
+
+  // Handle GPU mode
+  if (x->m_gpu && !(torch::hasCUDA() || torch::hasMPS())) {
+    post("nn~: GPU mode not available");
+    x->m_gpu = 0;
+  }
+  
+  if (x->m_gpu) x->m_model->use_gpu(true);
 
   // Update parameters using current method (or fallback to forward)
   if (!nn_tilde_update_model_params(x, x->m_method)) {
@@ -534,8 +541,23 @@ void nn_tilde_load(t_nn_tilde *x, t_symbol *s) {
 }
 
 void nn_tilde_gpu(t_nn_tilde *x, t_floatarg arg) {
-  x->m_gpu = (bool)arg;
-  if (x->m_model->is_loaded()) x->m_model->use_gpu(x->m_gpu); 
+  bool want_gpu = (bool)arg;
+  
+  if (want_gpu == x->m_gpu) return;
+
+  if (!x->m_model->is_loaded()) {
+    pd_error(x, "nn~: no model loaded");
+    return;
+  }
+
+  if (want_gpu && !(torch::hasCUDA() || torch::hasMPS())) {
+    post("nn~: GPU mode not available");
+    x->m_gpu = 0;
+    return;
+  }
+  
+  x->m_gpu = want_gpu;
+  x->m_model->use_gpu(want_gpu);
 }
 
 void nn_tilde_enable(t_nn_tilde *x, t_floatarg arg) { x->m_enabled = int(arg); }
