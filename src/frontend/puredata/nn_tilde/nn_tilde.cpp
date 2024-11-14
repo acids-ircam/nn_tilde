@@ -215,11 +215,20 @@ void create_buffers(t_nn_tilde *x, int in_dim, int out_dim) {
 }
 
 bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
+  x->m_method = method;
+
   // Get the method parameters
-  auto params = x->m_model->get_method_params(method->s_name);
+  auto params = x->m_model->get_method_params(x->m_method->s_name);
+
+  // Try to fallback to forward method if method not found
   if (!params.size()) {
-    pd_error(x, "nn~: method %s not found in model", method->s_name);
-    return false;
+    post("nn~: method %s not found in model, using forward instead", x->m_method->s_name);
+    x->m_method = gensym("forward");
+    params = x->m_model->get_method_params(x->m_method->s_name);
+    if (!params.size()) {
+      pd_error(x, "nn~: forward method not found in model");
+      return false;
+    }
   }
 
   // Store old dimensions to check if they changed
@@ -227,7 +236,6 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
   int old_out_dim = x->m_out_dim;
 
   // Update dimensions and ratios
-  x->m_method = method;
   x->m_in_dim = params[0];
   x->m_in_ratio = params[1];
   x->m_out_dim = params[2];
@@ -279,16 +287,7 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
   if (x->m_gpu) x->m_model->use_gpu(true);
 
   // Update parameters using current method (or fallback to forward)
-  if (!nn_tilde_update_model_params(x, x->m_method)) {
-    post("nn~: method %s not found in model, using forward instead", x->m_method->s_name);
-    x->m_method = gensym("forward");
-    if (!nn_tilde_update_model_params(x, x->m_method)) {
-      pd_error(x, "nn~: forward method not found in model");
-      return false;
-    }
-  }
-
-  return true;
+  return nn_tilde_update_model_params(x, x->m_method);
 }
 
 void nn_tilde_bang(t_nn_tilde *x) {
