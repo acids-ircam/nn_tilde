@@ -8,7 +8,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
@@ -23,13 +23,13 @@ jobs:
           cd build
           cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/lib/python3.10/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
           make
-      - name: Max/MSP Package creation
-        run: |
-          mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_macOS_arm64.tar.gz nn_tilde
+      # - name: Max/MSP Package creation
+      #   run: |
+      #     mkdir nn_tilde
+      #     mkdir nn_tilde/help
+      #     mv src/externals nn_tilde
+      #     cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+      #     tar -czvf nn_max_msp_macOS_arm64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
           rm -fr nn_tilde
@@ -37,18 +37,18 @@ jobs:
           rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
           tar -czvf nn_puredata_macOS_arm64.tar.gz nn_tilde
       - name: Upload binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: nn_tilde
           path: |
-            nn_max_msp_macOS_arm64.tar.gz
+            # nn_max_msp_macOS_arm64.tar.gz
             nn_puredata_macOS_arm64.tar.gz
 
   osx-x64-build:
     runs-on: macos-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
@@ -64,13 +64,13 @@ jobs:
           cd build
           cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include 
           make
-      - name: Max/MSP Package creation
-        run: |
-          mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
+      # - name: Max/MSP Package creation
+      #   run: |
+      #     mkdir nn_tilde
+      #     mkdir nn_tilde/help
+      #     mv src/externals nn_tilde
+      #     cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+      #     tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
           rm -fr nn_tilde
@@ -78,18 +78,18 @@ jobs:
           rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
           tar -czvf nn_puredata_macOS_x64.tar.gz nn_tilde
       - name: Upload binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: nn_tilde
           path: |
-            nn_max_msp_macOS_x64.tar.gz
+            # nn_max_msp_macOS_x64.tar.gz
             nn_puredata_macOS_x64.tar.gz
 
   windows-x64-build:
     runs-on: windows-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
@@ -99,7 +99,7 @@ jobs:
         run: |
           mkdir pd
           cd pd
-          curl -L https://msp.puredata.info/Software/pd-0.53-2.msw.zip -o pd.zip
+          curl -L https://msp.puredata.info/Software/pd-0.55-0.msw.zip -o pd.zip
           unzip pd.zip
           mv pd*/src .
           mv pd*/bin .
@@ -109,13 +109,13 @@ jobs:
           cd build
           cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
           cmake --build . --config Release
-      - name: Max/MSP Package creation
-        run: |
-          mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_windows_x64.tar.gz nn_tilde
+      # - name: Max/MSP Package creation
+      #   run: |
+      #     mkdir nn_tilde
+      #     mkdir nn_tilde/help
+      #     mv src/externals nn_tilde
+      #     cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+      #     tar -czvf nn_max_msp_windows_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
           Remove-Item -Force -Recurse nn_tilde
@@ -123,11 +123,11 @@ jobs:
           mv build/frontend/puredata/nn_tilde/Release/* nn_tilde/
           tar -czvf nn_puredata_windows_x64.tar.gz nn_tilde
       - name: Upload binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: nn_tilde
           path: |
-            nn_max_msp_windows_x64.tar.gz
+            # nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
 
   AutomaticRelease:
@@ -135,7 +135,7 @@ jobs:
     needs: [osx-arm64-build, osx-x64-build, windows-x64-build]
     steps:
       - name: Download build binaries
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: nn_tilde
       - name: Automated Release
@@ -144,9 +144,9 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: |
-            nn_max_msp_macOS_x64.tar.gz
+            # nn_max_msp_macOS_x64.tar.gz
+            # nn_max_msp_macOS_arm64.tar.gz
+            # nn_max_msp_windows_x64.tar.gz
             nn_puredata_macOS_x64.tar.gz
-            nn_max_msp_macOS_arm64.tar.gz
             nn_puredata_macOS_arm64.tar.gz
-            nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
