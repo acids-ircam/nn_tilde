@@ -302,7 +302,7 @@ void nn_tilde_bang(t_nn_tilde *x) {
 
   // Output "is_loaded" status
   t_atom is_loaded;
-  SETFLOAT(&is_loaded, (t_float)x->m_model->is_loaded());
+  SETFLOAT(&is_loaded, x->m_model->is_loaded());
   outlet_anything(x->m_info_outlet, gensym("loaded"), 1, &is_loaded);
 
   // Return if no model is loaded
@@ -310,12 +310,12 @@ void nn_tilde_bang(t_nn_tilde *x) {
 
   // Output "enabled" status
   t_atom enabled;
-  SETFLOAT(&enabled, (t_float)x->m_enabled);
+  SETFLOAT(&enabled, x->m_enabled);
   outlet_anything(x->m_info_outlet, gensym("enabled"), 1, &enabled);
 
   // Output "gpu" status
   t_atom gpu;
-  SETFLOAT(&gpu, (t_float)x->m_gpu);
+  SETFLOAT(&gpu, x->m_gpu);
   outlet_anything(x->m_info_outlet, gensym("gpu"), 1, &gpu);
 
   // Output model path
