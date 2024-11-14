@@ -42,13 +42,13 @@ unsigned power_ceil(unsigned x) {
 typedef struct _nn_tilde {
   t_object x_obj;
   t_sample f;
-  int m_gpu;
-  int m_multichannel;
+  bool m_multichannel;
+  bool m_gpu;
   bool m_outchannels_changed;
   t_canvas* m_canvas;
   t_outlet* m_info_outlet;
 
-  int m_enabled;
+  bool m_enabled;
   // BACKEND RELATED MEMBERS
   std::unique_ptr<Backend> m_model;
   std::vector<float*> m_in_model_ptrs;
@@ -234,6 +234,7 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
   // Store old dimensions to check if they changed
   int old_in_dim = x->m_in_dim;
   int old_out_dim = x->m_out_dim;
+  x->m_outchannels_changed = false;
 
   // Update dimensions and ratios
   x->m_in_dim = params[0];
@@ -243,9 +244,13 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
 
   // Check/adjust buffer size
   auto higher_ratio = x->m_model->get_higher_ratio();
-  if (x->m_buffer_size < higher_ratio) {
+  if (!x->m_buffer_size) {
+    // NO THREAD MODE
+    x->m_use_thread = false;
     x->m_buffer_size = higher_ratio;
-    post("nn~: buffer size too small. adjusted to %d", x->m_buffer_size);
+  } else if (x->m_buffer_size < higher_ratio) {
+    x->m_buffer_size = higher_ratio;
+    post("nn~: buffer size too small, switching to %d", x->m_buffer_size);
   } else {
     x->m_buffer_size = power_ceil(x->m_buffer_size);
   }
@@ -278,7 +283,6 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
   x->m_path = gensym(fullpath.c_str());
   x->settable_attributes = x->m_model->get_settable_attributes();
 
-  // Handle GPU mode
   if (x->m_gpu && !(torch::hasCUDA() || torch::hasMPS())) {
     post("nn~: GPU mode not available");
     x->m_gpu = 0;
@@ -298,7 +302,7 @@ void nn_tilde_bang(t_nn_tilde *x) {
 
   // Output "is_loaded" status
   t_atom is_loaded;
-  SETFLOAT(&is_loaded, x->m_model->is_loaded());
+  SETFLOAT(&is_loaded, (t_float)x->m_model->is_loaded());
   outlet_anything(x->m_info_outlet, gensym("loaded"), 1, &is_loaded);
 
   // Return if no model is loaded
@@ -306,12 +310,12 @@ void nn_tilde_bang(t_nn_tilde *x) {
 
   // Output "enabled" status
   t_atom enabled;
-  SETFLOAT(&enabled, x->m_enabled);
+  SETFLOAT(&enabled, (t_float)x->m_enabled);
   outlet_anything(x->m_info_outlet, gensym("enabled"), 1, &enabled);
 
   // Output "gpu" status
   t_atom gpu;
-  SETFLOAT(&gpu, x->m_gpu);
+  SETFLOAT(&gpu, (t_float)x->m_gpu);
   outlet_anything(x->m_info_outlet, gensym("gpu"), 1, &gpu);
 
   // Output model path
@@ -375,10 +379,10 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_out_ratio = 1;
   x->m_buffer_size = 4096;
   x->m_method = gensym("forward");
-  x->m_enabled = 1;
+  x->m_enabled = true;
   x->m_use_thread = true;
-  x->m_multichannel = 0;
-  x->m_gpu = 0;
+  x->m_multichannel = false;
+  x->m_gpu = false;
   x->m_outchannels_changed = true;
   x->m_canvas = canvas_getcurrent();
 
@@ -393,7 +397,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     
     if (flag == gensym("-m")) {
       if (g_signal_setmultiout) {
-        x->m_multichannel = 1;
+        x->m_multichannel = true;
         // Add info outlet in multichannel mode
         x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
       } else {
@@ -439,37 +443,37 @@ void nn_tilde_mode(t_nn_tilde *x, t_symbol *s) {
     return;
   }
 
-  // Wait for any ongoing computation
   if (x->m_compute_thread) {
     x->m_compute_thread->join();
     x->m_compute_thread = nullptr;
   }
 
-  // Update parameters
   if (nn_tilde_update_model_params(x, s) && x->m_outchannels_changed) {
     canvas_update_dsp();
   }
 }
 
-// Simple bufsize change
 void nn_tilde_bufsize(t_nn_tilde *x, t_floatarg size) {
   if (!x->m_multichannel) {
     pd_error(x, "nn~: buffer size change is only supported in multichannel mode");
     return;
   }
 
-  // Wait for any ongoing computation
   if (x->m_compute_thread) {
     x->m_compute_thread->join();
     x->m_compute_thread = nullptr;
   }
 
   // Store and validate new size
-  auto higher_ratio = x->m_model->get_higher_ratio();
   x->m_buffer_size = (int)size;
-  if (x->m_buffer_size < higher_ratio) {
+  auto higher_ratio = x->m_model->get_higher_ratio();
+  if (!x->m_buffer_size) {
+    // NO THREAD MODE
+    x->m_use_thread = false;
     x->m_buffer_size = higher_ratio;
-    post("nn~: buffer size too small. adjusted to %d", x->m_buffer_size);
+  } else if (x->m_buffer_size < higher_ratio) {
+    x->m_buffer_size = higher_ratio;
+    post("nn~: buffer size too small, switching to %d", x->m_buffer_size);
   } else {
     x->m_buffer_size = power_ceil(x->m_buffer_size);
   }
@@ -484,20 +488,17 @@ void nn_tilde_load(t_nn_tilde *x, t_symbol *s) {
     return;
   }
 
-  // Wait for any ongoing computation
   if (x->m_compute_thread) {
     x->m_compute_thread->join();
     x->m_compute_thread = nullptr;
   }
 
-  // Load the new model
   if (nn_tilde_load_model(x, s->s_name) && x->m_outchannels_changed)
-      canvas_update_dsp();
+    canvas_update_dsp();
 }
 
 void nn_tilde_gpu(t_nn_tilde *x, t_floatarg arg) {
   bool want_gpu = (bool)arg;
-  
   if (want_gpu == x->m_gpu) return;
 
   if (!x->m_model->is_loaded()) {
@@ -507,7 +508,7 @@ void nn_tilde_gpu(t_nn_tilde *x, t_floatarg arg) {
 
   if (want_gpu && !(torch::hasCUDA() || torch::hasMPS())) {
     post("nn~: GPU mode not available");
-    x->m_gpu = 0;
+    x->m_gpu = false;
     return;
   }
   
@@ -515,7 +516,7 @@ void nn_tilde_gpu(t_nn_tilde *x, t_floatarg arg) {
   x->m_model->use_gpu(want_gpu);
 }
 
-void nn_tilde_enable(t_nn_tilde *x, t_floatarg arg) { x->m_enabled = int(arg); }
+void nn_tilde_enable(t_nn_tilde *x, t_floatarg arg) { x->m_enabled = (bool)arg; }
 void nn_tilde_reload(t_nn_tilde *x) { x->m_model->reload(); }
 
 void nn_tilde_set(t_nn_tilde *x, t_symbol *s, int argc, t_atom *argv) {
