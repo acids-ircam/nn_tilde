@@ -45,6 +45,7 @@ typedef struct _nn_tilde {
   int m_gpu;
   int m_multichannel;
   bool m_outchannels_changed;
+  t_canvas* m_canvas;
   t_outlet* m_info_outlet;
 
   int m_enabled;
@@ -161,14 +162,12 @@ void nn_tilde_free(t_nn_tilde *x) {
     outlet_free(x->x_obj.ob_outlet);
 }
 
-std::string resolve_file_path(t_object *obj, const char *filename) {
+std::string resolve_file_path(t_nn_tilde *x, const char *filename) {
   char dirresult[MAXPDSTRING];
   char *nameresult;
   int fd;
 
-  // Try canvas path first
-  t_canvas *canvas = canvas_getcurrent();
-  const char *canvas_dir = canvas_getdir(canvas)->s_name;
+  const char *canvas_dir = canvas_getdir(x->m_canvas)->s_name;
 
   // Try to open from canvas dir first, then search other paths
   fd = open_via_path(canvas_dir, filename, ".ts", dirresult, &nameresult, MAXPDSTRING, 1);
@@ -182,7 +181,7 @@ std::string resolve_file_path(t_object *obj, const char *filename) {
     return std::string(normalized);
   }
 
-  pd_error(obj, "nn~: could not find file '%s' (or %s.ts)", filename, filename);
+  pd_error(x, "nn~: could not find file '%s' (or %s.ts)", filename, filename);
   return "";
 }
 
@@ -256,7 +255,7 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
 // MODEL LOADER
 bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
   // Resolve the file path
-  std::string fullpath = resolve_file_path((t_object *)x, path);
+  std::string fullpath = resolve_file_path(x, path);
   if (fullpath.empty()) return false;
 
   // Create and load new backend instance
@@ -382,6 +381,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_multichannel = 0;
   x->m_gpu = 0;
   x->m_outchannels_changed = true;
+  x->m_canvas = canvas_getcurrent();
 
   // Create minimum outlet (we already have main inlet from CLASS_MAINSIGNALIN)
   outlet_new(&x->x_obj, &s_signal);
