@@ -105,7 +105,8 @@ jobs:
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.0.1%2Bcpu.zip -o libtorch.zip
+          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.5.1%2Bcpu.zip -o libtorch.zip
+          # curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.0.1%2Bcpu.zip -o libtorch.zip
           unzip libtorch.zip
       - name: Setup puredata
         run: |
