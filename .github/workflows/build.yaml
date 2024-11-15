@@ -4,7 +4,7 @@ on:
     tags:
       - "v*"
 jobs:
-  osx-arm64-build:
+  macos-arm64-build:
     runs-on: macos-latest
     steps:
       - name: Check out code
@@ -12,7 +12,6 @@ jobs:
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
-          # curl -L https://anaconda.org/pytorch/pytorch/2.0.0/download/osx-arm64/pytorch-2.0.0-py3.10_0.tar.bz2 | tar -xv
           curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.5.1.zip -o libtorch.zip
           unzip libtorch.zip
       - name: Setup puredata
@@ -23,35 +22,23 @@ jobs:
         run: |
           mkdir build
           cd build
-          # cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/lib/python3.10/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
           cmake ../src \
             -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch \
             -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64
           make
-      # - name: Max/MSP Package creation
-      #   run: |
-      #     mkdir nn_tilde
-      #     mkdir nn_tilde/help
-      #     mv src/externals nn_tilde
-      #     cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-      #     tar -czvf nn_max_msp_macOS_arm64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
-          # rm -fr nn_tilde
           mv build/frontend/puredata/nn_tilde .
           rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
-          tar -czvf nn_puredata_macOS_arm64.tar.gz nn_tilde
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde_macos_arm64
-          path: |
-            # nn_max_msp_macOS_arm64.tar.gz
-            nn_puredata_macOS_arm64.tar.gz
+          name: nn_tilde-macos_arm64
+          path: nn_tilde
 
-  osx-x64-build:
+  macos-x64-build:
     runs-on: macos-latest
     steps:
       - name: Check out code
@@ -59,7 +46,6 @@ jobs:
       - run: git submodule update --init --recursive
       - name: Setup torch
         run: |
-          # curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-2.0.0.zip -o libtorch.zip
           curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-x86_64-2.2.2.zip -o libtorch.zip
           unzip libtorch.zip
       - name: Setup puredata
@@ -76,26 +62,15 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=x86_64
           make
-      # - name: Max/MSP Package creation
-      #   run: |
-      #     mkdir nn_tilde
-      #     mkdir nn_tilde/help
-      #     mv src/externals nn_tilde
-      #     cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-      #     tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
-          # rm -fr nn_tilde
           mv build/frontend/puredata/nn_tilde .
           rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
-          tar -czvf nn_puredata_macOS_x64.tar.gz nn_tilde
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde_macos_x64
-          path: |
-            # nn_max_msp_macOS_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
+          name: nn_tilde-macos_x64
+          path: nn_tilde
 
   windows-x64-build:
     runs-on: windows-latest
@@ -106,7 +81,6 @@ jobs:
       - name: Setup torch
         run: |
           curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.5.1%2Bcpu.zip -o libtorch.zip
-          # curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.0.1%2Bcpu.zip -o libtorch.zip
           unzip libtorch.zip
       - name: Setup puredata
         run: |
@@ -122,44 +96,107 @@ jobs:
           cd build
           cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
           cmake --build . --config Release
-      # - name: Max/MSP Package creation
-      #   run: |
-      #     mkdir nn_tilde
-      #     mkdir nn_tilde/help
-      #     mv src/externals nn_tilde
-      #     cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-      #     tar -czvf nn_max_msp_windows_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
-          # Remove-Item -Force -Recurse nn_tilde
           mkdir nn_tilde
           mv build/frontend/puredata/nn_tilde/Release/* nn_tilde/
-          tar -czvf nn_puredata_windows_x64.tar.gz nn_tilde
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde_windows_x64
-          path: |
-            # nn_max_msp_windows_x64.tar.gz
-            nn_puredata_windows_x64.tar.gz
+          name: nn_tilde-windows_x64
+          path: nn_tilde
 
   AutomaticRelease:
     runs-on: ubuntu-latest
-    needs: [osx-arm64-build, osx-x64-build, windows-x64-build]
+    needs: [macos-arm64-build, macos-x64-build, windows-x64-build]
+    permissions:
+      contents: write
+      actions: read
     steps:
-      - name: Download build binaries
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: nn_tilde
-      - name: Automated Release
-        uses: "marvinpinto/action-automatic-releases@latest"
+          path: artifacts
+
+      - name: Prepare release packages
+        run: |
+          cd artifacts
+          zip -r ../nn_tilde-macos_arm64.zip nn_tilde-macos_arm64
+          zip -r ../nn_tilde-macos_x64.zip nn_tilde-macos_x64
+          zip -r ../nn_tilde-windows_x64.zip nn_tilde-windows_x64
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
           files: |
-            # nn_max_msp_macOS_x64.tar.gz
-            # nn_max_msp_macOS_arm64.tar.gz
-            # nn_max_msp_windows_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
-            nn_puredata_macOS_arm64.tar.gz
-            nn_puredata_windows_x64.tar.gz
+            nn_tilde-macos_arm64.zip
+            nn_tilde-macos_x64.zip
+            nn_tilde-windows_x64.zip
+
+  deken_check_and_upload:
+    runs-on: ubuntu-latest
+    needs: [AutomaticRelease]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: nn_tilde-src
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-macos_arm64
+          path: nn_tilde-macos_arm64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-macos_x64
+          path: nn_tilde-macos_x64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-windows_x64
+          path: nn_tilde-windows_x64
+
+      - name: Check Deken Package
+        shell: bash
+        run: |
+          SHORT=${GITHUB_REF:11}
+          SLUG=${SHORT//\//_}
+          for os in macos_arm64 macos_x64 windows_x64; do
+            echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
+            mkdir -p package-${os}
+            docker run --rm --user $(id -u) \
+              --volume ./nn_tilde-${os}:/nn~ \
+              --volume ./package-${os}:/package \
+              registry.git.iem.at/pd/deken \
+              deken package --output-dir /package -v "${SLUG}" /nn~
+
+            dek_files=$(ls package-${os}/*.dek)
+            for dek_file in $dek_files; do
+              filename=$(basename "$dek_file")
+              echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+              unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | sort | tee -a $GITHUB_STEP_SUMMARY
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            done
+          done
+
+      - name: Upload to Deken
+        if: ${{ !contains(github.ref, 'test') }}
+        shell: bash
+        env:
+          DEKEN_USERNAME: ${{ secrets.DEKEN_USERNAME }}
+          DEKEN_PASSWORD: ${{ secrets.DEKEN_PASSWORD }}
+        run: |
+          SHORT=${GITHUB_REF:11}
+          SLUG=${SHORT//\//_}
+          for os in macos_arm64 macos_x64 windows_x64; do
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+              --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
+              deken upload -v "${SLUG}" --name "nn~" --no-source-error /nn~
+          done
+          # Source upload
+          docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+            --volume ./nn_tilde-src:/nn~ registry.git.iem.at/pd/deken \
+            deken upload -v "${SLUG}" --name "nn~" /nn~
