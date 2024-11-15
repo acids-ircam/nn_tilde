@@ -77,42 +77,61 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
+        cuda: [cpu, cuda]
+        exclude:
+          - arch: arm64
+            cuda: cuda
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
-
       - name: Setup torch for AMD64
         if: matrix.arch == 'amd64'
         run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.5.1%2Bcpu.zip -o libtorch.zip
+          CUDA_URL=""
+          if [ "${{ matrix.cuda }}" = "cuda" ]; then
+            CUDA_URL="https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.5.1%2Bcu121.zip"
+          else
+            CUDA_URL="https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.5.1%2Bcpu.zip"
+          fi
+          curl -L $CUDA_URL -o libtorch.zip
           unzip libtorch.zip
           echo "TORCH_PATH=${{ github.workspace }}/libtorch" >> $GITHUB_ENV
           echo "CC=gcc" >> $GITHUB_ENV
           echo "CXX=g++" >> $GITHUB_ENV
           echo "RANLIB=ranlib" >> $GITHUB_ENV
-
       - name: Setup torch for ARM64
         if: matrix.arch == 'arm64'
         run: |
-          python3 -m pip install torch
-          echo "TORCH_PATH=$(python3 -c 'import torch;print(torch.__path__[0])')" >> $GITHUB_ENV
-
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            libjpeg-dev libopenblas-dev libopenmpi-dev libomp-dev
+          mkdir -p torch_arm64
+          cd torch_arm64
+          python3 -m pip download torch==2.5.1 \
+            --only-binary=:all: \
+            --platform manylinux2014_aarch64 \
+            --python-version "3.10" \
+            --implementation cp \
+            --abi cp310 \
+            --no-deps \
+            --index-url https://pypi.org/simple
+          unzip torch-2.5.1-cp310-cp310-manylinux2014_aarch64.whl
+          rm torch-2.5.1-cp310-cp310-manylinux2014_aarch64.whl
+          cd ..
+          echo "TORCH_PATH=${{ github.workspace }}/torch_arm64/torch" >> $GITHUB_ENV
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          echo "RANLIB=aarch64-linux-gnu-ranlib" >> $GITHUB_ENV
       - name: Setup puredata
         run: |
           mkdir puredata_include
           curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
-
-
-      - name: Set up cross-compilation for ARM64
-        if: matrix.arch == 'arm64'
+      - name: Setup CUDA dependencies
+        if: matrix.arch == 'amd64' && matrix.cuda == 'cuda'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
-          echo "RANLIB=aarch64-linux-gnu-ranlib" >> $GITHUB_ENV
-
+          sudo apt-get install -y nvidia-cuda-toolkit
       - name: Build
         run: |
           mkdir build
@@ -126,29 +145,68 @@ jobs:
           make
           ${{ env.RANLIB }} backend/libbackend.a
           make
-
       - name: PureData Package creation
         run: |
           mkdir nn_tilde
           mv build/frontend/puredata/nn_tilde/* nn_tilde/
-
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde-linux_${{ matrix.arch }}
+          name: nn_tilde-linux_${{ matrix.arch }}_${{ matrix.cuda }}
           path: nn_tilde
 
   windows-amd64-build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        cuda: [cpu, cuda]
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
       - run: git submodule update --init --recursive
-      - name: Setup torch
+
+      - name: Setup Visual Studio
+        uses: microsoft/setup-msbuild@v1.3.1
+
+      - name: Install CMake
+        uses: jwlawson/actions-setup-cmake@v1
+        with:
+          cmake-version: '3.27.0'
+
+      - name: Setup CUDA
+        if: matrix.cuda == 'cuda'
+        uses: Jimver/cuda-toolkit@v0.2.18
+        id: cuda-toolkit
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "nvtx"]'
+
+      - name: Configure CUDA Environment
+        if: matrix.cuda == 'cuda'
         run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.5.1%2Bcpu.zip -o libtorch.zip
-          unzip libtorch.zip
-      - name: Setup puredata
+          echo "Setting CUDA environment variables..."
+          echo "CUDA_PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4" >> $GITHUB_ENV
+          echo "PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/bin;C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/lib/x64;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\extras\visual_studio_integration\MSBuildExtensions;$PATH" >> $GITHUB_ENV
+          cp "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/extras/visual_studio_integration/MSBuildExtensions/*" "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Microsoft/VC/v170/BuildCustomizations"
+
+      - name: Verify CUDA
+        if: matrix.cuda == 'cuda'
+        run: |
+          echo "Verifying CUDA setup..."
+          nvcc --version
+
+      - name: Setup libtorch
+        run: |
+          if ("${{ matrix.cuda }}" -eq "cuda") {
+            $CUDA_URL="https://download.pytorch.org/libtorch/cu124/libtorch-win-shared-with-deps-2.5.1%2Bcu124.zip"
+          } else {
+            $CUDA_URL="https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.5.1%2Bcpu.zip"
+          }
+          Invoke-WebRequest -Uri $CUDA_URL -OutFile libtorch.zip
+          Expand-Archive -Path libtorch.zip -DestinationPath .
+
+      - name: Setup PureData
         run: |
           mkdir pd
           cd pd
@@ -156,20 +214,29 @@ jobs:
           unzip pd.zip
           mv pd*/src .
           mv pd*/bin .
+
       - name: Build
         run: |
           mkdir build
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
+          cmake ../src `
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/libtorch" `
+            -DPUREDATA_INCLUDE_DIR="${{ github.workspace }}/pd/src" `
+            -DPUREDATA_BIN_DIR="${{ github.workspace }}/pd/bin" `
+            -A x64 `
+            ${{ matrix.cuda == 'cuda' && '-DCMAKE_GENERATOR_TOOLSET="cuda=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4"' || '' }}
+            # -DCUDACXX="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/bin/nvcc" 
           cmake --build . --config Release
-      - name: PureData Package creation
+
+      - name: PureData Package Creation
         run: |
           mkdir nn_tilde
           mv build/frontend/puredata/nn_tilde/Release/* nn_tilde/
-      - name: Upload binaries
+
+      - name: Upload Binaries
         uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde-windows_amd64
+          name: nn_tilde-windows_amd64_${{ matrix.cuda }}
           path: nn_tilde
 
   AutomaticRelease:
@@ -189,8 +256,10 @@ jobs:
           cd artifacts
           zip -r ../nn_tilde-macos_arm64.zip nn_tilde-macos_arm64
           zip -r ../nn_tilde-macos_amd64.zip nn_tilde-macos_amd64
-          zip -r ../nn_tilde-windows_amd64.zip nn_tilde-windows_amd64
-          zip -r ../nn_tilde-linux_amd64.zip nn_tilde-linux_amd64
+          zip -r ../nn_tilde-windows_amd64_cuda.zip nn_tilde-windows_amd64_cuda
+          zip -r ../nn_tilde-linux_amd64_cuda.zip nn_tilde-linux_amd64_cuda
+          zip -r ../nn_tilde-windows_amd64_cpu.zip nn_tilde-windows_amd64_cpu
+          zip -r ../nn_tilde-linux_amd64_cpu.zip nn_tilde-linux_amd64_cpu
           zip -r ../nn_tilde-linux_arm64.zip nn_tilde-linux_arm64
 
       - name: Create Release
@@ -200,7 +269,11 @@ jobs:
           files: |
             nn_tilde-macos_arm64.zip
             nn_tilde-macos_amd64.zip
-            nn_tilde-windows_amd64.zip
+            nn_tilde-windows_amd64_cuda.zip
+            nn_tilde-linux_amd64_cuda.zip
+            nn_tilde-windows_amd64_cpu.zip
+            nn_tilde-linux_amd64_cpu.zip
+            nn_tilde-linux_arm64.zip
 
   deken_check_and_upload:
     runs-on: ubuntu-latest
@@ -223,13 +296,23 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: nn_tilde-windows_amd64
-          path: nn_tilde-windows_amd64
+          name: nn_tilde-windows_amd64_cuda
+          path: nn_tilde-windows_amd64_cuda
 
       - uses: actions/download-artifact@v4
         with:
-          name: nn_tilde-linux_amd64
-          path: nn_tilde-linux_amd64
+          name: nn_tilde-linux_amd64_cuda
+          path: nn_tilde-linux_amd64_cuda
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-windows_amd64_cpu
+          path: nn_tilde-windows_amd64_cpu
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-linux_amd64_cpu
+          path: nn_tilde-linux_amd64_cpu
 
       - uses: actions/download-artifact@v4
         with:
@@ -241,7 +324,9 @@ jobs:
         run: |
           SHORT=${GITHUB_REF:11}
           SLUG=${SHORT//\//_}
-          for os in macos_arm64 macos_amd64 windows_amd64 linux_amd64 linux_arm64; do
+         
+          # CPU versions
+          for os in macos_arm64 macos_amd64 windows_amd64_cpu linux_amd64_cpu linux_arm64; do
             echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
             mkdir -p package-${os}
             docker run --rm --user $(id -u) \
@@ -250,6 +335,26 @@ jobs:
               registry.git.iem.at/pd/deken \
               deken package --output-dir /package -v "${SLUG}" /nn~
 
+            dek_files=$(ls package-${os}/*.dek)
+            for dek_file in $dek_files; do
+              filename=$(basename "$dek_file")
+              echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+              unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | sort | tee -a $GITHUB_STEP_SUMMARY
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            done
+          done
+
+          # CUDA versions
+          for os in windows_amd64_cuda linux_amd64_cuda; do
+            echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
+            mkdir -p package-${os}
+            docker run --rm --user $(id -u) \
+              --volume ./nn_tilde-${os}:/nn~ \
+              --volume ./package-${os}:/package \
+              registry.git.iem.at/pd/deken \
+              deken package --output-dir /package -v "${SLUG}-cuda" /nn~
+ 
             dek_files=$(ls package-${os}/*.dek)
             for dek_file in $dek_files; do
               filename=$(basename "$dek_file")
@@ -269,11 +374,21 @@ jobs:
         run: |
           SHORT=${GITHUB_REF:11}
           SLUG=${SHORT//\//_}
-          for os in macos_arm64 macos_amd64 windows_amd64 linux_amd64 linux_arm64; do
+          
+          # CPU versions
+          for os in macos_arm64 macos_amd64 windows_amd64_cpu linux_amd64_cpu linux_arm64; do
             docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
               --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
               deken upload -v "${SLUG}" --name "nn~" --no-source-error /nn~
           done
+
+          # CUDA versions
+          for os in windows_amd64_cuda linux_amd64_cuda; do
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+              --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
+              deken upload -v "${SLUG}-cuda" --name "nn~" --no-source-error /nn~
+          done
+
           # Source upload
           docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
             --volume ./nn_tilde-src:/nn~ registry.git.iem.at/pd/deken \
