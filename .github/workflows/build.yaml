@@ -38,7 +38,7 @@ jobs:
           name: nn_tilde-macos_arm64
           path: nn_tilde
 
-  macos-x64-build:
+  macos-amd64-build:
     runs-on: macos-latest
     steps:
       - name: Check out code
@@ -69,10 +69,76 @@ jobs:
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde-macos_x64
+          name: nn_tilde-macos_amd64
           path: nn_tilde
 
-  windows-x64-build:
+  linux-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup torch for AMD64
+        if: matrix.arch == 'amd64'
+        run: |
+          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.5.1%2Bcpu.zip -o libtorch.zip
+          unzip libtorch.zip
+          echo "TORCH_PATH=${{ github.workspace }}/libtorch" >> $GITHUB_ENV
+          echo "CC=gcc" >> $GITHUB_ENV
+          echo "CXX=g++" >> $GITHUB_ENV
+          echo "RANLIB=ranlib" >> $GITHUB_ENV
+
+      - name: Setup torch for ARM64
+        if: matrix.arch == 'arm64'
+        run: |
+          python3 -m pip install torch
+          echo "TORCH_PATH=$(python3 -c 'import torch;print(torch.__path__[0])')" >> $GITHUB_ENV
+
+      - name: Setup puredata
+        run: |
+          mkdir puredata_include
+          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+
+
+      - name: Set up cross-compilation for ARM64
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          echo "RANLIB=aarch64-linux-gnu-ranlib" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake ../src \
+            -DCMAKE_PREFIX_PATH=${{ env.TORCH_PATH }} \
+            -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=${{ env.CC }} \
+            -DCMAKE_CXX_COMPILER=${{ env.CXX }}
+          make
+          ${{ env.RANLIB }} backend/libbackend.a
+          make
+
+      - name: PureData Package creation
+        run: |
+          mkdir nn_tilde
+          mv build/frontend/puredata/nn_tilde/* nn_tilde/
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: nn_tilde-linux_${{ matrix.arch }}
+          path: nn_tilde
+
+  windows-amd64-build:
     runs-on: windows-latest
     steps:
       - name: Check out code
@@ -103,12 +169,12 @@ jobs:
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde-windows_x64
+          name: nn_tilde-windows_amd64
           path: nn_tilde
 
   AutomaticRelease:
     runs-on: ubuntu-latest
-    needs: [macos-arm64-build, macos-x64-build, windows-x64-build]
+    needs: [macos-arm64-build, macos-amd64-build, windows-amd64-build, linux-build]
     permissions:
       contents: write
       actions: read
@@ -122,8 +188,10 @@ jobs:
         run: |
           cd artifacts
           zip -r ../nn_tilde-macos_arm64.zip nn_tilde-macos_arm64
-          zip -r ../nn_tilde-macos_x64.zip nn_tilde-macos_x64
-          zip -r ../nn_tilde-windows_x64.zip nn_tilde-windows_x64
+          zip -r ../nn_tilde-macos_amd64.zip nn_tilde-macos_amd64
+          zip -r ../nn_tilde-windows_amd64.zip nn_tilde-windows_amd64
+          zip -r ../nn_tilde-linux_amd64.zip nn_tilde-linux_amd64
+          zip -r ../nn_tilde-linux_arm64.zip nn_tilde-linux_arm64
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -131,8 +199,8 @@ jobs:
         with:
           files: |
             nn_tilde-macos_arm64.zip
-            nn_tilde-macos_x64.zip
-            nn_tilde-windows_x64.zip
+            nn_tilde-macos_amd64.zip
+            nn_tilde-windows_amd64.zip
 
   deken_check_and_upload:
     runs-on: ubuntu-latest
@@ -150,20 +218,30 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: nn_tilde-macos_x64
-          path: nn_tilde-macos_x64
+          name: nn_tilde-macos_amd64
+          path: nn_tilde-macos_amd64
 
       - uses: actions/download-artifact@v4
         with:
-          name: nn_tilde-windows_x64
-          path: nn_tilde-windows_x64
+          name: nn_tilde-windows_amd64
+          path: nn_tilde-windows_amd64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-linux_amd64
+          path: nn_tilde-linux_amd64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-linux_arm64
+          path: nn_tilde-linux_arm64
 
       - name: Check Deken Package
         shell: bash
         run: |
           SHORT=${GITHUB_REF:11}
           SLUG=${SHORT//\//_}
-          for os in macos_arm64 macos_x64 windows_x64; do
+          for os in macos_arm64 macos_amd64 windows_amd64 linux_amd64 linux_arm64; do
             echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
             mkdir -p package-${os}
             docker run --rm --user $(id -u) \
@@ -191,7 +269,7 @@ jobs:
         run: |
           SHORT=${GITHUB_REF:11}
           SLUG=${SHORT//\//_}
-          for os in macos_arm64 macos_x64 windows_x64; do
+          for os in macos_arm64 macos_amd64 windows_amd64 linux_amd64 linux_arm64; do
             docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
               --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
               deken upload -v "${SLUG}" --name "nn~" --no-source-error /nn~
