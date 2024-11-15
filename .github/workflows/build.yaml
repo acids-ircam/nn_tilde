@@ -180,15 +180,53 @@ jobs:
         with:
           cuda: '12.4.0'
           method: 'network'
-          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "nvtx"]'
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration", "nvtx"]'
+          # sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "nvtx", "visual_studio_integration", "nvfatbin", "thrust", "visual_profiler", "visual_studio_integration"]'
 
-      - name: Configure CUDA Environment
+      - name: Setup NVTX from CUDA 11.8
+        if: matrix.cuda == 'cuda'
+        run: |
+          # Download and install CUDA 11.8 just for NVTX
+          curl -L https://developer.download.nvidia.com/compute/cuda/11.8.0/network_installers/cuda_11.8.0_windows_network.exe -o cuda118.exe
+          Start-Process -FilePath .\cuda118.exe -Wait -NoNewWindow #  -ArgumentList "-s nvtx_11.8"
+          
+          echo "Searching for NVTX lib in CUDA 11.8..."
+          Get-ChildItem -Path "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8" -Recurse -Filter "*nvToolsExt*.lib"
+          Get-ChildItem -Path "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8" -Recurse -Filter "*nvtx*.lib"
+          
+          echo "Listing CUDA 11.8 lib directory..."
+          Get-ChildItem "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\lib" -Recurse
+
+      - name: Setup CUDA integration
         if: matrix.cuda == 'cuda'
         run: |
           echo "Setting CUDA environment variables..."
           echo "CUDA_PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4" >> $GITHUB_ENV
-          echo "PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/bin;C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/lib/x64;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\extras\visual_studio_integration\MSBuildExtensions;$PATH" >> $GITHUB_ENV
-          cp "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/extras/visual_studio_integration/MSBuildExtensions/*" "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Microsoft/VC/v170/BuildCustomizations"
+          echo "CudaToolkitDir=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4" >> $GITHUB_ENV
+          echo "PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/bin;C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/lib/x64;$PATH" >> $GITHUB_ENV
+          
+          $sourcePath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\extras\visual_studio_integration\MSBuildExtensions"
+          $targetPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations"
+
+          # Debug output
+          echo "Checking source path..."
+          if (Test-Path $sourcePath) {
+            echo "Source path contents:"
+            Get-ChildItem $sourcePath
+          } else {
+            echo "Source path does not exist: $sourcePath"
+          }
+
+          echo "Checking target path..."
+          if (Test-Path $targetPath) {
+            echo "Target path exists"
+            Copy-Item -Path "$sourcePath\*" -Destination $targetPath -Force
+            echo "Copied CUDA build files to $targetPath"
+            echo "Target path contents after copy:"
+            Get-ChildItem $targetPath
+          } else {
+            echo "Target path does not exist: $targetPath"
+          }
 
       - name: Verify CUDA
         if: matrix.cuda == 'cuda'
@@ -224,7 +262,7 @@ jobs:
             -DPUREDATA_INCLUDE_DIR="${{ github.workspace }}/pd/src" `
             -DPUREDATA_BIN_DIR="${{ github.workspace }}/pd/bin" `
             -A x64 `
-            ${{ matrix.cuda == 'cuda' && '-DCMAKE_GENERATOR_TOOLSET="cuda=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4"' || '' }}
+            ${{ matrix.cuda == 'cuda' && '-DCMAKE_GENERATOR_TOOLSET="cuda=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4" -DCMAKE_CUDA_FLAGS="-DNVTX_ENABLE=0" -DCMAKE_CXX_FLAGS="/DNVTX_ENABLE=0"' || '' }}
             # -DCUDACXX="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/bin/nvcc" 
           cmake --build . --config Release
 
