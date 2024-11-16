@@ -271,7 +271,7 @@ jobs:
           zip -r ../nn_tilde-linux_amd64_cuda.zip nn_tilde-linux_amd64_cuda
           zip -r ../nn_tilde-windows_amd64_cpu.zip nn_tilde-windows_amd64_cpu
           zip -r ../nn_tilde-linux_amd64_cpu.zip nn_tilde-linux_amd64_cpu
-          zip -r ../nn_tilde-linux_arm64.zip nn_tilde-linux_arm64
+          zip -r ../nn_tilde-linux_arm64.zip nn_tilde-linux_arm64_cpu
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
