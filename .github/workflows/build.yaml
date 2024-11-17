@@ -288,7 +288,7 @@ jobs:
           zip -r ../nn_tilde-linux_amd64_cuda.zip nn_tilde-linux_amd64_cuda
           zip -r ../nn_tilde-windows_amd64_cpu.zip nn_tilde-windows_amd64_cpu
           zip -r ../nn_tilde-linux_amd64_cpu.zip nn_tilde-linux_amd64_cpu
-          zip -r ../nn_tilde-linux_arm64.zip nn_tilde-linux_arm64_cpu
+          zip -r ../nn_tilde-linux_arm64_cpu.zip nn_tilde-linux_arm64_cpu
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -301,7 +301,7 @@ jobs:
             nn_tilde-linux_amd64_cuda.zip
             nn_tilde-windows_amd64_cpu.zip
             nn_tilde-linux_amd64_cpu.zip
-            nn_tilde-linux_arm64.zip
+            nn_tilde-linux_arm64_cpu.zip
 
   deken_check_and_upload:
     runs-on: ubuntu-latest
@@ -344,8 +344,8 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: nn_tilde-linux_arm64
-          path: nn_tilde-linux_arm64
+          name: nn_tilde-linux_arm64_cpu
+          path: nn_tilde-linux_arm64_cpu
 
       - name: Check Deken Package
         shell: bash
@@ -354,7 +354,7 @@ jobs:
           SLUG=${SHORT//\//_}
          
           # CPU versions
-          for os in macos_arm64 macos_amd64 windows_amd64_cpu linux_amd64_cpu linux_arm64; do
+          for os in macos_arm64 macos_amd64 windows_amd64_cpu linux_amd64_cpu linux_arm64_cpu; do
             echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
             mkdir -p package-${os}
             docker run --rm --user $(id -u) \
@@ -404,7 +404,7 @@ jobs:
           SLUG=${SHORT//\//_}
           
           # CPU versions
-          for os in macos_arm64 macos_amd64 windows_amd64_cpu linux_amd64_cpu linux_arm64; do
+          for os in macos_arm64 macos_amd64 windows_amd64_cpu linux_amd64_cpu linux_arm64_cpu; do
             docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
               --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
               deken upload -v "${SLUG}" --name "nn~" --no-source-error /nn~
