@@ -239,10 +239,27 @@ jobs:
             exit $LASTEXITCODE
           }
 
+      - name: Check Dependencies
+        if: matrix.cuda == 'cuda'
+        run: |
+          $dumpbin = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.42.34433\bin\Hostx64\x64\dumpbin.exe"
+          echo "Direct dependencies of nn~.dll:"
+          & $dumpbin /DEPENDENTS "build/frontend/puredata/nn_tilde/Release/nn~.dll"
+          
+          echo "Dependencies of torch_cuda.dll:"
+          & $dumpbin /DEPENDENTS "build/frontend/puredata/nn_tilde/Release/torch_cuda.dll"
+          
+          echo "Dependencies of torch_cpu.dll:"
+          & $dumpbin /DEPENDENTS "build/frontend/puredata/nn_tilde/Release/torch_cpu.dll"
+          
+          echo "Dependencies of c10.dll:"
+          & $dumpbin /DEPENDENTS "build/frontend/puredata/nn_tilde/Release/c10.dll"
+
       - name: PureData Package Creation
         run: |
           mkdir nn_tilde
-          mv build/frontend/puredata/nn_tilde/Release/* nn_tilde/
+          # FIXME: lib exclusion shouldn't be necessary. check CMakeLists
+          Get-ChildItem -Path build/frontend/puredata/nn_tilde/Release -Exclude *.lib | Copy-Item -Destination nn_tilde
 
       - name: Upload Binaries
         uses: actions/upload-artifact@v4
