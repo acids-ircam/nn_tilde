@@ -154,12 +154,16 @@ void nn_tilde_dsp(t_nn_tilde *x, t_signal **sp) {
 void nn_tilde_free(t_nn_tilde *x) {
   if (x->m_compute_thread) x->m_compute_thread->join();
 
-  for (int i(1); i < x->m_in_dim; i++)
-    inlet_free(x->x_obj.ob_inlet);
+  if (x->m_multichannel)
+    outlet_free(x->m_info_outlet);
 
-  if (x->m_multichannel) outlet_free(x->m_info_outlet);
-  for (int i(0); i < x->m_out_dim; i++)
-    outlet_free(x->x_obj.ob_outlet);
+  outlet_free(x->x_obj.ob_outlet);
+  if (!x->m_multichannel) {
+    for (int i(1); i < x->m_in_dim; i++) // free all inlets except for left one
+      inlet_free(x->x_obj.ob_inlet);
+    for (int i(1); i < x->m_out_dim; i++) // free remaining outlets
+      outlet_free(x->x_obj.ob_outlet);
+  }
 }
 
 std::string resolve_file_path(t_nn_tilde *x, const char *filename) {
