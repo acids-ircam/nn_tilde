@@ -468,11 +468,6 @@ void nn_tilde_mode(t_nn_tilde *x, t_symbol *s) {
 }
 
 void nn_tilde_bufsize(t_nn_tilde *x, t_floatarg size) {
-  if (!x->m_multichannel) {
-    pd_error(x, "nn~: buffer size change is only supported in multichannel mode");
-    return;
-  }
-
   if (x->m_compute_thread) {
     x->m_compute_thread->join();
     x->m_compute_thread = nullptr;
