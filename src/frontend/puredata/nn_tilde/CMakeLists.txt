@@ -39,12 +39,28 @@ if (MSVC)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.dll")
 endif()
 
+if (MSVC) # COPY HELP FILES
+    add_custom_command(TARGET nn POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/frontend/puredata/nn_tilde/nn~-help.pd"
+            "${CMAKE_CURRENT_BINARY_DIR}/Release/nn~-help.pd"
+        COMMENT "Copy Help File"
+    )
+else()
+	add_custom_command(TARGET nn POST_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E copy
+	        "${CMAKE_SOURCE_DIR}/frontend/puredata/nn_tilde/nn~-help.pd"
+	        "${CMAKE_CURRENT_BINARY_DIR}/nn~-help.pd"
+	    COMMENT "Copy Help File"
+	)
+endif()
+
 if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
-	add_custom_command( 
+	add_custom_command(
 		TARGET nn
-		POST_BUILD 
-		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_CURRENT_BINARY_DIR}/" 
-		COMMENT "Copy Torch Libraries" 
+		POST_BUILD
+		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_CURRENT_BINARY_DIR}/"
+		COMMENT "Copy Torch Libraries"
 	)
 endif()
 
@@ -53,7 +69,7 @@ if (UNIX AND NOT APPLE)
     add_custom_command(
     	TARGET nn
     	POST_BUILD
-        COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.so" "${CMAKE_CURRENT_BINARY_DIR}/" 
+        COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.so" "${CMAKE_CURRENT_BINARY_DIR}/"
         COMMENT "Copy Torch Libraries"
     )
 endif()
@@ -65,7 +81,11 @@ if (MSVC)
         "c10.dll"
         "fbgemm.dll"
         "libiomp5md.dll"
+        "libiompstubs5md.dll"
         "uv.dll"
+        "asmjit.dll"
+        "torch.dll"
+        "torch_global_deps.dll"
     )
 
     # Multiple checks for CUDA support
@@ -73,7 +93,7 @@ if (MSVC)
         message(STATUS "CUDA support detected - Including CUDA DLLs")
         message(STATUS "CUDA_FOUND: ${CUDA_FOUND}")
         message(STATUS "TORCH_INSTALL_PREFIX: ${TORCH_INSTALL_PREFIX}")
-        
+
         list(APPEND REQUIRED_DLLS
             "torch_cuda.dll"
             "c10_cuda.dll"
@@ -86,7 +106,7 @@ if (MSVC)
     foreach(DLL ${REQUIRED_DLLS})
         add_custom_command(TARGET nn POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E echo "Copying ${DLL}..."
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${TORCH_INSTALL_PREFIX}/lib/${DLL}"
                 "${CMAKE_CURRENT_BINARY_DIR}/Release/${DLL}"
             COMMENT "Copying ${DLL}"
@@ -95,13 +115,13 @@ if (MSVC)
 endif()
 
 if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
-	add_custom_command( 
+	add_custom_command(
 		TARGET nn
-		POST_BUILD 
+		POST_BUILD
 		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.dylib"
 		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.pd_darwin"
 		COMMAND "xattr" "-r" "-d" "com.apple.quarantine" "${CMAKE_CURRENT_BINARY_DIR}"
-		COMMENT "Codesign external" 
+		COMMENT "Codesign external"
 	)
 endif()
 
