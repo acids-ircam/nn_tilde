@@ -154,16 +154,14 @@ void nn_tilde_dsp(t_nn_tilde *x, t_signal **sp) {
 void nn_tilde_free(t_nn_tilde *x) {
   if (x->m_compute_thread) x->m_compute_thread->join();
 
-  if (x->m_multichannel)
-    outlet_free(x->m_info_outlet);
-
-  outlet_free(x->x_obj.ob_outlet);
+  outlet_free(x->m_info_outlet);
   if (!x->m_multichannel) {
-    for (int i(1); i < x->m_in_dim; i++) // free all inlets except for left one
+    for (int i(1); i < x->m_in_dim; i++) // free all inlets except for first one
       inlet_free(x->x_obj.ob_inlet);
-    for (int i(1); i < x->m_out_dim; i++) // free remaining outlets
+    for (int i(1); i < x->m_out_dim; i++) // free remaining outlets except for first one
       outlet_free(x->x_obj.ob_outlet);
   }
+  outlet_free(x->x_obj.ob_outlet);
 }
 
 std::string resolve_file_path(t_nn_tilde *x, const char *filename) {
@@ -304,11 +302,6 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
 }
 
 void nn_tilde_bang(t_nn_tilde *x) {
-  if (!x->m_multichannel) {
-    pd_error(x, "nn~: info output only available in multichannel mode");
-    return;
-  }
-
   // Output "is_loaded" status
   t_atom is_loaded;
   SETFLOAT(&is_loaded, x->m_model->is_loaded());
@@ -407,8 +400,6 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     if (flag == gensym("-m")) {
       if (g_signal_setmultiout) {
         x->m_multichannel = true;
-        // Add info outlet in multichannel mode
-        x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
       } else {
         int maj = 0, min = 0, bug = 0;
         sys_getversion(&maj, &min, &bug);
@@ -447,6 +438,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
         outlet_new(&x->x_obj, &s_signal);
     }
   }
+  x->m_info_outlet = outlet_new(&x->x_obj, &s_anything);
 
   return (void *)x;
 }
