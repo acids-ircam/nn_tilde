@@ -149,8 +149,8 @@ jobs:
           make
       - name: PureData Package creation
         run: |
-          mkdir nn_tilde
-          mv build/frontend/puredata/nn_tilde/* nn_tilde/
+          mv build/frontend/puredata/nn_tilde .
+          rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
