@@ -10,15 +10,16 @@ endif()
 
 add_library(nn SHARED ${SRC})
 
-if (UNIX)
-    execute_process(
-		COMMAND git describe --tags
-		WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-		OUTPUT_VARIABLE VERSION
-		OUTPUT_STRIP_TRAILING_WHITESPACE
-	)
-	message(${VERSION})
-	add_definitions(-DVERSION="${VERSION}")
+# Get version from git for all platforms
+execute_process(
+    COMMAND git describe --tags
+    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+    OUTPUT_VARIABLE VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(VERSION)
+    message(STATUS "Building version: ${VERSION}")
+    add_definitions(-DVERSION="${VERSION}")
 endif()
 
 if (APPLE)
@@ -66,6 +67,8 @@ endif()
 
 if (UNIX AND NOT APPLE)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_linux")
+    # FIXME: is this the way? probably too many files and possibly
+    # not necessary at all if we give install instructions for libtorch?
     add_custom_command(
     	TARGET nn
     	POST_BUILD
