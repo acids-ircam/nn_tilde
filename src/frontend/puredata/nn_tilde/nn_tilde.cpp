@@ -330,13 +330,13 @@ void nn_tilde_bang(t_nn_tilde *x) {
   std::vector<t_atom> method_atoms(methods.size());    
   for (size_t i = 0; i < methods.size(); i++)
     SETSYMBOL(&method_atoms[i], gensym(methods[i].c_str()));
-  outlet_anything(x->m_info_outlet, gensym("modes"), 
+  outlet_anything(x->m_info_outlet, gensym("methods"), 
                  methods.size(), method_atoms.data());
 
-  // Output selected mode
-  t_atom mode;
-  SETSYMBOL(&mode, x->m_method);
-  outlet_anything(x->m_info_outlet, gensym("mode"), 1, &mode);
+  // Output selected method
+  t_atom method;
+  SETSYMBOL(&method, x->m_method);
+  outlet_anything(x->m_info_outlet, gensym("method"), 1, &method);
 
   if (x->settable_attributes.empty()) {
     // Output empty symbol when no attributes
@@ -443,9 +443,9 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   return (void *)x;
 }
 
-void nn_tilde_mode(t_nn_tilde *x, t_symbol *s) {
+void nn_tilde_method(t_nn_tilde *x, t_symbol *s) {
   if (!x->m_multichannel) {
-    pd_error(x, "nn~: mode message is only supported in multichannel mode");
+    pd_error(x, "nn~: method change is only supported in multichannel mode");
     return;
   }
 
@@ -599,7 +599,7 @@ EXPORT void nn_tilde_setup(void) {
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_set,     gensym("set"),     A_GIMME, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_bufsize, gensym("bufsize"), A_FLOAT, 0);
   class_addmethod(nn_tilde_class, (t_method)nn_tilde_gpu,     gensym("gpu"),     A_FLOAT, 0);
-  class_addmethod(nn_tilde_class, (t_method)nn_tilde_mode,    gensym("mode"),    A_SYMBOL, 0);
+  class_addmethod(nn_tilde_class, (t_method)nn_tilde_method,  gensym("method"),  A_SYMBOL, 0);
   class_addbang(nn_tilde_class, (t_method)nn_tilde_bang);
   CLASS_MAINSIGNALIN(nn_tilde_class, t_nn_tilde, f);
 }
