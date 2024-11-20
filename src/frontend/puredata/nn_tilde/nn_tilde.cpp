@@ -413,7 +413,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
       argc--;
       argv++;
     }
-    else if (flag == gensym("-gpu")) {
+    else if (flag == gensym("-gpu") || flag == gensym("-g")) {
       x->m_gpu = 1;
       argc--;
       argv++;
