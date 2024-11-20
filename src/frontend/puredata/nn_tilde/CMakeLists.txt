@@ -67,14 +67,36 @@ endif()
 
 if (UNIX AND NOT APPLE)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_linux")
-    # FIXME: is this the way? probably too many files and possibly
-    # not necessary at all if we give install instructions for libtorch?
-    add_custom_command(
-    	TARGET nn
-    	POST_BUILD
-        COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.so" "${CMAKE_CURRENT_BINARY_DIR}/"
-        COMMENT "Copy Torch Libraries"
+    
+    # Define essential libraries to copy
+    set(ESSENTIAL_LIBS
+        "libtorch.so"
+        "libtorch_cpu.so"
+        "libc10.so"
+        "libtorch_global_deps.so"
     )
+    
+    if(CUDA_FOUND OR EXISTS "${TORCH_INSTALL_PREFIX}/lib/libtorch_cuda.so")
+        list(APPEND ESSENTIAL_LIBS
+            "libtorch_cuda.so"
+            "libc10_cuda.so"
+            "libtorch_cuda_linalg.so"
+            "libcaffe2_nvrtc.so"
+            "libnvrtc-builtins.so"
+        )
+    endif()
+
+    # Copy only essential libraries
+    foreach(LIB ${ESSENTIAL_LIBS})
+        add_custom_command(
+            TARGET nn
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${TORCH_INSTALL_PREFIX}/lib/${LIB}"
+                "${CMAKE_CURRENT_BINARY_DIR}/${LIB}"
+            COMMENT "Copying ${LIB}"
+        )
+    endforeach()
 endif()
 
 if (MSVC)
