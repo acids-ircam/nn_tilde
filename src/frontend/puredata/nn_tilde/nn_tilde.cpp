@@ -418,8 +418,13 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
       argc--;
       argv++;
     }
-    else if (flag == gensym("-gpu") || flag == gensym("-g")) {
-      x->m_gpu = 1;
+    else if (flag == gensym("-gpu") || flag == gensym("-g")) { // activate gpu mode
+      x->m_gpu = true;
+      argc--;
+      argv++;
+    }
+    else if (flag == gensym("-d")) { // start in disabled mode
+      x->m_enabled = false;
       argc--;
       argv++;
     }
