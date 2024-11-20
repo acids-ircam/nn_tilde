@@ -48,6 +48,16 @@ if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
 	)
 endif()
 
+if (UNIX AND NOT APPLE)
+    set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_linux")
+    add_custom_command(
+    	TARGET nn
+    	POST_BUILD
+        COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.so" "${CMAKE_CURRENT_BINARY_DIR}/" 
+        COMMENT "Copy Torch Libraries"
+    )
+endif()
+
 if (MSVC)
     # Define base required DLLs
     set(REQUIRED_DLLS
