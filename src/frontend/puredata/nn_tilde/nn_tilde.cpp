@@ -171,10 +171,15 @@ std::string resolve_file_path(t_nn_tilde *x, const char *filename) {
   char *nameresult;
   int fd;
 
+  // Add .ts extension if not present
+  std::string fname(filename);
+  if (fname.substr(fname.length() - 3) != ".ts")
+    fname += ".ts";
+  
   const char *canvas_dir = canvas_getdir(x->m_canvas)->s_name;
 
   // Try to open from canvas dir first, then search other paths
-  fd = open_via_path(canvas_dir, filename, ".ts", dirresult, &nameresult, MAXPDSTRING, 1);
+  fd = open_via_path(canvas_dir, fname.c_str(), "", dirresult, &nameresult, MAXPDSTRING, 1);
 
   if (fd >= 0) {
     sys_close(fd);
@@ -185,7 +190,7 @@ std::string resolve_file_path(t_nn_tilde *x, const char *filename) {
     return std::string(normalized);
   }
 
-  pd_error(x, "nn~: could not find file '%s' (or %s.ts)", filename, filename);
+  pd_error(x, "nn~: could not find file '%s'", fname.c_str());
   return "";
 }
 

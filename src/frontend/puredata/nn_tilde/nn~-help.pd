@@ -1,4 +1,4 @@
-#N canvas 151 175 852 483 10;
+#N canvas 151 175 928 532 12;
 #X obj 288 196 nn~ -m;
 #X obj 348 196 nn~ -gpu;
 #X obj 249 293 *~;
@@ -6,9 +6,9 @@
 #X obj 22 18 nn~;
 #X text 50 18 - real-time ai audio processing;
 #X text 22 65 At its core \, nn~ is a translation layer between PureData and the libtorch c++ interface for deep learning. Alone \, nn~ is like an empty shell \, and requires pretrained models to operate. You can find a few RAVE models here \, or a few vschaos2 models here., f 94;
-#X obj 462 376 pdcontrol;
+#X obj 385 428 pdcontrol;
 #X msg 346 276 browse https://acids-ircam.github.io/rave_models_download;
-#X msg 346 306 browse https://www.dropbox.com/sh/avdeiza7c6bn2of/AAAGZsnRo9ZVMa0iFhouCBL-a?dl=0, f 80;
+#X msg 346 336 browse https://www.dropbox.com/sh/avdeiza7c6bn2of/AAAGZsnRo9ZVMa0iFhouCBL-a?dl=0, f 80;
 #N canvas 324 349 450 300 META 1;
 #X restore 771 439 pd META;
 #X text 774 19 <= click;
@@ -31,7 +31,18 @@
 #X text 36 189 sendcanvas <anything> -;
 #X restore 680 18 pd reference;
 #X text 32 166 creation args;
-#X obj 201 168 bng 16 250 50 0 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000;
+#X obj 201 168 bng 19 250 50 0 \$0-browse-vschaos2 empty vschaos2\ models 24 9 0 10 #fcfcfc #000000 #000000;
 #X text 396 155 messages;
 #X text 550 159 flags;
 #X text 620 159 example;
+#X obj 157 234 bng 19 250 50 0 \$0-browse-rave empty IRCAM\ RAVE\ models 24 9 0 10 #fcfcfc #000000 #000000;
+#X obj 346 312 r \$0-browse-vschaos2;
+#X obj 346 252 r \$0-browse-rave-ircam;
+#X msg 516 236 browse https://acids-ircam.github.io/rave_models_download;
+#X obj 516 212 r \$0-browse-rave-iil;
+#X obj 81 382 nn~ percussion.ts;
+#X connect 8 0 7 0;
+#X connect 9 0 7 0;
+#X connect 19 0 9 0;
+#X connect 20 0 8 0;
+#X connect 22 0 21 0;
