@@ -166,17 +166,18 @@ jobs:
           submodules: true
 
       - name: Setup Visual Studio
-        uses: microsoft/setup-msbuild@v1.3.1
+        uses: microsoft/setup-msbuild@v2
 
       - name: Setup CUDA
         if: matrix.cuda == 'cuda'
-        uses: Jimver/cuda-toolkit@v0.2.18
+        uses: Jimver/cuda-toolkit@v0.2.19
         id: cuda-toolkit
         with:
           cuda: '12.4.0'
           method: 'local'
           use-local-cache: true
-          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+          # sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cufft", "cufft_dev", "cusolver", "cusolver_dev", "nvrtc", "visual_studio_integration"]'
 
       - name: Install NvToolsExt
         if: matrix.cuda == 'cuda'
@@ -210,13 +211,17 @@ jobs:
         run: |
           mkdir pd
           cd pd
-          curl -L https://msp.puredata.info/Software/pd-0.55-0.msw.zip -o pd.zip
+          curl -L https://msp.puredata.info/Software/pd-0.55-2.msw.zip -o pd.zip
           unzip pd.zip
           mv pd*/src .
           mv pd*/bin .
 
-      - name: Build
+      - name: Build and Check Dependencies
         run: |
+          $VSInstallPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $DumpbinPath = Join-Path $VSInstallPath "VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe"
+          $DumpbinExe = Get-ChildItem $DumpbinPath | Select-Object -First 1
+          
           mkdir build
           cd build
           cmake ../src `
@@ -226,15 +231,34 @@ jobs:
             -A x64 `
             $(if ("${{ matrix.cuda }}" -eq "cuda") { "-DCUDA_TOOLKIT_ROOT_DIR=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4" })
 
-          if ($LASTEXITCODE -ne 0) {
-            echo "CMake configuration failed"
-            exit $LASTEXITCODE
-          }
-          
           cmake --build . --config Release
-          if ($LASTEXITCODE -ne 0) {
-            echo "Build failed"
-            exit $LASTEXITCODE
+          
+          if ("${{ matrix.cuda }}" -eq "cuda") {
+            Write-Host "Checking DLL dependencies recursively..."
+            cd frontend/puredata/nn_tilde/Release
+            $seenDlls = @{}
+            
+            function Get-DllDeps {
+                param($dllPath, $level = 0)
+                $dllName = Split-Path $dllPath -Leaf
+                if ($seenDlls.ContainsKey($dllName)) { return }
+                $seenDlls[$dllName] = $true
+                
+                $indent = "  " * $level
+                $deps = & $DumpbinExe /dependents $dllPath | Select-String "\.dll"
+                foreach ($dep in $deps) {
+                    $depName = $dep.ToString().Trim()
+                    $depPath = Join-Path $PWD $depName
+                    if (Test-Path $depPath) {
+                        Write-Host "${indent}✓ Found: $depName"
+                        Get-DllDeps $depPath ($level + 1)
+                    } else {
+                        Write-Host "${indent}✗ Missing: $depName"
+                    }
+                }
+            }
+            
+            Get-DllDeps "nn~.dll"
           }
 
       - name: PureData Package Creation

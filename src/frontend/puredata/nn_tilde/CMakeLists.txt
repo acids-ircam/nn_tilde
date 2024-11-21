@@ -99,8 +99,8 @@ if (UNIX AND NOT APPLE)
     endforeach()
 endif()
 
-if (MSVC)
-    # Define base required DLLs
+if(MSVC)
+    # Base DLLs (these work for CPU version)
     set(REQUIRED_DLLS
         "torch_cpu.dll"
         "c10.dll"
@@ -113,29 +113,64 @@ if (MSVC)
         "torch_global_deps.dll"
     )
 
-    # Multiple checks for CUDA support
+    # Add CUDA DLLs only if CUDA is found
     if(CUDA_FOUND OR EXISTS "${TORCH_INSTALL_PREFIX}/lib/torch_cuda.dll")
-        message(STATUS "CUDA support detected - Including CUDA DLLs")
-        message(STATUS "CUDA_FOUND: ${CUDA_FOUND}")
-        message(STATUS "TORCH_INSTALL_PREFIX: ${TORCH_INSTALL_PREFIX}")
-
         list(APPEND REQUIRED_DLLS
+            # PyTorch CUDA DLLs
             "torch_cuda.dll"
             "c10_cuda.dll"
+            # Core CUDA Runtime DLLs
+            "cudart64_12.dll"
+            "cublas64_12.dll"
+            "cublasLt64_12.dll"
+            # Additional CUDA DLLs for data transfer/compute
+            "cudnn64_9.dll"
+            "nvrtc64_120_0.dll"
+            "nvrtc-builtins64_120.dll"
+            "cudadevrt.dll"
+            "cusparse64_12.dll"
+            "cufft64_11.dll"
+            "cusolver64_11.dll"
+            "curand64_10.dll"
         )
-    else()
-        message(STATUS "No CUDA support detected - Skipping CUDA DLLs")
+
+	    # Try to find VC Runtime from environment variable first
+	    if(DEFINED ENV{VCREDIST_PATH} AND EXISTS "$ENV{VCREDIST_PATH}/vcruntime140_1.dll")
+	        message(STATUS "Found VC Runtime at: $ENV{VCREDIST_PATH}")
+	        list(APPEND REQUIRED_DLLS "$ENV{VCREDIST_PATH}/vcruntime140_1.dll")
+	    else()
+	        message(WARNING "VC Runtime not found in VCREDIST_PATH")
+	    endif()
+
+        # Check CUDA installation for runtime DLLs
+        if(DEFINED ENV{CUDA_PATH})
+            file(GLOB CUDA_RUNTIME_DLLS "$ENV{CUDA_PATH}/bin/*.dll")
+            foreach(CUDA_DLL ${CUDA_RUNTIME_DLLS})
+                get_filename_component(DLL_NAME ${CUDA_DLL} NAME)
+                foreach(REQUIRED_DLL ${REQUIRED_DLLS})
+                    if(DLL_NAME STREQUAL REQUIRED_DLL)
+                        add_custom_command(TARGET nn POST_BUILD
+                            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                                "${CUDA_DLL}"
+                                "${CMAKE_CURRENT_BINARY_DIR}/Release/${DLL_NAME}"
+                            COMMENT "Copying CUDA runtime DLL: ${DLL_NAME}"
+                        )
+                    endif()
+                endforeach()
+            endforeach()
+        endif()
     endif()
 
-    # Copy only the required DLLs
+    # Copy libtorch DLLs
     foreach(DLL ${REQUIRED_DLLS})
-        add_custom_command(TARGET nn POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E echo "Copying ${DLL}..."
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${TORCH_INSTALL_PREFIX}/lib/${DLL}"
-                "${CMAKE_CURRENT_BINARY_DIR}/Release/${DLL}"
-            COMMENT "Copying ${DLL}"
-        )
+        if(EXISTS "${TORCH_INSTALL_PREFIX}/lib/${DLL}")
+            add_custom_command(TARGET nn POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${TORCH_INSTALL_PREFIX}/lib/${DLL}"
+                    "${CMAKE_CURRENT_BINARY_DIR}/Release/${DLL}"
+                COMMENT "Copying ${DLL}"
+            )
+        endif()
     endforeach()
 endif()
 
