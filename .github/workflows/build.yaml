@@ -77,10 +77,11 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
-        cuda: [cpu, cuda]
-        exclude:
-          - arch: arm64
-            cuda: cuda
+        cuda: [cpu]
+        # cuda: [cpu, cuda]
+        # exclude:
+        #   - arch: arm64
+        #     cuda: cuda
     steps:
       - uses: actions/checkout@v4
         with:
@@ -159,7 +160,8 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        cuda: [cpu, cuda]
+        cuda: [cpu]
+        # cuda: [cpu, cuda]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -290,8 +292,8 @@ jobs:
           cd artifacts
           zip -r ../nn_tilde-macos_arm64.zip nn_tilde-macos_arm64
           zip -r ../nn_tilde-macos_amd64.zip nn_tilde-macos_amd64
-          zip -r ../nn_tilde-windows_amd64_cuda.zip nn_tilde-windows_amd64_cuda
-          zip -r ../nn_tilde-linux_amd64_cuda.zip nn_tilde-linux_amd64_cuda
+          # zip -r ../nn_tilde-windows_amd64_cuda.zip nn_tilde-windows_amd64_cuda
+          # zip -r ../nn_tilde-linux_amd64_cuda.zip nn_tilde-linux_amd64_cuda
           zip -r ../nn_tilde-windows_amd64_cpu.zip nn_tilde-windows_amd64_cpu
           zip -r ../nn_tilde-linux_amd64_cpu.zip nn_tilde-linux_amd64_cpu
           zip -r ../nn_tilde-linux_arm64_cpu.zip nn_tilde-linux_arm64_cpu
@@ -303,8 +305,8 @@ jobs:
           files: |
             nn_tilde-macos_arm64.zip
             nn_tilde-macos_amd64.zip
-            nn_tilde-windows_amd64_cuda.zip
-            nn_tilde-linux_amd64_cuda.zip
+            # nn_tilde-windows_amd64_cuda.zip
+            # nn_tilde-linux_amd64_cuda.zip
             nn_tilde-windows_amd64_cpu.zip
             nn_tilde-linux_amd64_cpu.zip
             nn_tilde-linux_arm64_cpu.zip
@@ -328,15 +330,15 @@ jobs:
           name: nn_tilde-macos_amd64
           path: nn_tilde-macos_amd64
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: nn_tilde-windows_amd64_cuda
-          path: nn_tilde-windows_amd64_cuda
+      # - uses: actions/download-artifact@v4
+      #   with:
+      #     name: nn_tilde-windows_amd64_cuda
+      #     path: nn_tilde-windows_amd64_cuda
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: nn_tilde-linux_amd64_cuda
-          path: nn_tilde-linux_amd64_cuda
+      # - uses: actions/download-artifact@v4
+      #   with:
+      #     name: nn_tilde-linux_amd64_cuda
+      #     path: nn_tilde-linux_amd64_cuda
 
       - uses: actions/download-artifact@v4
         with:
@@ -380,24 +382,24 @@ jobs:
           done
 
           # CUDA versions
-          for os in windows_amd64_cuda linux_amd64_cuda; do
-            echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
-            mkdir -p package-${os}
-            docker run --rm --user $(id -u) \
-              --volume ./nn_tilde-${os}:/nn~ \
-              --volume ./package-${os}:/package \
-              registry.git.iem.at/pd/deken \
-              deken package --output-dir /package -v "${SLUG}-cuda" /nn~
+          # for os in windows_amd64_cuda linux_amd64_cuda; do
+          #   echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
+          #   mkdir -p package-${os}
+          #   docker run --rm --user $(id -u) \
+          #     --volume ./nn_tilde-${os}:/nn~ \
+          #     --volume ./package-${os}:/package \
+          #     registry.git.iem.at/pd/deken \
+          #     deken package --output-dir /package -v "${SLUG}-cuda" /nn~
  
-            dek_files=$(ls package-${os}/*.dek)
-            for dek_file in $dek_files; do
-              filename=$(basename "$dek_file")
-              echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
-              echo '```' | tee -a $GITHUB_STEP_SUMMARY
-              unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | sort | tee -a $GITHUB_STEP_SUMMARY
-              echo '```' | tee -a $GITHUB_STEP_SUMMARY
-            done
-          done
+          #   dek_files=$(ls package-${os}/*.dek)
+          #   for dek_file in $dek_files; do
+          #     filename=$(basename "$dek_file")
+          #     echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
+          #     echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          #     unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | sort | tee -a $GITHUB_STEP_SUMMARY
+          #     echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          #   done
+          # done
 
       - name: Upload to Deken
         if: ${{ !contains(github.ref, 'test') }}
@@ -417,11 +419,11 @@ jobs:
           done
 
           # CUDA versions
-          for os in windows_amd64_cuda linux_amd64_cuda; do
-            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
-              --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
-              deken upload -v "${SLUG}-cuda" --name "nn~" --no-source-error /nn~
-          done
+          # for os in windows_amd64_cuda linux_amd64_cuda; do
+          #   docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+          #     --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
+          #     deken upload -v "${SLUG}-cuda" --name "nn~" --no-source-error /nn~
+          # done
 
           # Source upload
           docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
