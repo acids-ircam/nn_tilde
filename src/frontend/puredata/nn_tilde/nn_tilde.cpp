@@ -44,7 +44,7 @@ typedef struct _nn_tilde {
   t_sample f;
   bool m_multichannel;
   bool m_gpu;
-  bool m_outchannels_changed;
+  bool m_dims_changed;
   t_canvas* m_canvas;
   t_outlet* m_info_outlet;
 
@@ -232,7 +232,7 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
   // Store old dimensions to check if they changed
   int old_in_dim = x->m_in_dim;
   int old_out_dim = x->m_out_dim;
-  x->m_outchannels_changed = false;
+  x->m_dims_changed = false;
 
   // Update dimensions and ratios
   x->m_in_dim = params[0];
@@ -257,7 +257,7 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
   bool dims_changed = (x->m_in_dim != old_in_dim) || (x->m_out_dim != old_out_dim);
   if (dims_changed) {
     create_buffers(x, x->m_in_dim, x->m_out_dim);
-    x->m_outchannels_changed = true;
+    x->m_dims_changed = true;
   }
 
   return true;
@@ -376,7 +376,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv) {
   x->m_use_thread = true;
   x->m_multichannel = false;
   x->m_gpu = false;
-  x->m_outchannels_changed = true;
+  x->m_dims_changed = true;
   x->m_canvas = canvas_getcurrent();
 
   // Create minimum outlet (we already have main inlet from CLASS_MAINSIGNALIN)
@@ -445,7 +445,7 @@ void nn_tilde_method(t_nn_tilde *x, t_symbol *s) {
     x->m_compute_thread = nullptr;
   }
 
-  if (nn_tilde_update_model_params(x, s) && x->m_outchannels_changed) {
+  if (nn_tilde_update_model_params(x, s) && x->m_dims_changed) {
     canvas_update_dsp();
   }
 }
@@ -485,7 +485,7 @@ void nn_tilde_load(t_nn_tilde *x, t_symbol *s) {
     x->m_compute_thread = nullptr;
   }
 
-  if (nn_tilde_load_model(x, s->s_name) && x->m_outchannels_changed)
+  if (nn_tilde_load_model(x, s->s_name) && x->m_dims_changed)
     canvas_update_dsp();
 }
 
