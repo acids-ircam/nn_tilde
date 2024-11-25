@@ -7,14 +7,14 @@
 #include <vector>
 
 #ifdef _WIN32
-#include <windows.h>
+# include <windows.h>
 #else
-#include <dlfcn.h>
+# include <dlfcn.h>
 #endif
 
 #ifdef _WIN32
-    #include <windows.h>
-    #include <shlwapi.h>
+# include <windows.h>
+# include <shlwapi.h>
 #endif
 
 using t_signal_setmultiout = void (*)(t_signal **, int);
@@ -23,7 +23,7 @@ static t_signal_setmultiout g_signal_setmultiout;
 static t_class *nn_tilde_class;
 
 #ifndef VERSION
-#define VERSION "UNDEFINED"
+# define VERSION "UNDEFINED"
 #endif
 
 #if PD_MINOR_VERSION >= 54
@@ -77,10 +77,35 @@ typedef struct _nn_tilde {
   std::vector<float *> m_dsp_out_vec;
 } t_nn_tilde;
 
+class PdErrorCatcher {
+    std::streambuf *old_cerr;
+    std::stringstream error_stream;
+    t_nn_tilde *x;  // Store Pd object pointer
+
+public:
+    PdErrorCatcher(t_nn_tilde *obj) : x(obj) {
+        old_cerr = std::cerr.rdbuf(error_stream.rdbuf());
+    }
+
+    ~PdErrorCatcher() {
+        // Output any caught errors to Pd console
+        std::string errors = error_stream.str();
+        if (!errors.empty()) {
+            pd_error(x, "nn~: %s", errors.c_str());
+        }
+        // Restore original stderr
+        std::cerr.rdbuf(old_cerr);
+    }
+};
+
 void model_perform(t_nn_tilde *x) {
-  // Use pre-allocated vectors
-  x->m_model->perform(x->m_in_model_ptrs, x->m_out_model_ptrs, 
-                     x->m_buffer_size, x->m_method->s_name, 1);
+    PdErrorCatcher error_catcher(x);
+    try {
+        x->m_model->perform(x->m_in_model_ptrs, x->m_out_model_ptrs, 
+                          x->m_buffer_size, x->m_method->s_name, 1);
+    } catch (const std::exception& e) {
+        pd_error(x, "nn~: model perform error: %s", e.what());
+    }
 }
 
 // DSP CALL
@@ -289,8 +314,11 @@ bool nn_tilde_load_model(t_nn_tilde *x, const char *path) {
   if (x->m_gpu && !(torch::hasCUDA() || torch::hasMPS())) {
     post("nn~: GPU mode not available");
     x->m_gpu = 0;
+  } else if (x->m_gpu) {
+    const char* gputype = torch::hasCUDA() ? "CUDA" : "MPS";
+    post("nn~: %s found", gputype);
   }
-  
+
   if (x->m_gpu) x->m_model->use_gpu(true);
 
   // Update parameters using current method (or fallback to forward)
@@ -556,11 +584,11 @@ void startup_message() {
 }
 
 #ifdef _WIN32
-#define EXPORT extern "C" __declspec(dllexport)
+# define EXPORT extern "C" __declspec(dllexport)
 #elif __GNUC__ >= 4
-#define EXPORT extern "C" __attribute__((visibility("default")))
+# define EXPORT extern "C" __attribute__((visibility("default")))
 #else
-#define EXPORT extern "C"
+# define EXPORT extern "C"
 #endif
 
 EXPORT void nn_tilde_setup(void) {

@@ -371,11 +371,9 @@ jobs:
 
             dek_files=$(ls package-${os}/*.dek)
             for dek_file in $dek_files; do
-              filename=$(basename "$dek_file")
-              echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
+              echo -e "#### \`$(basename "$dek_file")\`" | tee -a $GITHUB_STEP_SUMMARY
               echo '```' | tee -a $GITHUB_STEP_SUMMARY
-              unzip -l "$dek_file" | sed '1,3d;$d' | tee -a $GITHUB_STEP_SUMMARY
-              # unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | sort | tee -a $GITHUB_STEP_SUMMARY
+              unzip -l "$dek_file" | tee -a $GITHUB_STEP_SUMMARY
               echo '```' | tee -a $GITHUB_STEP_SUMMARY
             done
           done
@@ -392,11 +390,9 @@ jobs:
  
             dek_files=$(ls package-${os}/*.dek)
             for dek_file in $dek_files; do
-              filename=$(basename "$dek_file")
-              echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
+              echo -e "#### \`$(basename "$dek_file")\`" | tee -a $GITHUB_STEP_SUMMARY
               echo '```' | tee -a $GITHUB_STEP_SUMMARY
-              unzip -l "$dek_file" | sed '1,3d;$d' | tee -a $GITHUB_STEP_SUMMARY
-              # unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | sort | tee -a $GITHUB_STEP_SUMMARY
+              unzip -l "$dek_file" | tee -a $GITHUB_STEP_SUMMARY
               echo '```' | tee -a $GITHUB_STEP_SUMMARY
             done
           done
