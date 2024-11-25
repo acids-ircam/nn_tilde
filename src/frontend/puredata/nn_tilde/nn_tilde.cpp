@@ -12,6 +12,11 @@
 #include <dlfcn.h>
 #endif
 
+#ifdef _WIN32
+    #include <windows.h>
+    #include <shlwapi.h>
+#endif
+
 using t_signal_setmultiout = void (*)(t_signal **, int);
 static t_signal_setmultiout g_signal_setmultiout;
 
@@ -254,10 +259,10 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
   }
 
   // Create new buffers if dimensions changed
-  bool dims_changed = (x->m_in_dim != old_in_dim) || (x->m_out_dim != old_out_dim);
-  if (dims_changed) {
+  x->m_dims_changed = (x->m_in_dim != old_in_dim) || (x->m_out_dim != old_out_dim);
+  if (x->m_dims_changed) {
     create_buffers(x, x->m_in_dim, x->m_out_dim);
-    x->m_dims_changed = true;
+    post("nn~: dimensions changed to in: %d, out: %d", x->m_in_dim, x->m_out_dim);
   }
 
   return true;
@@ -445,9 +450,8 @@ void nn_tilde_method(t_nn_tilde *x, t_symbol *s) {
     x->m_compute_thread = nullptr;
   }
 
-  if (nn_tilde_update_model_params(x, s) && x->m_dims_changed) {
+  if (nn_tilde_update_model_params(x, s) && x->m_dims_changed)
     canvas_update_dsp();
-  }
 }
 
 void nn_tilde_bufsize(t_nn_tilde *x, t_floatarg size) {
@@ -560,8 +564,9 @@ void startup_message() {
 #endif
 
 EXPORT void nn_tilde_setup(void) {
-  // multichannel handling copied from
-  // https://github.com/Spacechild1/vstplugin/blob/v0.6.0/pd/src/vstplugin~.cpp#L4120
+
+// multichannel handling copied from
+// https://github.com/Spacechild1/vstplugin/blob/v0.6.0/pd/src/vstplugin~.cpp#L4120
 #ifdef PD_HAVE_MULTICHANNEL
   // runtime check for multichannel support:
 #ifdef _WIN32
@@ -580,6 +585,20 @@ EXPORT void nn_tilde_setup(void) {
     dlopen(nullptr, RTLD_NOW), "signal_setmultiout");
 #endif
 #endif // PD_HAVE_MULTICHANNEL
+
+// Handle path for dynamically loaded cudnn_graph64_9.dll
+// FIXME: is this really the way to do this??
+#ifdef _WIN32
+  // Get the directory of the current DLL
+  HMODULE hModule = GetModuleHandle("nn~.dll");
+  if (hModule) {
+    char path[MAX_PATH];
+    GetModuleFileName(hModule, path, sizeof(path));
+    PathRemoveFileSpec(path);  // Remove filename, leaving the path
+    SetDllDirectory(path);     // Add to DLL search path
+  }
+#endif
+
   startup_message();
   nn_tilde_class = class_new(gensym("nn~"), (t_newmethod)nn_tilde_new, 0,
                              sizeof(t_nn_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);

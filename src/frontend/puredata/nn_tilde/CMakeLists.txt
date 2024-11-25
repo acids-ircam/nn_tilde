@@ -24,11 +24,11 @@ endif()
 
 if (APPLE)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_darwin")
-	set_target_properties(nn PROPERTIES
-		BUILD_WITH_INSTALL_RPATH FALSE
-		LINK_FLAGS "-Wl,-rpath,@loader_path/"
-	)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -undefined dynamic_lookup -stdlib=libc++")
+    set_target_properties(nn PROPERTIES
+        BUILD_WITH_INSTALL_RPATH FALSE
+        LINK_FLAGS "-Wl,-rpath,@loader_path/"
+    )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -undefined dynamic_lookup -stdlib=libc++")
 endif()
 
 
@@ -48,21 +48,21 @@ if (MSVC) # COPY HELP FILES
         COMMENT "Copy Help File"
     )
 else()
-	add_custom_command(TARGET nn POST_BUILD
-	    COMMAND ${CMAKE_COMMAND} -E copy
-	        "${CMAKE_SOURCE_DIR}/frontend/puredata/nn_tilde/nn~-help.pd"
-	        "${CMAKE_CURRENT_BINARY_DIR}/nn~-help.pd"
-	    COMMENT "Copy Help File"
-	)
+    add_custom_command(TARGET nn POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/frontend/puredata/nn_tilde/nn~-help.pd"
+            "${CMAKE_CURRENT_BINARY_DIR}/nn~-help.pd"
+        COMMENT "Copy Help File"
+    )
 endif()
 
 if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
-	add_custom_command(
-		TARGET nn
-		POST_BUILD
-		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_CURRENT_BINARY_DIR}/"
-		COMMENT "Copy Torch Libraries"
-	)
+    add_custom_command(
+        TARGET nn
+        POST_BUILD
+        COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_CURRENT_BINARY_DIR}/"
+        COMMENT "Copy Torch Libraries"
+    )
 endif()
 
 if (UNIX AND NOT APPLE)
@@ -125,6 +125,7 @@ if(MSVC)
             "cublasLt64_12.dll"
             # Additional CUDA DLLs for data transfer/compute
             "cudnn64_9.dll"
+            "cudnn_graph64_9.dll"
             "nvrtc64_120_0.dll"
             "nvrtc-builtins64_120.dll"
             "cudadevrt.dll"
@@ -134,13 +135,13 @@ if(MSVC)
             "curand64_10.dll"
         )
 
-	    # Try to find VC Runtime from environment variable first
-	    if(DEFINED ENV{VCREDIST_PATH} AND EXISTS "$ENV{VCREDIST_PATH}/vcruntime140_1.dll")
-	        message(STATUS "Found VC Runtime at: $ENV{VCREDIST_PATH}")
-	        list(APPEND REQUIRED_DLLS "$ENV{VCREDIST_PATH}/vcruntime140_1.dll")
-	    else()
-	        message(WARNING "VC Runtime not found in VCREDIST_PATH")
-	    endif()
+        # Try to find VC Runtime from environment variable first
+        if(DEFINED ENV{VCREDIST_PATH} AND EXISTS "$ENV{VCREDIST_PATH}/vcruntime140_1.dll")
+            message(STATUS "Found VC Runtime at: $ENV{VCREDIST_PATH}")
+            list(APPEND REQUIRED_DLLS "$ENV{VCREDIST_PATH}/vcruntime140_1.dll")
+        else()
+            message(WARNING "VC Runtime not found in VCREDIST_PATH")
+        endif()
 
         # Check CUDA installation for runtime DLLs
         if(DEFINED ENV{CUDA_PATH})
@@ -175,19 +176,19 @@ if(MSVC)
 endif()
 
 if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
-	add_custom_command(
-		TARGET nn
-		POST_BUILD
-		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.dylib"
-		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.pd_darwin"
-		COMMAND "xattr" "-r" "-d" "com.apple.quarantine" "${CMAKE_CURRENT_BINARY_DIR}"
-		COMMENT "Codesign external"
-	)
+    add_custom_command(
+        TARGET nn
+        POST_BUILD
+        COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.dylib"
+        COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.pd_darwin"
+        COMMAND "xattr" "-r" "-d" "com.apple.quarantine" "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMENT "Codesign external"
+    )
 endif()
 
 target_include_directories(nn PRIVATE "${PUREDATA_INCLUDE_DIR}")
 target_link_libraries(nn PRIVATE backend)
 if (MSVC)
-	target_link_libraries(nn PRIVATE "${PUREDATA_BIN_DIR}/pd.lib")
+    target_link_libraries(nn PRIVATE "${PUREDATA_BIN_DIR}/pd.lib" shlwapi.lib)
 endif()
 set_property(TARGET nn PROPERTY CXX_STANDARD 17)
