@@ -262,7 +262,7 @@ bool nn_tilde_update_model_params(t_nn_tilde *x, t_symbol *method) {
   x->m_dims_changed = (x->m_in_dim != old_in_dim) || (x->m_out_dim != old_out_dim);
   if (x->m_dims_changed) {
     create_buffers(x, x->m_in_dim, x->m_out_dim);
-    post("nn~: dimensions changed to in: %d, out: %d", x->m_in_dim, x->m_out_dim);
+    post("nn~: dimensions changed: %d in, %d out", x->m_in_dim, x->m_out_dim);
   }
 
   return true;

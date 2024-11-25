@@ -28,12 +28,19 @@ if (APPLE)
         BUILD_WITH_INSTALL_RPATH FALSE
         LINK_FLAGS "-Wl,-rpath,@loader_path/"
     )
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -undefined dynamic_lookup -stdlib=libc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -undefined dynamic_lookup")
 endif()
 
 
-if (UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_linux")
+    set_target_properties(nn PROPERTIES 
+        PREFIX ""
+        SUFFIX "~.pd_linux"
+        BUILD_WITH_INSTALL_RPATH TRUE
+        INSTALL_RPATH "$ORIGIN"
+    )
 endif()
 
 if (MSVC)
@@ -121,18 +128,21 @@ if(MSVC)
             "c10_cuda.dll"
             # Core CUDA Runtime DLLs
             "cudart64_12.dll"
-            "cublas64_12.dll"
-            "cublasLt64_12.dll"
+            # "cublas64_12.dll"
+            # "cublasLt64_12.dll"
             # Additional CUDA DLLs for data transfer/compute
             "cudnn64_9.dll"
             "cudnn_graph64_9.dll"
-            "nvrtc64_120_0.dll"
+            "cudnn_engines_precompiled64_9.dll"
+            "cudnn_engines_runtime_compiled64_9.dll"
+            "cudnn_heuristic64_9.dll"
+            # "nvrtc64_120_0.dll"
             "nvrtc-builtins64_120.dll"
             "cudadevrt.dll"
-            "cusparse64_12.dll"
-            "cufft64_11.dll"
-            "cusolver64_11.dll"
-            "curand64_10.dll"
+            # "cusparse64_12.dll"
+            # "cufft64_11.dll"
+            # "cusolver64_11.dll"
+            # "curand64_10.dll"
         )
 
         # Try to find VC Runtime from environment variable first
