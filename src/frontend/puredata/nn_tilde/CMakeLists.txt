@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project(nn_tilde_pd)
 find_package(Torch REQUIRED)
 
@@ -23,8 +23,9 @@ if(VERSION)
 endif()
 
 if (APPLE)
-    set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_darwin")
     set_target_properties(nn PROPERTIES
+        PREFIX ""
+        SUFFIX "~.pd_darwin"
         BUILD_WITH_INSTALL_RPATH FALSE
         LINK_FLAGS "-Wl,-rpath,@loader_path/"
     )
@@ -32,13 +33,12 @@ if (APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -undefined dynamic_lookup")
 endif()
 
-
 if(UNIX AND NOT APPLE)
-    set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_linux")
     set_target_properties(nn PROPERTIES 
         PREFIX ""
         SUFFIX "~.pd_linux"
         BUILD_WITH_INSTALL_RPATH TRUE
+        INSTALL_RPATH_USE_LINK_PATH TRUE
         INSTALL_RPATH "$ORIGIN"
     )
 endif()
@@ -47,21 +47,13 @@ if (MSVC)
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.dll")
 endif()
 
-if (MSVC) # COPY HELP FILES
-    add_custom_command(TARGET nn POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/frontend/puredata/nn_tilde/nn~-help.pd"
-            "${CMAKE_CURRENT_BINARY_DIR}/Release/nn~-help.pd"
-        COMMENT "Copy Help File"
-    )
-else()
-    add_custom_command(TARGET nn POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_SOURCE_DIR}/frontend/puredata/nn_tilde/nn~-help.pd"
-            "${CMAKE_CURRENT_BINARY_DIR}/nn~-help.pd"
-        COMMENT "Copy Help File"
-    )
-endif()
+# COPY HELP FILES
+add_custom_command(TARGET nn POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/frontend/puredata/nn_tilde/nn~-help.pd"
+        "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/nn~-help.pd"
+    COMMENT "Copy Help File"
+)
 
 if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
     add_custom_command(
@@ -73,8 +65,6 @@ if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
 endif()
 
 if (UNIX AND NOT APPLE)
-    set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.pd_linux")
-    
     # Define essential libraries to copy
     set(ESSENTIAL_LIBS
         "libtorch.so"
@@ -82,7 +72,7 @@ if (UNIX AND NOT APPLE)
         "libc10.so"
         "libtorch_global_deps.so"
     )
-    
+
     if(CUDA_FOUND OR EXISTS "${TORCH_INSTALL_PREFIX}/lib/libtorch_cuda.so")
         list(APPEND ESSENTIAL_LIBS
             "libtorch_cuda.so"
@@ -93,18 +83,24 @@ if (UNIX AND NOT APPLE)
         )
     endif()
 
-    # Copy only essential libraries
+    # Copy essential Torch libraries
+    add_custom_target(copy_torch_libs)
     foreach(LIB ${ESSENTIAL_LIBS})
         add_custom_command(
-            TARGET nn
-            POST_BUILD
+            TARGET copy_torch_libs
+            PRE_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${TORCH_INSTALL_PREFIX}/lib/${LIB}"
                 "${CMAKE_CURRENT_BINARY_DIR}/${LIB}"
             COMMENT "Copying ${LIB}"
         )
     endforeach()
+    add_dependencies(nn copy_torch_libs)
+
+    # Add libgomp as a link dependency
+    target_link_libraries(nn PRIVATE gomp)
 endif()
+
 
 if(MSVC)
     # Base DLLs (these work for CPU version)
@@ -163,7 +159,7 @@ if(MSVC)
                         add_custom_command(TARGET nn POST_BUILD
                             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                                 "${CUDA_DLL}"
-                                "${CMAKE_CURRENT_BINARY_DIR}/Release/${DLL_NAME}"
+                                "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${DLL_NAME}"
                             COMMENT "Copying CUDA runtime DLL: ${DLL_NAME}"
                         )
                     endif()
@@ -178,7 +174,7 @@ if(MSVC)
             add_custom_command(TARGET nn POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${TORCH_INSTALL_PREFIX}/lib/${DLL}"
-                    "${CMAKE_CURRENT_BINARY_DIR}/Release/${DLL}"
+                    "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${DLL}"
                 COMMENT "Copying ${DLL}"
             )
         endif()

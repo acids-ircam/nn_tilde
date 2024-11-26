@@ -89,6 +89,8 @@ jobs:
       - name: Setup torch for AMD64
         if: matrix.arch == 'amd64'
         run: |
+          sudo apt-get update
+          sudo apt-get install -y libgomp1
           CUDA_URL=""
           if [ "${{ matrix.cuda }}" = "cuda" ]; then
             CUDA_URL="https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.5.1%2Bcu121.zip"
@@ -106,7 +108,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libjpeg-dev libopenblas-dev libopenmpi-dev libomp-dev
+            libjpeg-dev libopenblas-dev libopenmpi-dev libomp-dev libgomp1
           mkdir -p torch_arm64
           cd torch_arm64
           python3 -m pip download torch==2.5.1 \
@@ -146,10 +148,25 @@ jobs:
           make
           ${{ env.RANLIB }} backend/libbackend.a
           make
+
       - name: PureData Package creation
         run: |
-          mv build/frontend/puredata/nn_tilde .
-          rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
+          mkdir -p nn_tilde
+          mv build/frontend/puredata/nn~.pd_linux nn_tilde/
+          mv build/lib*.so* nn_tilde/
+          # Find and copy the exact libgomp that the system is using
+          LIBGOMP_PATH=$(ldd build/frontend/puredata/nn~.pd_linux | grep libgomp | awk '{print $3}')
+          if [ ! -z "$LIBGOMP_PATH" ]; then
+            cp "$LIBGOMP_PATH" nn_tilde/libgomp-98b21ff3.so.1
+          else
+            echo "Warning: Could not find libgomp dependency in ldd output"
+            # Fallback to system path
+            cp /usr/lib/x86_64-linux-gnu/libgomp.so.1 nn_tilde/libgomp-98b21ff3.so.1
+          fi
+          # Optional: Strip debug symbols to reduce size
+          strip nn_tilde/nn~.pd_linux
+          strip nn_tilde/lib*.so*
+
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
