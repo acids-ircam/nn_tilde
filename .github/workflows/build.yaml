@@ -46,7 +46,8 @@ jobs:
           submodules: true
       - name: Setup torch
         run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-x86_64-2.2.2.zip -o libtorch.zip
+          curl -L https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-x86_64-latest.zip -o libtorch.zip
+          # curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-x86_64-2.2.2.zip -o libtorch.zip
           unzip libtorch.zip
       - name: Setup puredata
         run: |
@@ -371,7 +372,6 @@ jobs:
 
             dek_files=$(ls package-${os}/*.dek)
             for dek_file in $dek_files; do
-              echo -e "#### \`$(basename "$dek_file")\`" | tee -a $GITHUB_STEP_SUMMARY
               echo '```' | tee -a $GITHUB_STEP_SUMMARY
               unzip -l "$dek_file" | tee -a $GITHUB_STEP_SUMMARY
               echo '```' | tee -a $GITHUB_STEP_SUMMARY
@@ -390,7 +390,6 @@ jobs:
  
             dek_files=$(ls package-${os}/*.dek)
             for dek_file in $dek_files; do
-              echo -e "#### \`$(basename "$dek_file")\`" | tee -a $GITHUB_STEP_SUMMARY
               echo '```' | tee -a $GITHUB_STEP_SUMMARY
               unzip -l "$dek_file" | tee -a $GITHUB_STEP_SUMMARY
               echo '```' | tee -a $GITHUB_STEP_SUMMARY
