@@ -454,6 +454,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v')
         with:
+          prerelease: true
+          draft: true
           files: |
             nn_tilde-macos_arm64.zip
             nn_tilde-macos_amd64.zip
