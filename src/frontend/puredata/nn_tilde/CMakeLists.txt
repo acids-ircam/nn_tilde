@@ -4,10 +4,6 @@ find_package(Torch REQUIRED)
 
 file(GLOB SRC *.cpp)
 
-if (MSVC)
-   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
-endif()
-
 add_library(nn SHARED ${SRC})
 
 # Get version from git for all platforms
@@ -47,10 +43,20 @@ if (APPLE)
         BUILD_WITH_INSTALL_RPATH FALSE
         LINK_FLAGS "-Wl,-rpath,@loader_path/"
     )
+
+    if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+        add_custom_command(
+            TARGET nn
+            POST_BUILD
+            COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.dylib"
+            COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.pd_darwin"
+            COMMAND "xattr" "-r" "-d" "com.apple.quarantine" "${CMAKE_CURRENT_BINARY_DIR}"
+            COMMENT "Codesign external"
+        )
+    endif()
 endif()
 
 if (UNIX AND NOT APPLE)
-    # Define essential libraries to copy - only the basic ones
     set(ESSENTIAL_LIBS
         "libtorch.so"
         "libtorch_cpu.so"
@@ -85,6 +91,8 @@ if (UNIX AND NOT APPLE)
 endif()
 
 if(MSVC)
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+
     # Base DLLs (these work for CPU version)
     set(REQUIRED_DLLS
         "torch_cpu.dll"
@@ -156,17 +164,6 @@ if(MSVC)
     endforeach()
 
     set_target_properties(nn PROPERTIES PREFIX "" SUFFIX "~.dll")
-endif()
-
-if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
-    add_custom_command(
-        TARGET nn
-        POST_BUILD
-        COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.dylib"
-        COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_CURRENT_BINARY_DIR}/*.pd_darwin"
-        COMMAND "xattr" "-r" "-d" "com.apple.quarantine" "${CMAKE_CURRENT_BINARY_DIR}"
-        COMMENT "Codesign external"
-    )
 endif()
 
 target_include_directories(nn PRIVATE "${PUREDATA_INCLUDE_DIR}")
