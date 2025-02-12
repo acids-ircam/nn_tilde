@@ -4,55 +4,15 @@ on:
     tags:
       - "v*"
 jobs:
-  osx-arm64-build:
+  macos-arm64-build:
     runs-on: macos-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - run: git submodule update --init --recursive
-      - name: Setup torch
-        run: |
-          curl -L https://anaconda.org/pytorch/pytorch/2.0.0/download/osx-arm64/pytorch-2.0.0-py3.10_0.tar.bz2 | tar -xv
-      - name: Setup puredata
-        run: |
-          mkdir puredata_include
-          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
-      - name: Build
-        run: |
-          mkdir build
-          cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/lib/python3.10/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
-          make
-      - name: Max/MSP Package creation
-        run: |
-          mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_macOS_arm64.tar.gz nn_tilde
-      - name: PureData Package creation
-        run: |
-          rm -fr nn_tilde
-          mv build/frontend/puredata/nn_tilde .
-          rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
-          tar -czvf nn_puredata_macOS_arm64.tar.gz nn_tilde
-      - name: Upload binaries
-        uses: actions/upload-artifact@v2
+      - uses: actions/checkout@v4
         with:
-          name: nn_tilde
-          path: |
-            nn_max_msp_macOS_arm64.tar.gz
-            nn_puredata_macOS_arm64.tar.gz
-
-  osx-x64-build:
-    runs-on: macos-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - run: git submodule update --init --recursive
+          submodules: true
       - name: Setup torch
         run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-2.0.0.zip -o libtorch.zip
+          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.5.1.zip -o libtorch.zip
           unzip libtorch.zip
       - name: Setup puredata
         run: |
@@ -62,91 +22,560 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include 
+          cmake ../src \
+            -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch \
+            -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64
           make
-      - name: Max/MSP Package creation
-        run: |
-          mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
-          rm -fr nn_tilde
           mv build/frontend/puredata/nn_tilde .
           rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
-          tar -czvf nn_puredata_macOS_x64.tar.gz nn_tilde
       - name: Upload binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde
-          path: |
-            nn_max_msp_macOS_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
+          name: nn_tilde-macos_arm64
+          path: nn_tilde
 
-  windows-x64-build:
+  macos-amd64-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Setup torch
+        run: |
+          curl -L https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-x86_64-latest.zip -o libtorch.zip
+          # curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-x86_64-2.2.2.zip -o libtorch.zip
+          unzip libtorch.zip
+      - name: Setup puredata
+        run: |
+          mkdir puredata_include
+          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake ../src \
+            -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch \
+            -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64
+          make
+      - name: PureData Package creation
+        run: |
+          mv build/frontend/puredata/nn_tilde .
+          rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: nn_tilde-macos_amd64
+          path: nn_tilde
+
+  linux-amd64-cuda-build:
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:12.4.1-devel-ubuntu22.04
+    steps:
+      - name: Setup tools
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y \
+            curl \
+            unzip \
+            cmake \
+            build-essential \
+            libgomp1 \
+            gcc \
+            g++ \
+            tzdata
+          echo "CC=gcc" >> $GITHUB_ENV
+          echo "CXX=g++" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Manual submodule init
+        run: |
+          apt-get install -y git
+          rm -rf * .[!.]* ..?*
+          git init
+          git config --global --add safe.directory /__w/nn_tilde/nn_tilde
+          git remote add origin https://github.com/${{ github.repository }}.git
+          git fetch --tags
+          git checkout ${GITHUB_REF#refs/tags/}
+          git submodule update --init --recursive
+          
+      - name: Setup torch for AMD64
+        run: |
+          apt-get update
+          apt-get install -y libgomp1
+          CUDA_URL="https://download.pytorch.org/libtorch/cu124/libtorch-shared-with-deps-2.5.1%2Bcu124.zip"
+          curl -L $CUDA_URL -o libtorch.zip
+          unzip libtorch.zip
+          echo "TORCH_PATH=/__w/nn_tilde/nn_tilde/libtorch" >> $GITHUB_ENV
+          # Debug: check library contents
+          echo "Contents of libtorch/lib:"
+          ls -la libtorch/lib/
+
+      - name: Setup puredata
+        run: |
+          mkdir puredata_include
+          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+
+      - name: Debug library alignment
+        run: |
+          nvcc --version
+          echo "System page size:"
+          getconf PAGE_SIZE
+          
+      - name: Build
+        env:
+          TORCH_PATH: /__w/nn_tilde/nn_tilde/libtorch
+          CC: gcc
+          CXX: g++
+        run: |
+          mkdir build
+          cd build
+          cmake ../src \
+            -DCMAKE_PREFIX_PATH=$TORCH_PATH \
+            -DPUREDATA_INCLUDE_DIR=/__w/nn_tilde/nn_tilde/puredata_include \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=$CC \
+            -DCMAKE_CXX_COMPILER=$CXX
+          make VERBOSE=1
+          ranlib backend/libbackend.a
+          make
+
+      - name: PureData Package creation
+        run: |
+          apt-get install -y patchelf
+          
+          mkdir -p nn_tilde
+          
+          # Move all built files
+          mv build/frontend/puredata/nn_tilde/nn~.pd_linux nn_tilde/
+          mv build/frontend/puredata/nn_tilde/nn~-help.pd nn_tilde/
+          mv build/frontend/puredata/nn_tilde/lib*.so* nn_tilde/
+          
+          # Copy the specifically hashed libraries from libtorch
+          cp $TORCH_PATH/lib/libcudart-*.so.* nn_tilde/
+          cp $TORCH_PATH/lib/libcublas-*.so.* nn_tilde/
+          cp $TORCH_PATH/lib/libcublasLt-*.so.* nn_tilde/
+          
+          cp /usr/lib/x86_64-linux-gnu/libgomp.so.1 nn_tilde/libgomp-a34b3233.so.1
+
+          # First check PyTorch's original library
+          # echo "Original PyTorch CUDA library segments:"
+          # readelf -l $TORCH_PATH/lib/libtorch_cuda.so | grep LOAD
+
+          # echo "Checking library alignments after copying:"
+          # readelf -l nn_tilde/libtorch_cuda.so | grep LOAD
+          # echo "Looking for non-aligned segments:"
+          # readelf -l nn_tilde/libtorch_cuda.so | grep LOAD | awk '{if ($2 % 4096 != 0) print $0}'
+
+          strip nn_tilde/nn~.pd_linux nn_tilde/lib*.so*
+          echo "Checking AMD64 package dependencies:"
+          ldd nn_tilde/nn~.pd_linux || true
+          
+          echo -e "\nDetailed CUDA dependency information:"
+          echo "For nn~.pd_linux:"
+          readelf -d nn_tilde/nn~.pd_linux
+          # echo -e "\nFor libtorch_cuda.so:"
+          # readelf -d nn_tilde/libtorch_cuda.so
+          # echo -e "\nFor libtorch_cpu.so:"
+          # readelf -d nn_tilde/libtorch_cpu.so
+          echo -e "\nRPATH information:"
+          readelf -d nn_tilde/nn~.pd_linux | grep -E "RPATH|RUNPATH"
+          
+          echo "Final package contents:"
+          ls -la nn_tilde/
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: nn_tilde-linux_amd64_cuda
+          path: nn_tilde
+
+  linux-cpu-builds:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+        cuda: [cpu]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Setup torch for AMD64
+        if: matrix.arch == 'amd64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgomp1
+          CUDA_URL="https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.5.1%2Bcpu.zip"
+          curl -L $CUDA_URL -o libtorch.zip
+          unzip libtorch.zip
+          echo "TORCH_PATH=${{ github.workspace }}/libtorch" >> $GITHUB_ENV
+          echo "CC=gcc" >> $GITHUB_ENV
+          echo "CXX=g++" >> $GITHUB_ENV
+          echo "RANLIB=ranlib" >> $GITHUB_ENV
+      - name: Setup torch for ARM64
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            libjpeg-dev libopenblas-dev libopenmpi-dev libomp-dev
+          mkdir -p torch_arm64
+          cd torch_arm64
+          python3 -m pip download torch==2.5.1 \
+            --only-binary=:all: \
+            --platform manylinux2014_aarch64 \
+            --python-version "3.10" \
+            --implementation cp \
+            --abi cp310 \
+            --no-deps \
+            --index-url https://pypi.org/simple
+          unzip torch-2.5.1-cp310-cp310-manylinux2014_aarch64.whl
+          rm torch-2.5.1-cp310-cp310-manylinux2014_aarch64.whl
+          cd ..
+          echo "TORCH_PATH=${{ github.workspace }}/torch_arm64/torch" >> $GITHUB_ENV
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          echo "RANLIB=aarch64-linux-gnu-ranlib" >> $GITHUB_ENV
+
+      - name: Setup puredata
+        run: |
+          mkdir puredata_include
+          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake ../src \
+            -DCMAKE_PREFIX_PATH=${{ env.TORCH_PATH }} \
+            -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=${{ env.CC }} \
+            -DCMAKE_CXX_COMPILER=${{ env.CXX }}
+          make
+          ${{ env.RANLIB }} backend/libbackend.a
+          make
+
+      - name: PureData Package creation
+        run: |
+          echo "Debug: Checking build directory structure..."
+          ls -R build/
+          
+          mkdir -p nn_tilde
+          
+          # Move all built files
+          mv build/frontend/puredata/nn_tilde/nn~.pd_linux nn_tilde/
+          mv build/frontend/puredata/nn_tilde/nn~-help.pd nn_tilde/
+          mv build/frontend/puredata/nn_tilde/lib*.so* nn_tilde/
+          
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            # AMD64-specific handling
+            cp /usr/lib/x86_64-linux-gnu/libgomp.so.1 nn_tilde/libgomp-a34b3233.so.1
+
+            strip nn_tilde/nn~.pd_linux nn_tilde/lib*.so*
+            echo "Checking AMD64 package dependencies:"
+            ldd nn_tilde/nn~.pd_linux || true
+          else
+            # ARM64-specific handling
+            echo "Debug: Looking for OpenBLAS library..."
+            ls -la ${{ env.TORCH_PATH }}/lib/
+            aarch64-linux-gnu-strip nn_tilde/nn~.pd_linux nn_tilde/lib*.so*
+            echo "Checking ARM64 package dependencies:"
+            echo "Dependencies for nn~.pd_linux:"
+            aarch64-linux-gnu-readelf -d nn_tilde/nn~.pd_linux
+            
+            # Check all .so files
+            for lib in nn_tilde/*.so; do
+              echo -e "\nDependencies for $(basename $lib):"
+              aarch64-linux-gnu-readelf -d "$lib"
+            done
+          fi
+          
+          echo "Final package contents:"
+          ls -la nn_tilde/
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: nn_tilde-linux_${{ matrix.arch }}_${{ matrix.cuda }}
+          path: nn_tilde
+
+  windows-amd64-build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        cuda: [cpu, cuda]
     steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - run: git submodule update --init --recursive
-      - name: Setup torch
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Visual Studio
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup CUDA
+        if: matrix.cuda == 'cuda'
+        uses: Jimver/cuda-toolkit@v0.2.19
+        id: cuda-toolkit
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+          use-local-cache: true
+          sub-packages: '["nvcc", "cudart", "nvrtc", "visual_studio_integration"]'
+          # sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cufft", "cufft_dev", "cusolver", "cusolver_dev", "nvrtc", "visual_studio_integration"]'
+
+      - name: Install NvToolsExt
+        if: matrix.cuda == 'cuda'
         run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.0.1%2Bcpu.zip -o libtorch.zip
-          unzip libtorch.zip
-      - name: Setup puredata
+          New-Item -ItemType Directory -Force -Path "temp_build"
+          Invoke-WebRequest -Uri "https://ossci-windows.s3.us-east-1.amazonaws.com/builder/NvToolsExt.7z" -OutFile "temp_build\NvToolsExt.7z"
+          7z x temp_build\NvToolsExt.7z -otemp_build\NvToolsExt
+          
+          $nvToolsPath = "C:\Program Files\NVIDIA Corporation\NvToolsExt"
+          New-Item -ItemType Directory -Force -Path "$nvToolsPath\bin\x64"
+          New-Item -ItemType Directory -Force -Path "$nvToolsPath\include"
+          New-Item -ItemType Directory -Force -Path "$nvToolsPath\lib\x64"
+          
+          Copy-Item "temp_build\NvToolsExt\bin\x64\*.*" -Destination "$nvToolsPath\bin\x64" -Force
+          Copy-Item "temp_build\NvToolsExt\include\*.*" -Destination "$nvToolsPath\include" -Force
+          Copy-Item "temp_build\NvToolsExt\lib\x64\*.*" -Destination "$nvToolsPath\lib\x64" -Force
+
+      - name: Setup libtorch (CPU)
+        if: matrix.cuda != 'cuda'
+        run: |
+          Invoke-WebRequest -Uri "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.5.1%2Bcpu.zip" -OutFile libtorch.zip
+          Expand-Archive -Path libtorch.zip -DestinationPath .
+
+      - name: Setup libtorch (CUDA)
+        if: matrix.cuda == 'cuda'
+        run: |
+          Invoke-WebRequest -Uri "https://download.pytorch.org/libtorch/cu124/libtorch-win-shared-with-deps-2.5.1%2Bcu124.zip" -OutFile libtorch.zip
+          Expand-Archive -Path libtorch.zip -DestinationPath .
+
+      - name: Setup PureData
         run: |
           mkdir pd
           cd pd
-          curl -L https://msp.puredata.info/Software/pd-0.53-2.msw.zip -o pd.zip
+          curl -L https://msp.puredata.info/Software/pd-0.55-2.msw.zip -o pd.zip
           unzip pd.zip
           mv pd*/src .
           mv pd*/bin .
-      - name: Build
+
+      - name: Build and Check Dependencies
         run: |
+          $VSInstallPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $DumpbinPath = Join-Path $VSInstallPath "VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe"
+          $DumpbinExe = Get-ChildItem $DumpbinPath | Select-Object -First 1
+          
           mkdir build
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
+          cmake ../src `
+            -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch `
+            -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src `
+            -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin `
+            -A x64 `
+            $(if ("${{ matrix.cuda }}" -eq "cuda") { "-DCUDA_TOOLKIT_ROOT_DIR=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4" })
+
           cmake --build . --config Release
-      - name: Max/MSP Package creation
+          
+          if ("${{ matrix.cuda }}" -eq "cuda") {
+            Write-Host "Checking DLL dependencies recursively..."
+            cd frontend/puredata/nn_tilde/Release
+            $seenDlls = @{}
+            
+            function Get-DllDeps {
+                param($dllPath, $level = 0)
+                $dllName = Split-Path $dllPath -Leaf
+                if ($seenDlls.ContainsKey($dllName)) { return }
+                $seenDlls[$dllName] = $true
+                
+                $indent = "  " * $level
+                $deps = & $DumpbinExe /dependents $dllPath | Select-String "\.dll"
+                foreach ($dep in $deps) {
+                    $depName = $dep.ToString().Trim()
+                    $depPath = Join-Path $PWD $depName
+                    if (Test-Path $depPath) {
+                        Write-Host "${indent}✓ Found: $depName"
+                        Get-DllDeps $depPath ($level + 1)
+                    } else {
+                        Write-Host "${indent}✗ Missing: $depName"
+                    }
+                }
+            }
+            
+            Get-DllDeps "nn~.dll"
+          }
+
+      - name: PureData Package Creation
         run: |
           mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_windows_x64.tar.gz nn_tilde
-      - name: PureData Package creation
-        run: |
-          Remove-Item -Force -Recurse nn_tilde
-          mkdir nn_tilde
-          mv build/frontend/puredata/nn_tilde/Release/* nn_tilde/
-          tar -czvf nn_puredata_windows_x64.tar.gz nn_tilde
-      - name: Upload binaries
-        uses: actions/upload-artifact@v2
+          # FIXME: lib exclusion shouldn't be necessary. check CMakeLists
+          Get-ChildItem -Path build/frontend/puredata/nn_tilde/Release -Exclude *.lib | Copy-Item -Destination nn_tilde
+
+      - name: Upload Binaries
+        uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde
-          path: |
-            nn_max_msp_windows_x64.tar.gz
-            nn_puredata_windows_x64.tar.gz
+          name: nn_tilde-windows_amd64_${{ matrix.cuda }}
+          path: nn_tilde
 
   AutomaticRelease:
     runs-on: ubuntu-latest
-    needs: [osx-arm64-build, osx-x64-build, windows-x64-build]
+    needs: [macos-arm64-build, macos-amd64-build, windows-amd64-build, linux-cpu-builds, linux-amd64-cuda-build]
+    permissions:
+      contents: write
+      actions: read
     steps:
-      - name: Download build binaries
-        uses: actions/download-artifact@v2
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: nn_tilde
-      - name: Automated Release
-        uses: "marvinpinto/action-automatic-releases@latest"
+          path: artifacts
+
+      - name: Prepare release packages
+        run: |
+          cd artifacts
+          zip -r ../nn_tilde-macos_arm64.zip nn_tilde-macos_arm64
+          zip -r ../nn_tilde-macos_amd64.zip nn_tilde-macos_amd64
+          zip -r ../nn_tilde-windows_amd64_cuda.zip nn_tilde-windows_amd64_cuda
+          zip -r ../nn_tilde-linux_amd64_cuda.zip nn_tilde-linux_amd64_cuda
+          zip -r ../nn_tilde-windows_amd64_cpu.zip nn_tilde-windows_amd64_cpu
+          zip -r ../nn_tilde-linux_amd64_cpu.zip nn_tilde-linux_amd64_cpu
+          zip -r ../nn_tilde-linux_arm64_cpu.zip nn_tilde-linux_arm64_cpu
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
+          prerelease: true
+          draft: true
           files: |
-            nn_max_msp_macOS_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
-            nn_max_msp_macOS_arm64.tar.gz
-            nn_puredata_macOS_arm64.tar.gz
-            nn_max_msp_windows_x64.tar.gz
-            nn_puredata_windows_x64.tar.gz
+            nn_tilde-macos_arm64.zip
+            nn_tilde-macos_amd64.zip
+            nn_tilde-windows_amd64_cuda.zip
+            nn_tilde-linux_amd64_cuda.zip
+            nn_tilde-windows_amd64_cpu.zip
+            nn_tilde-linux_amd64_cpu.zip
+            nn_tilde-linux_arm64_cpu.zip
+
+  deken_check_and_upload:
+    runs-on: ubuntu-latest
+    needs: [AutomaticRelease]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: nn_tilde-src
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-macos_arm64
+          path: nn_tilde-macos_arm64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-macos_amd64
+          path: nn_tilde-macos_amd64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-windows_amd64_cuda
+          path: nn_tilde-windows_amd64_cuda
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-linux_amd64_cuda
+          path: nn_tilde-linux_amd64_cuda
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-windows_amd64_cpu
+          path: nn_tilde-windows_amd64_cpu
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-linux_amd64_cpu
+          path: nn_tilde-linux_amd64_cpu
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde-linux_arm64_cpu
+          path: nn_tilde-linux_arm64_cpu
+
+      - name: Check Deken Package
+        shell: bash
+        run: |
+          SHORT=${GITHUB_REF:11}
+          SLUG=${SHORT//\//_}
+         
+          # CPU versions
+          for os in macos_arm64 macos_amd64 windows_amd64_cpu linux_amd64_cpu linux_arm64_cpu; do
+            echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
+            mkdir -p package-${os}
+            docker run --rm --user $(id -u) \
+              --volume ./nn_tilde-${os}:/nn~ \
+              --volume ./package-${os}:/package \
+              registry.git.iem.at/pd/deken \
+              deken package --output-dir /package -v "${SLUG}" /nn~
+
+            dek_files=$(ls package-${os}/*.dek)
+            for dek_file in $dek_files; do
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+              unzip -l "$dek_file" | tee -a $GITHUB_STEP_SUMMARY
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            done
+          done
+
+          # CUDA versions
+          for os in windows_amd64_cuda linux_amd64_cuda; do
+            echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
+            mkdir -p package-${os}
+            docker run --rm --user $(id -u) \
+              --volume ./nn_tilde-${os}:/nn~ \
+              --volume ./package-${os}:/package \
+              registry.git.iem.at/pd/deken \
+              deken package --output-dir /package -v "${SLUG}-cuda" /nn~
+ 
+            dek_files=$(ls package-${os}/*.dek)
+            for dek_file in $dek_files; do
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+              unzip -l "$dek_file" | tee -a $GITHUB_STEP_SUMMARY
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            done
+          done
+
+      - name: Upload to Deken
+        if: ${{ !contains(github.ref, 'test') }}
+        shell: bash
+        env:
+          DEKEN_USERNAME: ${{ secrets.DEKEN_USERNAME }}
+          DEKEN_PASSWORD: ${{ secrets.DEKEN_PASSWORD }}
+        run: |
+          SHORT=${GITHUB_REF:11}
+          SLUG=${SHORT//\//_}
+          
+          # CPU versions
+          for os in macos_arm64 macos_amd64 windows_amd64_cpu linux_amd64_cpu linux_arm64_cpu; do
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+              --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
+              deken upload -v "${SLUG}" --name "nn~" --no-source-error /nn~
+          done
+
+          # CUDA versions
+          for os in windows_amd64_cuda linux_amd64_cuda; do
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+              --volume ./nn_tilde-${os}:/nn~ registry.git.iem.at/pd/deken \
+              deken upload -v "${SLUG}-cuda" --name "nn~" --no-source-error /nn~
+          done
+
+          # Source upload
+          docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+            --volume ./nn_tilde-src:/nn~ registry.git.iem.at/pd/deken \
+            deken upload -v "${SLUG}" --name "nn~" /nn~

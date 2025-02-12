@@ -1,10 +1,13 @@
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 project(nn_tilde)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if (APPLE)
-    set(CMAKE_CXX_FLAGS "-faligned-allocation")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -faligned-allocation -stdlib=libc++")
     if (CMAKE_OSX_ARCHITECTURES STREQUAL "")
         set(CMAKE_OSX_ARCHITECTURES ${CMAKE_HOST_SYSTEM_PROCESSOR})
     endif()
@@ -17,8 +20,8 @@ if ((NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
     add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
 endif()
 
-if(APPLE OR MSVC)
-    add_subdirectory(frontend/maxmsp/nn_tilde) # MAX MSP EXTERNAL
-    add_subdirectory(frontend/maxmsp/mc.nn_tilde) # MAX MSP EXTERNAL
-    add_subdirectory(frontend/maxmsp/mcs.nn_tilde) # MAX MSP EXTERNAL
-endif()
+# if(APPLE OR MSVC)
+#     add_subdirectory(frontend/maxmsp/nn_tilde) # MAX MSP EXTERNAL
+#     add_subdirectory(frontend/maxmsp/mc.nn_tilde) # MAX MSP EXTERNAL
+#     add_subdirectory(frontend/maxmsp/mcs.nn_tilde) # MAX MSP EXTERNAL
+# endif()
