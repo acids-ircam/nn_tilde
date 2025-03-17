@@ -1,5 +1,7 @@
 #include "../../../backend/backend.h"
-#include "../shared/circular_buffer.h"
+#include "../../../shared/circular_buffer.h"
+#include "../../../shared/static_buffer.h"
+#include "../shared/buffer_tools.h"
 #include "c74_min.h"
 #include <chrono>
 #include <semaphore>
@@ -23,14 +25,22 @@ unsigned power_ceil(unsigned x) {
   return power;
 }
 
+
 class nn : public object<nn>, public vector_operator<> {
 public:
   MIN_DESCRIPTION{"Interface for deep learning models"};
   MIN_TAGS{"audio, deep learning, ai"};
   MIN_AUTHOR{"Antoine Caillon & Axel Chemla--Romeu-Santos"};
 
+  using MaxBufferList = std::map<std::string, StaticBuffer<float>>;
+
   nn(const atoms &args = {});
   ~nn();
+  // int bind_buffer_attribute(std::string &element, buffer_reference* bufferRef);
+  // int unbind_buffer_attribute(std::string &element, buffer_reference* bufferRef);
+  // int modify_buffer_attribute(std::string &element, buffer_reference* bufferRef);
+  // StaticBuffer<float> static_buffer_from_name(std::string buffer_name);
+  // void link_attribute_to_buffer(std::string buffer_name, symbol target_max_buffer);
 
   // INLETS OUTLETS
   std::vector<std::unique_ptr<inlet<>>> m_inlets;
@@ -44,6 +54,10 @@ public:
   bool has_settable_attribute(std::string attribute);
   c74::min::path m_path;
   int m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_higher_ratio;
+  bool is_valid_print_key(std::string string);
+
+  // BUFFER ATTRIBUTES MANAGER
+  BufferManager m_buffer_manager;
 
   // BUFFER RELATED MEMBERS
   int m_buffer_size;
@@ -58,6 +72,10 @@ public:
 
   void operator()(audio_bundle input, audio_bundle output);
   void perform(audio_bundle input, audio_bundle output);
+
+  // HELPERS
+  void print_to_cout(std::string &message);
+  void print_to_cerr(std::string &message);
 
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
@@ -82,6 +100,20 @@ public:
                         return args;
                       }}};
 
+  // TRACK BUFFER ATTRIBUTE
+  attribute<bool> track_buffers{this, 
+                                "track_buffers", 
+                                false, 
+                                description{"tracks buffer change for buffer attributes"}, 
+                                setter{
+                                  MIN_FUNCTION{
+                                    bool enable_buffer_tracking = args[0];
+                                    if (m_is_backend_init) {
+                                      this->m_buffer_manager.set_buffer_tracking(enable_buffer_tracking);
+                                    }
+                                    return args;
+                                  }}};
+
   // BOOT STAMP
   message<> maxclass_setup{
       this, "maxclass_setup",
@@ -90,6 +122,33 @@ public:
              << " - 2023 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
         cout << "visit https://caillonantoine.github.io" << endl;
         return {};
+      }};
+
+  message<> print {
+    this, "print", 
+    MIN_FUNCTION {
+      bool is_valid = is_valid_print_key(args[0]);
+      if (!is_valid) {
+        return {};
+      }
+      if (args[1] == "cout") {
+        cout << args[2] << endl;
+      } else if (args[1] == "cerr") {
+        cerr << args[2] << endl;
+      }
+      return {};
+    }
+  };
+
+  message<> buffer_notify{
+      this, "notify",
+        MIN_FUNCTION {
+          return buffer_reference::handle_notification<BufferManager::iterator>(
+            this, 
+            args, 
+            m_buffer_manager.begin(), 
+            m_buffer_manager.end()
+          );
       }};
 
   message<> anything{
@@ -114,8 +173,12 @@ public:
           }
           attribute_name = args[1];
           if (m_model->has_settable_attribute(attribute_name)) {
-            cout << attribute_name << ": "
+            try {
+              cout << attribute_name << ": "
                  << m_model->get_attribute_as_string(attribute_name) << endl;
+            } catch (std::string& e) {
+              cout << e << endl; 
+            }
           } else {
             cerr << "no attribute " << attribute_name << " found in model"
                  << endl;
@@ -130,12 +193,17 @@ public:
           }
           attribute_name = args[1];
           std::vector<std::string> attribute_args;
+
+          MaxBufferList buffers;
           if (has_settable_attribute(attribute_name)) {
+
             for (int i = 2; i < args.size(); i++) {
+              // get if argument is buffer
               attribute_args.push_back(args[i]);
+              m_buffer_manager.append_if_buffer_element(m_model.get(), buffers, args[i], attribute_name, i - 2);
             }
             try {
-              m_model->set_attribute(attribute_name, attribute_args);
+              m_model->set_attribute(attribute_name, attribute_args, buffers);
             } catch (std::string message) {
               cerr << message << endl;
             }
@@ -180,6 +248,13 @@ void model_perform_loop(nn *nn_instance) {
   }
 }
 
+bool nn::is_valid_print_key(std::string id_string) {
+  if (id_string == m_buffer_manager.string_id()) {
+    return true;
+  }
+  return false;
+}
+
 nn::nn(const atoms &args)
     : m_compute_thread(nullptr), m_in_dim(1), m_in_ratio(1), m_out_dim(1),
       m_out_ratio(1), m_buffer_size(4096), m_method("forward"),
@@ -207,16 +282,18 @@ nn::nn(const atoms &args)
   }
 
   // TRY TO LOAD MODEL
-  if (m_model->load(std::string(m_path))) {
+  if (m_model->load(std::string(m_path), samplerate())) {
     cerr << "error during loading" << endl;
     error();
     return;
   }
 
   m_model->use_gpu(gpu);
-
   m_higher_ratio = m_model->get_higher_ratio();
 
+  // INIT BUFFER ATTRIBUTS
+  m_buffer_manager.init_buffer_list(m_model.get(), this);
+  
   // GET MODEL'S METHOD PARAMETERS
   auto params = m_model->get_method_params(m_method);
 
@@ -306,6 +383,7 @@ bool nn::has_settable_attribute(std::string attribute) {
   return false;
 }
 
+
 void fill_with_zero(audio_bundle output) {
   for (int c(0); c < output.channel_count(); c++) {
     auto out = output.samples(c);
@@ -337,6 +415,8 @@ void nn::operator()(audio_bundle input, audio_bundle output) {
 
   perform(input, output);
 }
+
+
 
 void nn::perform(audio_bundle input, audio_bundle output) {
   auto vec_size = input.frame_count();
@@ -379,6 +459,13 @@ void nn::perform(audio_bundle input, audio_bundle output) {
     auto out = output.samples(c);
     m_out_buffer[c].get(out, vec_size);
   }
+}
+
+void nn::print_to_cout(std::string &message) {
+  cout << message << endl;
+}
+void nn::print_to_cerr(std::string &message) {
+  cerr << message << endl;
 }
 
 MIN_EXTERNAL(nn);

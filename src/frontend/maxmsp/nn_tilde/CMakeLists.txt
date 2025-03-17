@@ -1,7 +1,7 @@
 # Copyright 2018 The Min-DevKit Authors. All rights reserved.
 # Use of this source code is governed by the MIT License found in the License.md file.
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
 set(C74_MIN_API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../min-api)
 include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
@@ -16,7 +16,8 @@ endif()
 
 
 include_directories( 
-	"${C74_INCLUDES}"
+	"${C74_INCLUDES}", 
+	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
 )
 find_package(Torch REQUIRED)
 

@@ -2,20 +2,29 @@
 #include <mutex>
 #include <string>
 #include <torch/script.h>
+#include "../shared/static_buffer.h"
 #include <torch/torch.h>
 #include <vector>
 
 class Backend {
+
 protected:
   torch::jit::script::Module m_model;
   int m_loaded;
   std::string m_path;
   std::mutex m_model_mutex;
   std::vector<std::string> m_available_methods;
+  std::vector<std::string> m_buffer_attributes;
   c10::DeviceType m_device;
   bool m_use_gpu;
+  std::vector<std::string> retrieve_buffer_attributes();
+  double m_sr; 
 
 public:
+  using ArgsType = std::vector<c10::IValue>;
+  using KwargsType = std::unordered_map<std::string, c10::IValue>;
+  using BufferMap = std::map<std::string, StaticBuffer<float>>;
+
   Backend();
   void perform(std::vector<float *> in_buffer, std::vector<float *> out_buffer,
                int n_vec, std::string method, int n_batches);
@@ -27,13 +36,30 @@ public:
   std::vector<c10::IValue> get_attribute(std::string attribute_name);
   std::string get_attribute_as_string(std::string attribute_name);
   void set_attribute(std::string attribute_name,
-                     std::vector<std::string> attribute_args);
+                     std::vector<std::string> attribute_args, 
+                     const std::map<std::string, StaticBuffer<float>> &buffer_array);
+
+  // buffer attributes
+  bool is_buffer_element_of_attribute(std::string attribute_name, int attribute_elt_idx);
+  std::string get_buffer_name(std::string attribute_name, int attribute_elt_idx);
+  int update_buffer(std::string buffer_id, StaticBuffer<float> &buffer);
+  int reset_buffer(std::string);
+  template <typename data_type>
+  c10::IValue make_buffer(StaticBuffer<data_type> buffer);
 
   std::vector<int> get_method_params(std::string method);
   int get_higher_ratio();
-  int load(std::string path);
+  int load(std::string path, double sampleRate);
   int reload();
+  void set_sample_rate(double sampleRate);
   bool is_loaded();
   torch::jit::script::Module get_model() { return m_model; }
   void use_gpu(bool value);
+  std::vector<std::string> get_buffer_attributes();
+  
+  ArgsType empty_args() { return ArgsType(); }
+  KwargsType empty_kwargs() { return KwargsType(); }
+  std::pair<ArgsType, KwargsType> empty_inputs() {
+    return std::make_pair(empty_args(), empty_kwargs());
+  } 
 };
