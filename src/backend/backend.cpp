@@ -3,6 +3,7 @@
 #include "parsing_utils.h"
 #include <algorithm>
 #include <iostream>
+#include <exception>
 #include <stdlib.h>
 
 #define CPU torch::kCPU
@@ -159,7 +160,6 @@ std::vector<std::string> Backend::get_available_methods() {
   std::vector<std::string> methods;
   try {
     std::vector<c10::IValue> dumb_input = {};
-
     std::unique_lock<std::mutex> model_lock(m_model_mutex);
     auto methods_from_model =
         m_model.get_method("get_methods")(dumb_input).toList();
@@ -500,4 +500,53 @@ int Backend::update_buffer(std::string buffer_name, StaticBuffer<float> &buffer)
   model_lock.unlock();
   int result = model_out.toInt();
   return result; 
+}
+
+ModelInfo Backend::get_model_info() {
+  if (!m_loaded) {
+    throw "no model loaded; cannot retrieve model information";
+  }
+
+  auto methods = get_available_methods();
+  auto attributes = get_settable_attributes();
+  auto method_dict = ModelInfo::MethodDict();
+  auto attribute_dict = ModelInfo::AttributeDict();
+  std::unique_lock<std::mutex> model_lock(m_model_mutex);
+  model_lock.unlock();
+  try {
+    for (auto method : methods) {
+      auto method_properties = MethodProperties();
+      model_lock.lock();
+      auto setter_params = m_model.attr(method + "_params").toTensor();
+      model_lock.unlock();
+      method_properties.name = method; 
+      method_properties.channels_in = setter_params[0].item().toInt(); 
+      method_properties.ratio_in = setter_params[1].item().toInt(); 
+      method_properties.channels_out = setter_params[2].item().toInt(); 
+      method_properties.ratio_out = setter_params[3].item().toInt(); 
+      method_dict.insert({method, method_properties});
+    }
+    for (auto attribute: attributes) {
+      model_lock.lock();
+      auto attribute_params = m_model.attr(attribute + "_params").toTensor();
+      model_lock.unlock();
+      auto attribute_properties = AttributeProperties();
+      attribute_properties.name = attribute;
+      auto attribute_types = std::vector<std::string>();
+      for (int i = 0; i < attribute_params.size(0); i++) {
+        auto param_idx = attribute_params[i].item().toInt();
+        auto param_str = this->id_to_string_hash.at(param_idx);
+        attribute_types.push_back(param_str);
+      }
+      attribute_properties.attribute_types = attribute_types;
+      attribute_dict.insert({attribute, attribute_properties});
+    }
+    auto model_info = ModelInfo();
+    model_info.method_properties = method_dict;
+    model_info.attribute_properties = attribute_dict;
+    return model_info;
+  } catch (std::exception& e) {
+    model_lock.unlock();
+    throw "error fetching model information for model " + m_path + ". Caught error : " + e.what();
+  }
 }

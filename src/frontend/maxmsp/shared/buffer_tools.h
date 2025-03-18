@@ -242,3 +242,13 @@ void BufferManager::init_buffer_list(Backend *backend, c74::min::object_base* ob
       m_max_buffers.push_back(std::make_unique<c74::min::buffer_reference>(object, get_notification_callback(element, object, backend), false));
     }
 }
+
+
+void fill_with_zero(c74::min::audio_bundle output) {
+  for (int c(0); c < output.channel_count(); c++) {
+    auto out = output.samples(c);
+    for (int i(0); i < output.frame_count(); i++) {
+      out[i] = 0.;
+    }
+  }
+}

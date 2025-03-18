@@ -74,6 +74,7 @@ public:
   void perform(audio_bundle input, audio_bundle output);
 
   // HELPERS
+  void dump_object();
   void print_to_cout(std::string &message);
   void print_to_cerr(std::string &message);
 
@@ -114,13 +115,14 @@ public:
                                     return args;
                                   }}};
 
+
   // BOOT STAMP
   message<> maxclass_setup{
       this, "maxclass_setup",
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
         cout << "nn~ " << VERSION << " - torch " << TORCH_VERSION
              << " - 2023 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
-        cout << "visit https://caillonantoine.github.io" << endl;
+        cout << "visit https://forum.ircam.fr" << endl;
         return {};
       }};
 
@@ -150,6 +152,14 @@ public:
             m_buffer_manager.end()
           );
       }};
+
+  message<> dump_callback{
+      this, "dump", 
+        description{"dumps model information to console"},
+        MIN_FUNCTION {
+          this->dump_object();  
+          return {};
+        }};
 
   message<> anything{
       this, "anything", "callback for attributes",
@@ -347,6 +357,7 @@ nn::nn(const atoms &args)
     m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
   }
 
+
   m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(m_out_dim);
   for (int i(0); i < m_out_dim; i++) {
     std::string output_label = "";
@@ -381,16 +392,6 @@ bool nn::has_settable_attribute(std::string attribute) {
       return true;
   }
   return false;
-}
-
-
-void fill_with_zero(audio_bundle output) {
-  for (int c(0); c < output.channel_count(); c++) {
-    auto out = output.samples(c);
-    for (int i(0); i < output.frame_count(); i++) {
-      out[i] = 0.;
-    }
-  }
 }
 
 void nn::operator()(audio_bundle input, audio_bundle output) {
@@ -460,6 +461,38 @@ void nn::perform(audio_bundle input, audio_bundle output) {
     m_out_buffer[c].get(out, vec_size);
   }
 }
+
+void nn::dump_object() {
+  cout << "model_path: " << std::string(m_path) << endl;
+  cout << "inlets: " << std::to_string(m_inlets.size()) << endl;
+  cout << "outlets: " << std::to_string(m_outlets.size()) << endl;
+  cout << "input ratio: " << std::to_string(m_in_ratio) << endl; 
+  cout << "output ratio: " << std::to_string(m_out_ratio) << endl; 
+  cout << "methods: ";
+  for (auto method: m_model->get_available_methods())
+    cout << method << "; ";
+  cout << endl; 
+  cout << "attributes: ";
+  for (auto attribute: m_model->get_settable_attributes())
+    cout << attribute << "; ";
+  cout << endl;
+}
+
+// void nn::dump_object() {
+//   if (!m_has_dump) {
+//     return;
+//   }
+//   auto dump_outlet = m_outlets[m_outlets.size()].get();
+//   dump_outlet->send(symbol("model_path"), symbol(std::string(m_path)));
+//   dump_outlet->send(symbol("n_inlets"), symbol((int)m_inlets.size()));
+//   dump_outlet->send(symbol("n_outlets"), symbol((int)m_outlets.size()));
+//   dump_outlet->send(symbol("input_ratio"), symbol((int)m_in_ratio));
+//   dump_outlet->send(symbol("output_ratio"), symbol((int)m_out_ratio));
+//   for (auto method: m_model->get_available_methods())
+//     dump_outlet->send(symbol("method"), symbol(method));
+//   for (auto attribute: m_model->get_settable_attributes())
+//     dump_outlet->send(symbol("attribute"), symbol(attribute));
+// }
 
 void nn::print_to_cout(std::string &message) {
   cout << message << endl;

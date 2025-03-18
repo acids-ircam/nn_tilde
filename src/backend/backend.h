@@ -6,6 +6,29 @@
 #include <torch/torch.h>
 #include <vector>
 
+
+
+struct MethodProperties {
+  std::string name = ""; 
+  int channels_in = -1;
+  int channels_out = -1;
+  int ratio_in = -1;
+  int ratio_out = -1;
+};
+
+struct AttributeProperties {
+  std::string name = ""; 
+  std::vector<std::string> attribute_types = {};
+};
+
+struct ModelInfo {
+  using MethodDict = std::unordered_map<std::string, MethodProperties>;
+  using AttributeDict = std::unordered_map<std::string, AttributeProperties>;
+  MethodDict method_properties = {};
+  AttributeDict attribute_properties = {}; 
+};
+
+
 class Backend {
 
 protected:
@@ -62,4 +85,14 @@ public:
   std::pair<ArgsType, KwargsType> empty_inputs() {
     return std::make_pair(empty_args(), empty_kwargs());
   } 
+
+  ModelInfo get_model_info();
+  const std::unordered_map<int, std::string> id_to_string_hash = {
+    {0, "bool"}, 
+    {1, "int"}, 
+    {2, "float"},
+    {3, "string"}, 
+    {4, "tensor"}, 
+    {5, "buffer"} 
+  };
 };

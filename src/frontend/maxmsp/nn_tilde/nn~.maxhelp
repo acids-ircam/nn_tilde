@@ -3,14 +3,14 @@
 		"fileversion" : 1,
 		"appversion" : 		{
 			"major" : 8,
-			"minor" : 2,
-			"revision" : 2,
+			"minor" : 6,
+			"revision" : 5,
 			"architecture" : "x64",
 			"modernui" : 1
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 592.0, 165.0, 733.0, 542.0 ],
+		"rect" : [ 361.0, 234.0, 733.0, 542.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -37,8 +37,7 @@
 		"tags" : "",
 		"style" : "",
 		"subpatcher_template" : "",
-		"showrootpatcherontab" : 0,
-		"showontab" : 0,
+		"showontab" : 1,
 		"assistshowspatchername" : 0,
 		"boxes" : [ 			{
 				"box" : 				{
@@ -50,14 +49,14 @@
 						"fileversion" : 1,
 						"appversion" : 						{
 							"major" : 8,
-							"minor" : 2,
-							"revision" : 2,
+							"minor" : 6,
+							"revision" : 5,
 							"architecture" : "x64",
 							"modernui" : 1
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 592.0, 191.0, 733.0, 516.0 ],
+						"rect" : [ 0.0, 26.0, 733.0, 516.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -108,6 +107,7 @@
 									"numinlets" : 1,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
+									"parameter_enable" : 0,
 									"patching_rect" : [ 512.0, 227.0, 150.0, 22.0 ]
 								}
 
@@ -139,8 +139,8 @@
 									"id" : "obj-24",
 									"maxclass" : "newobj",
 									"numinlets" : 3,
-									"numoutlets" : 3,
-									"outlettype" : [ "multichannelsignal", "multichannelsignal", "multichannelsignal" ],
+									"numoutlets" : 1,
+									"outlettype" : [ "" ],
 									"patching_rect" : [ 353.0, 320.0, 142.0, 22.0 ],
 									"text" : "mcs.nn~ wheel decode 3"
 								}
@@ -260,7 +260,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 3,
 									"numoutlets" : 3,
-									"outlettype" : [ "multichannelsignal", "multichannelsignal", "multichannelsignal" ],
+									"outlettype" : [ "", "", "" ],
 									"patching_rect" : [ 353.0, 264.0, 142.0, 22.0 ],
 									"text" : "mcs.nn~ wheel encode 3"
 								}
@@ -414,7 +414,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 8,
 									"numoutlets" : 1,
-									"outlettype" : [ "multichannelsignal" ],
+									"outlettype" : [ "" ],
 									"patching_rect" : [ 24.0, 320.0, 176.5, 22.0 ],
 									"text" : "mc.nn~ wheel decode"
 								}
@@ -426,7 +426,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 1,
 									"numoutlets" : 8,
-									"outlettype" : [ "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal", "multichannelsignal" ],
+									"outlettype" : [ "", "", "", "", "", "", "", "" ],
 									"patching_rect" : [ 24.0, 264.0, 176.5, 22.0 ],
 									"text" : "mc.nn~ wheel encode"
 								}
@@ -655,8 +655,8 @@
 						"fileversion" : 1,
 						"appversion" : 						{
 							"major" : 8,
-							"minor" : 2,
-							"revision" : 2,
+							"minor" : 6,
+							"revision" : 5,
 							"architecture" : "x64",
 							"modernui" : 1
 						}
@@ -760,6 +760,7 @@
 									"numinlets" : 1,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
+									"parameter_enable" : 0,
 									"patching_rect" : [ 23.0, 175.0, 150.0, 22.0 ]
 								}
 
@@ -865,7 +866,7 @@
  ]
 					}
 ,
-					"patching_rect" : [ 417.0, 32.0, 51.0, 22.0 ],
+					"patching_rect" : [ 506.0, 32.0, 51.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"description" : "",
 						"digest" : "",
@@ -887,8 +888,8 @@
 						"fileversion" : 1,
 						"appversion" : 						{
 							"major" : 8,
-							"minor" : 2,
-							"revision" : 2,
+							"minor" : 6,
+							"revision" : 5,
 							"architecture" : "x64",
 							"modernui" : 1
 						}
@@ -1086,6 +1087,7 @@
 									"numinlets" : 1,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
+									"parameter_enable" : 0,
 									"patching_rect" : [ 21.0, 171.0, 150.0, 22.0 ]
 								}
 
@@ -1262,8 +1264,8 @@
 						"fileversion" : 1,
 						"appversion" : 						{
 							"major" : 8,
-							"minor" : 2,
-							"revision" : 2,
+							"minor" : 6,
+							"revision" : 5,
 							"architecture" : "x64",
 							"modernui" : 1
 						}
@@ -1300,25 +1302,31 @@
 						"assistshowspatchername" : 0,
 						"boxes" : [ 							{
 								"box" : 								{
-									"id" : "obj-28",
-									"linecount" : 6,
+									"bubble" : 1,
+									"bubblepoint" : 0.2,
+									"bubbleside" : 2,
+									"id" : "obj-1",
+									"linecount" : 4,
 									"maxclass" : "comment",
 									"numinlets" : 1,
 									"numoutlets" : 0,
-									"patching_rect" : [ 298.0, 342.0, 150.0, 87.0 ],
-									"text" : "The pretrained model must be somewhere where Max can find it ! Either next to your current patch or somewhere in your custom user paths."
+									"patching_rect" : [ 135.5, 83.0, 194.0, 79.0 ],
+									"presentation_linecount" : 2,
+									"text" : "trick : the enable flag allows you to enable / disable the internal calculation, saving CPU if you're not using the object."
 								}
 
 							}
 , 							{
 								"box" : 								{
-									"id" : "obj-26",
-									"linecount" : 5,
+									"bubble" : 1,
+									"bubbleside" : 0,
+									"id" : "obj-55",
+									"linecount" : 8,
 									"maxclass" : "comment",
 									"numinlets" : 1,
 									"numoutlets" : 0,
-									"patching_rect" : [ 221.0, 95.0, 150.0, 74.0 ],
-									"text" : "For performance purposes, you can enable and disable deep processing using the enable attribute"
+									"patching_rect" : [ 273.0, 250.0, 371.0, 133.0 ],
+									"text" : "nn~ is a wrapper that needs : \n- a pretrained checkpoint (here wheel.ts), exported to be compatible with nn~\n- a method (here forward) that will process its inputs. \n\nHere, wheel is a RAVE model whose forward function takes audio as an input, and processes it through its auto-encoder to re-generate the incoming sound. "
 								}
 
 							}
@@ -1351,7 +1359,7 @@
 									"originaltempo" : 120.0,
 									"outlettype" : [ "signal", "signal", "signal", "", "dictionary" ],
 									"parameter_enable" : 0,
-									"patching_rect" : [ 308.0, 175.0, 150.0, 30.0 ],
+									"patching_rect" : [ 215.0, 171.0, 150.0, 30.0 ],
 									"pitchcorrection" : 0,
 									"quality" : "basic",
 									"timestretch" : [ 0 ]
@@ -1364,7 +1372,7 @@
 									"maxclass" : "newobj",
 									"numinlets" : 2,
 									"numoutlets" : 0,
-									"patching_rect" : [ 308.0, 305.0, 35.0, 22.0 ],
+									"patching_rect" : [ 215.0, 262.0, 35.0, 22.0 ],
 									"text" : "dac~"
 								}
 
@@ -1376,20 +1384,8 @@
 									"numinlets" : 1,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 145.0, 152.0, 70.0, 22.0 ],
+									"patching_rect" : [ 52.0, 140.0, 70.0, 22.0 ],
 									"text" : "loadmess 0"
-								}
-
-							}
-, 							{
-								"box" : 								{
-									"id" : "obj-4",
-									"linecount" : 6,
-									"maxclass" : "comment",
-									"numinlets" : 1,
-									"numoutlets" : 0,
-									"patching_rect" : [ 49.0, 234.0, 246.0, 87.0 ],
-									"text" : "To load a model call [nn~] with the model's name (here we use the wheel model)\n\nTo specify the operation to perform, add its name next to the model's name (here we use the forward operation)"
 								}
 
 							}
@@ -1400,7 +1396,7 @@
 									"numinlets" : 1,
 									"numoutlets" : 1,
 									"outlettype" : [ "signal" ],
-									"patching_rect" : [ 308.0, 227.0, 107.0, 22.0 ],
+									"patching_rect" : [ 215.0, 223.0, 425.0, 22.0 ],
 									"text" : "nn~ wheel forward"
 								}
 
@@ -1413,7 +1409,8 @@
 									"numinlets" : 1,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 145.0, 183.0, 150.0, 22.0 ]
+									"parameter_enable" : 0,
+									"patching_rect" : [ 52.0, 171.0, 150.0, 22.0 ]
 								}
 
 							}
@@ -1421,7 +1418,7 @@
 						"lines" : [ 							{
 								"patchline" : 								{
 									"destination" : [ "obj-8", 0 ],
-									"midpoints" : [ 154.5, 177.0, 154.5, 177.0 ],
+									"midpoints" : [ 61.5, 165.0, 61.5, 165.0 ],
 									"source" : [ "obj-14", 0 ]
 								}
 
@@ -1437,7 +1434,7 @@
 , 							{
 								"patchline" : 								{
 									"destination" : [ "obj-17", 0 ],
-									"midpoints" : [ 317.5, 252.0, 317.5, 252.0 ],
+									"midpoints" : [ 224.5, 248.0, 224.5, 248.0 ],
 									"order" : 1,
 									"source" : [ "obj-2", 0 ]
 								}
@@ -1446,7 +1443,7 @@
 , 							{
 								"patchline" : 								{
 									"destination" : [ "obj-2", 0 ],
-									"midpoints" : [ 317.5, 207.0, 317.5, 207.0 ],
+									"midpoints" : [ 224.5, 203.0, 224.5, 203.0 ],
 									"source" : [ "obj-24", 0 ]
 								}
 
@@ -1454,7 +1451,7 @@
 , 							{
 								"patchline" : 								{
 									"destination" : [ "obj-2", 0 ],
-									"midpoints" : [ 154.5, 219.0, 317.5, 219.0 ],
+									"midpoints" : [ 61.5, 215.0, 224.5, 215.0 ],
 									"source" : [ "obj-8", 0 ]
 								}
 
@@ -1484,8 +1481,8 @@
 						"fileversion" : 1,
 						"appversion" : 						{
 							"major" : 8,
-							"minor" : 2,
-							"revision" : 2,
+							"minor" : 6,
+							"revision" : 5,
 							"architecture" : "x64",
 							"modernui" : 1
 						}
@@ -1564,6 +1561,7 @@
 									"numinlets" : 1,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
+									"parameter_enable" : 0,
 									"patching_rect" : [ 22.0, 76.0, 150.0, 22.0 ]
 								}
 
@@ -1610,8 +1608,8 @@
 						"fileversion" : 1,
 						"appversion" : 						{
 							"major" : 8,
-							"minor" : 2,
-							"revision" : 2,
+							"minor" : 6,
+							"revision" : 5,
 							"architecture" : "x64",
 							"modernui" : 1
 						}
@@ -1648,13 +1646,27 @@
 						"assistshowspatchername" : 0,
 						"boxes" : [ 							{
 								"box" : 								{
+									"fontsize" : 18.0,
+									"id" : "obj-2",
+									"linecount" : 7,
+									"maxclass" : "comment",
+									"numinlets" : 1,
+									"numoutlets" : 0,
+									"patching_rect" : [ 14.0, 97.0, 538.0, 147.0 ],
+									"presentation_linecount" : 15,
+									"text" : "nn~ is a general wrapper to embed generative machine learning in Max & PureData. \n\nIt can be used with compatible pre-trained models such as RAVE, AFTER, or vschaos2. You can also use nn~ to interface your own generators by using the provided Python interface (see documentation for advanced use)."
+								}
+
+							}
+, 							{
+								"box" : 								{
 									"fontsize" : 12.0,
 									"id" : "obj-13",
 									"maxclass" : "comment",
 									"numinlets" : 1,
 									"numoutlets" : 0,
-									"patching_rect" : [ 173.0, 56.0, 285.0, 20.0 ],
-									"text" : "Antoine Caillon - ACIDS - ircam"
+									"patching_rect" : [ 173.0, 56.0, 355.0, 20.0 ],
+									"text" : "Antoine Caillon & Axel Chemla--Romeu-Santos - ACIDS - ircam"
 								}
 
 							}
@@ -1691,7 +1703,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "int" ],
 									"parameter_enable" : 0,
-									"patching_rect" : [ 154.0, 257.0, 43.0, 43.0 ]
+									"patching_rect" : [ 23.0, 346.0, 43.0, 43.0 ]
 								}
 
 							}
@@ -1702,8 +1714,8 @@
 									"maxclass" : "comment",
 									"numinlets" : 1,
 									"numoutlets" : 0,
-									"patching_rect" : [ 232.0, 181.0, 141.0, 141.0 ],
-									"text" : "First time here ? Download a pretrained model by clicking this button ! (~160MB)\n\nOnce downloaded (toggle enabled), re-open this help patch.\n\n"
+									"patching_rect" : [ 101.0, 270.0, 160.0, 141.0 ],
+									"text" : "First time here ? Download a pretrained RAVE model by clicking this button ! (~160MB)\n\nOnce downloaded (toggle enabled), re-open this help patch.\n\n"
 								}
 
 							}
@@ -1718,8 +1730,8 @@
 										"fileversion" : 1,
 										"appversion" : 										{
 											"major" : 8,
-											"minor" : 2,
-											"revision" : 2,
+											"minor" : 6,
+											"revision" : 5,
 											"architecture" : "x64",
 											"modernui" : 1
 										}
@@ -1981,7 +1993,7 @@
  ]
 									}
 ,
-									"patching_rect" : [ 154.0, 230.0, 74.0, 22.0 ],
+									"patching_rect" : [ 23.0, 319.0, 74.0, 22.0 ],
 									"saved_object_attributes" : 									{
 										"description" : "",
 										"digest" : "",
@@ -2001,7 +2013,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "bang" ],
 									"parameter_enable" : 0,
-									"patching_rect" : [ 154.0, 181.0, 43.0, 43.0 ]
+									"patching_rect" : [ 23.0, 270.0, 43.0, 43.0 ]
 								}
 
 							}
@@ -2054,14 +2066,6 @@
 				"bootpath" : "C74:/docs/tutorial-patchers/msp-tut",
 				"type" : "AIFF",
 				"implicit" : 1
-			}
-, 			{
-				"name" : "mc.nn~.mxo",
-				"type" : "iLaX"
-			}
-, 			{
-				"name" : "mcs.nn~.mxo",
-				"type" : "iLaX"
 			}
 , 			{
 				"name" : "morph.256.rom.aif",
