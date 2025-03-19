@@ -10,10 +10,11 @@ public:
   void put(in_type *input_array, int N);
   void get(out_type *output_array, int N);
   void reset();
+  size_t max_size() { return _max_size; } 
 
 protected:
   std::unique_ptr<out_type[]> _buffer;
-  size_t _max_size;
+  size_t _max_size = 0;
 
   int _head = 0;
   int _tail = 0;

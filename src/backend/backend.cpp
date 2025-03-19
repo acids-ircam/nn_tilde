@@ -15,8 +15,8 @@ Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
 }
 
 void Backend::perform(std::vector<float *> in_buffer,
-                      std::vector<float *> out_buffer, int n_vec,
-                      std::string method, int n_batches) {
+                      std::vector<float *> out_buffer, 
+                      int n_vec, std::string method, int n_batches) {
   c10::InferenceMode guard;
 
   auto params = get_method_params(method);
@@ -37,8 +37,12 @@ void Backend::perform(std::vector<float *> in_buffer,
   // COPY BUFFER INTO A TENSOR
   std::vector<at::Tensor> tensor_in;
   // for (auto buf : in_buffer)
-  for (int i(0); i < in_buffer.size(); i++) {
-    tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
+  for (int i(0); i < in_dim; i++) {
+    if (i < in_buffer.size()) {
+      tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
+    } else {
+      tensor_in.push_back(torch::zeros({1, 1, n_vec}));
+    }
     // std::cout << i << " : " << tensor_in[i].min().item<float>() << std::endl;
   }
 
@@ -55,11 +59,12 @@ void Backend::perform(std::vector<float *> in_buffer,
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
   cat_tensor_in = cat_tensor_in.to(m_device);
   std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
+  auto kwargs = empty_kwargs();
 
   // PROCESS TENSOR
   at::Tensor tensor_out;
   try {
-    tensor_out = m_model.get_method(method)(inputs).toTensor();
+    tensor_out = m_model.get_method(method)(inputs, kwargs).toTensor();
     tensor_out = tensor_out.repeat_interleave(out_ratio).reshape(
         {n_batches, out_dim, -1});
   } catch (const std::exception &e) {
@@ -78,11 +83,11 @@ void Backend::perform(std::vector<float *> in_buffer,
   // }
 
   // CHECKS ON TENSOR SHAPE
-  if (out_batches * out_channels != out_buffer.size()) {
-    std::cout << "bad out_buffer size, expected " << out_batches * out_channels
-              << " buffers, got " << out_buffer.size() << "!\n";
-    return;
-  }
+  // if (out_batches * out_channels != out_buffer.size()) {
+  //   std::cout << "bad out_buffer size, expected " << out_batches * out_channels
+  //             << " buffers, got " << out_buffer.size() << "!\n";
+  //   return;
+  // }
 
   if (out_n_vec != n_vec) {
     std::cout << "model output size is not consistent, expected " << n_vec
@@ -91,33 +96,49 @@ void Backend::perform(std::vector<float *> in_buffer,
   }
 
   tensor_out = tensor_out.to(CPU);
-  tensor_out = tensor_out.reshape({out_batches * out_channels, -1});
-  auto out_ptr = tensor_out.contiguous().data_ptr<float>();
+  // tensor_out = tensor_out.reshape({out_batches * out_channels, -1});
 
-  for (int i(0); i < out_buffer.size(); i++) {
-    memcpy(out_buffer[i], out_ptr + i * n_vec, n_vec * sizeof(float));
+  int out_buffer_dim = out_buffer.size() / n_batches;
+  for (int i(0); i < out_buffer_dim; i++) {
+    for (int j(0); j < n_batches; j++) {
+      if (i < tensor_out.size(1)) {
+        auto out_ptr = tensor_out.index({j, i}).contiguous().data_ptr<float>();
+        memcpy(out_buffer[j * out_buffer_dim + i], out_ptr, n_vec * sizeof(float));
+      } else {
+        // put zeros
+        memset(out_buffer[j * out_buffer_dim + i], 0, n_vec *sizeof(float));
+      }
+    }
   }
 }
 
-int Backend::load(std::string path, double sampleRate) {
+int Backend::load(std::string path, double sampleRate, const std::string* target_method) {
   try {
     auto model = torch::jit::load(path);
+    if (target_method != nullptr) {
+      // if target_method is not null, check if loaded model has it
+      auto locked_model = LockedModel(); 
+      locked_model.model = &model;  
+      auto methods = get_available_methods(&locked_model);
+      if (std::find(methods.begin(), methods.end(), *target_method) == methods.end()) {
+        throw "path " + path + "does not contain target method " + (*target_method); 
+      }
+    }
     model.eval();
     model.to(m_device);
 
     std::unique_lock<std::mutex> model_lock(m_model_mutex);
     m_model = model;
-    m_loaded = 1;
     model_lock.unlock();
 
     m_available_methods = get_available_methods();
     m_buffer_attributes = retrieve_buffer_attributes();
     m_path = path;
     set_sample_rate(sampleRate);
+    m_loaded = 1;
     return 0;
   } catch (const std::exception &e) {
-    std::cerr << e.what() << '\n';
-    return 1;
+    throw "problem loading model " + path + ". Exception : " + e.what();
   }
 }
 
@@ -156,23 +177,32 @@ bool Backend::has_settable_attribute(std::string attribute) {
   return false;
 }
 
-std::vector<std::string> Backend::get_available_methods() {
+std::vector<std::string> Backend::get_available_methods(LockedModel *target_model) {
   std::vector<std::string> methods;
+  torch::jit::script::Module *model;
+  std::mutex *mutex; 
+  if (target_model == nullptr) {
+    model = &m_model;
+    mutex = &m_model_mutex;    
+  } else {
+    model = target_model->model;
+    mutex = &target_model->mutex;
+  }
   try {
     std::vector<c10::IValue> dumb_input = {};
-    std::unique_lock<std::mutex> model_lock(m_model_mutex);
+    std::unique_lock<std::mutex> model_lock(*mutex);
     auto methods_from_model =
-        m_model.get_method("get_methods")(dumb_input).toList();
+        model->get_method("get_methods")(dumb_input).toList();
     model_lock.unlock();
 
     for (int i = 0; i < methods_from_model.size(); i++) {
       methods.push_back(methods_from_model.get(i).toStringRef());
     }
   } catch (...) {
-    std::unique_lock<std::mutex> model_lock(m_model_mutex);
-    for (const auto &m : m_model.get_methods()) {
+    std::unique_lock<std::mutex> model_lock(*mutex);
+    for (const auto &m : model->get_methods()) {
       try {
-        auto method_params = m_model.attr(m.name() + "_params");
+        auto method_params = model->attr(m.name() + "_params");
         methods.push_back(m.name());
       } catch (...) {
       }
@@ -199,14 +229,19 @@ std::vector<std::string> Backend::get_settable_attributes() {
         m_model.get_method("get_attributes")(dumb_input).toList();
     model_lock.unlock();
     for (int i = 0; i < methods_from_model.size(); i++) {
-      attributes.push_back(methods_from_model.get(i).toStringRef());
+      auto attr_name = methods_from_model.get(i).toStringRef();
+      if (attr_name != "none") {
+        attributes.push_back(attr_name);
+      }
     }
   } catch (...) {
     std::unique_lock<std::mutex> model_lock(m_model_mutex);
     for (const auto &a : m_model.named_attributes()) {
       try {
         auto method_params = m_model.attr(a.name + "_params");
-        attributes.push_back(a.name);
+        if (a.name != "none") {
+          attributes.push_back(a.name);
+        }
       } catch (...) {
       }
     }

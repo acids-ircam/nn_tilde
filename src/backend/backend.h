@@ -28,12 +28,16 @@ struct ModelInfo {
   AttributeDict attribute_properties = {}; 
 };
 
+struct LockedModel {
+  torch::jit::script::Module* model; 
+  std::mutex mutex;
+};
 
 class Backend {
 
 protected:
   torch::jit::script::Module m_model;
-  int m_loaded;
+  int m_loaded, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio;
   std::string m_path;
   std::mutex m_model_mutex;
   std::vector<std::string> m_available_methods;
@@ -53,7 +57,7 @@ public:
                int n_vec, std::string method, int n_batches);
   bool has_method(std::string method_name);
   bool has_settable_attribute(std::string attribute);
-  std::vector<std::string> get_available_methods();
+  std::vector<std::string> get_available_methods(LockedModel *model = nullptr);
   std::vector<std::string> get_available_attributes();
   std::vector<std::string> get_settable_attributes();
   std::vector<c10::IValue> get_attribute(std::string attribute_name);
@@ -72,7 +76,7 @@ public:
 
   std::vector<int> get_method_params(std::string method);
   int get_higher_ratio();
-  int load(std::string path, double sampleRate);
+  int load(std::string path, double sampleRate, const std::string* target_method = nullptr);
   int reload();
   void set_sample_rate(double sampleRate);
   bool is_loaded();
