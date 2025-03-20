@@ -1,6 +1,7 @@
 #include "../../../backend/backend.h"
 #include "../../../shared/circular_buffer.h"
 #include "../../../shared/static_buffer.h"
+#include "../../../shared/model_download.h"
 #include "../shared/buffer_tools.h"
 #include "c74_min.h"
 #include <chrono>
@@ -90,6 +91,10 @@ public:
   void print_to_cout(std::string &message);
   void print_to_cerr(std::string &message);
 
+  // DOWNLOAD RELATED ATTRIBUTES
+  std::unique_ptr<ModelDownloader> m_downloader;
+  void dump_available_models(); 
+
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
                             "Absolute path to the pretrained model."};
@@ -149,6 +154,8 @@ public:
         cout << args[2] << endl;
       } else if (args[1] == "cerr") {
         cerr << args[2] << endl;
+      } else if (args[1] == "cwarn") {
+        cwarn << args[2] << endl;
       }
       return {};
     }
@@ -172,6 +179,32 @@ public:
           this->dump_object();  
           return {};
         }};
+
+  message <> get_available_models_callback{
+    this, "get_available_models", 
+    description{"print available models to console"}, 
+    MIN_FUNCTION {
+        this->dump_available_models(); 
+        return {};
+    }};
+
+  message <> download_models {
+    this, "download", 
+    description{"download a model from IRCAM Forum API"}, 
+    MIN_FUNCTION {
+      if (args.size() == 0) {
+        cerr << "please provide a model card (print downloadable models with get_available_models messages)" << endl;
+      }
+      std::string model_card = args[0];
+      try {
+        if (this->m_downloader.get()->is_ready())
+          this->m_downloader.get()->download(model_card);
+      } catch (std::string &e) {
+        cerr << e << endl;
+      }
+      return {}; 
+    }
+  };
 
 
   message<> anything{
@@ -251,6 +284,8 @@ public:
 bool nn::is_valid_print_key(std::string id_string) {
   if (id_string == m_buffer_manager.string_id()) {
     return true;
+  } else if (id_string == m_downloader.get()->string_id()) {
+    return true;
   }
   return false;
 }
@@ -300,6 +335,11 @@ nn::nn(const atoms &args)
       m_should_stop_perform_thread(false), m_in_model(), m_out_model() {
 
   m_model = std::make_unique<Backend>();
+  try {
+    m_downloader = std::make_unique<ModelDownloader>(this, std::string("nn~")); 
+  } catch (...) {
+    cwarn << "could not initialise model downloader" << endl;
+  }
   m_is_backend_init = true;
 
   // CHECK ARGUMENTS
@@ -390,11 +430,6 @@ nn::nn(const atoms &args)
   //   m_buffer_size = power_ceil(m_buffer_size);
   // }
 
-  // Calling forward in a thread causes memory leak in windows.
-  // See https://github.com/pytorch/pytorch/issues/24237
-#ifdef _WIN32
-  m_use_thread = false;
-#endif
 
   // CREATE INLETS, OUTLETS and BUFFERS
   // m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(n_inlets);
@@ -436,8 +471,15 @@ nn::nn(const atoms &args)
   if (m_buffer_size == 0) {
     m_use_thread = false;
   }
+  // Calling forward in a thread causes memory leak in windows.
+  // See https://github.com/pytorch/pytorch/issues/24237
+  #ifdef _WIN32
+  m_use_thread = false;
+  #endif
+
   if (m_use_thread)
     m_compute_thread = std::make_unique<std::thread>(model_perform_loop, this);
+
 }
 
 nn::~nn() {
@@ -658,6 +700,17 @@ void nn::print_to_cout(std::string &message) {
 }
 void nn::print_to_cerr(std::string &message) {
   cerr << message << endl;
+}
+
+
+void nn::dump_available_models() {
+  try {
+    if (m_downloader.get()->is_ready()) {
+      m_downloader.get()->print_available_models();
+    }
+  } catch (std::string &e) {
+    cerr << "error from model downloader : " << e << endl;
+  }
 }
 
 MIN_EXTERNAL(nn);

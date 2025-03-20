@@ -18,8 +18,12 @@ endif()
 include_directories( 
 	"${C74_INCLUDES}", 
 	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
+	# "${CURL_INCLUDE_LOCATION}"
 )
+
 find_package(Torch REQUIRED)
+
+# find_package(CURL REQUIRED HINTS ${CURL_LOCATION} PATHS ${CURL_LOCATION})
 
 set(
 SOURCE_FILES
@@ -43,6 +47,17 @@ add_library(
 	${SOURCE_FILES}
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE backend)
+target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
+target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
+
+
+# set(CURL_DYLIB_PATH "${CURL_LOCATION}/libcurl.4.dylib")
+# add_library(curl SHARED IMPORTED)
+# set_target_properties(curl PROPERTIES
+#     IMPORTED_LOCATION "${CURL_LOCATION}/libcurl.4.dylib"
+# )
+# target_link_libraries(${PROJECT_NAME} PRIVATE curl)
+
 
 if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -60,6 +75,13 @@ add_custom_command(
 		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/" 
 		COMMENT "Copy Torch Libraries" 
 	)
+
+# add_custom_command( 
+# 		TARGET ${PROJECT_NAME} 
+# 		POST_BUILD 
+# 		COMMAND cp "${CURL_DYLIB_PATH}" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/"
+# 		COMMENT "Copy libcurl library" 
+# 	)
 
 if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 	add_custom_command( 
