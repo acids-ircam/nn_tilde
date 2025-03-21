@@ -1,4 +1,5 @@
 #include "../../../backend/backend.h"
+#include "../shared/max_model_download.h"
 #include "../shared/buffer_tools.h"
 #include "../shared/dict_utils.h"
 #include "c74_min.h"
@@ -14,21 +15,14 @@
 
 using namespace c74::min;
 
-
-
 class nn_info : public object<nn_info>, public vector_operator<> {
 public:
   MIN_DESCRIPTION{"Interface for deep learning models"};
   MIN_TAGS{"audio, deep learning, ai"};
-  MIN_AUTHOR{"Antoine Caillon & Axel Chemla--Romeu-Santos"};
+  MIN_AUTHOR{"Axel Chemla--Romeu-Santos"};
 
   nn_info(const atoms &args = {});
   ~nn_info();
-  // int bind_buffer_attribute(std::string &element, buffer_reference* bufferRef);
-  // int unbind_buffer_attribute(std::string &element, buffer_reference* bufferRef);
-  // int modify_buffer_attribute(std::string &element, buffer_reference* bufferRef);
-  // StaticBuffer<float> static_buffer_from_name(std::string buffer_name);
-  // void link_attribute_to_buffer(std::string buffer_name, symbol target_max_buffer);
 
   // INLETS OUTLETS
   std::vector<std::unique_ptr<inlet<>>> m_inlets;
@@ -39,6 +33,9 @@ public:
   std::string m_path;
   bool has_model = false;
   std::unique_ptr<dict> m_model_dict;
+  std::unique_ptr<dict> m_available_models_dict;
+  std::unique_ptr<MaxModelDownloader> m_downloader;
+  bool is_valid_print_key(std::string string);
 
   // ONLY FOR DOCUMENTATION
   argument<symbol> path_arg{this, "model path",
@@ -52,6 +49,7 @@ public:
   void dump_parameters(const std::string& method);
   void dump_dictionary();
   void dump_object();
+  void dump_downloadable_models(); 
   void scan_model(const path path);
   void update_dictionary(); 
   void bind_dictionary(const std::string &dict_name);
@@ -79,6 +77,25 @@ public:
     }}
   };
 
+
+  message<> print {
+    this, "print", 
+    MIN_FUNCTION {
+      bool is_valid = is_valid_print_key(args[0]);
+      if (!is_valid) {
+        return {};
+      }
+      if (args[1] == "cout") {
+        cout << args[2] << endl;
+      } else if (args[1] == "cerr") {
+        cerr << args[2] << endl;
+      } else if (args[1] == "cwarn") {
+        cwarn << args[2] << endl;
+      }
+      return {};
+    }
+  };
+
   // MESSAGES
   message<> dump_callback{
       this, "dump", 
@@ -100,7 +117,7 @@ public:
           return {};
         }};
 
-  message<> get_path_callback{
+  message<> get_path_callback {
     this, "path", 
       description{"dumps current model path"},
       MIN_FUNCTION {
@@ -147,7 +164,50 @@ public:
     }
   };
 
+  message<> get_models_callback {
+    this, "get_available_models", 
+    description{"dump available models as a dictionary, with additional informations"}, 
+    MIN_FUNCTION{
+      this->dump_downloadable_models();
+      return {};
+    }
+  };
+
+  message <> download_models {
+    this, "download", 
+    description{"download a model from IRCAM Forum API"}, 
+    MIN_FUNCTION {
+      if (args.size() == 0) {
+        cerr << "please provide a model card (print downloadable models with get_available_models messages)" << endl;
+      }
+      std::string model_card = args[0];
+      try {
+        if (this->m_downloader.get()->is_ready())
+          this->m_downloader.get()->download(model_card);
+      } catch (std::string &e) {
+        cerr << e << endl;
+      }
+      return {}; 
+    }};
+
+  message <> delete_models {
+    this, "delete", 
+    description{"delete a model downloaded from IRCAM Forum API"}, 
+    MIN_FUNCTION {
+      if (args.size() == 0) {
+        cerr << "please provide a model to delete" << endl;
+      }
+      std::string model_card = args[0];
+      try {
+        if (this->m_downloader.get()->is_ready())
+          this->m_downloader.get()->remove(model_card);
+      } catch (std::string &e) {
+        cerr << e << endl;
+      }
+      return {}; 
+    }};
 };
+
 
 nn_info::nn_info(const atoms &args)
 {
@@ -169,6 +229,9 @@ nn_info::nn_info(const atoms &args)
   m_outlets.push_back(
     std::make_unique<outlet<>>(this, "dict output", "dictionary")
   );
+  m_outlets.push_back(
+    std::make_unique<outlet<>>(this, "available models for download", "dictionary")
+  );
 
   // import informations from model
   if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
@@ -181,10 +244,23 @@ nn_info::nn_info(const atoms &args)
     } catch (std::string& errorstr) {
       cerr << errorstr << endl; 
       error();
-      return;
     }
   }
+
+  try {
+    m_downloader = std::make_unique<MaxModelDownloader>(this, std::string("nn.info")); 
+  } catch (...) {
+    cwarn << "could not initialise model downloader" << endl;
+  }
 }
+
+bool nn_info::is_valid_print_key(std::string id_string) {
+  if (id_string == m_downloader.get()->string_id()) {
+    return true;
+  }
+  return false;
+}
+
 
 void nn_info::update_dictionary() {
   if ((m_model_dict.get() == nullptr) || (!has_model)) {
@@ -317,6 +393,22 @@ void nn_info::dump_dictionary() {
   }
 }
 
+void nn_info::dump_downloadable_models() {
+  auto outlet = m_outlets[5].get(); 
+  if (m_available_models_dict.get() == nullptr) {
+    m_available_models_dict = std::make_unique<dict>(symbol(true));
+  }   
+  try {
+    if (m_downloader.get()->is_ready()) {
+      m_downloader.get()->fill_dict(m_available_models_dict.get());
+      outlet->send({"dictionary", symbol(m_available_models_dict.get()->name())});
+    }
+  } catch (std::string& e) {
+    cerr << "could not get models from api" << endl;
+    cerr << "reason : " << e << endl;
+  }
+}
+
 void nn_info::dump_object() {
   if (!has_model) {
     cerr << "please set a model before" << endl; 
@@ -327,6 +419,7 @@ void nn_info::dump_object() {
     this->dump_parameters({pair.first});
   }
   this->dump_dictionary(); 
+  this->dump_downloadable_models(); 
 }
 
 nn_info::~nn_info() {

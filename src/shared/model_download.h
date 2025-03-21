@@ -5,16 +5,12 @@
 #include <string>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
-#include "c74_min.h"
 #include <thread>
 
 #ifndef MAX_DOWNLOADS
 #define MAX_DOWNLOADS 2
 #endif
 
-
-namespace max = c74::max;
-namespace min = c74::min;
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 using DownloadTask = std::function<void()>;
@@ -43,7 +39,8 @@ bool is_file_empty(const fs::path filePath) {
 
 
 class ModelDownloader {
-    c74::min::object_base* d_parent;
+
+protected:
     fs::path d_path;
     bool _is_ready = false;
     static bool create_path(const fs::path& path);
@@ -62,9 +59,8 @@ class ModelDownloader {
 
 
 public: 
-    ModelDownloader(c74::min::object_base* obj);
-    ModelDownloader(c74::min::object_base* obj, std::string external_name); 
-    ModelDownloader(c74::min::object_base* obj, fs::path download_location); 
+    ModelDownloader() = default; 
+    ModelDownloader(fs::path download_location); 
     ~ModelDownloader(); 
     int init_downloader(bool force_refresh = false);
     void init_threads();
@@ -74,38 +70,24 @@ public:
     std::vector<std::string> get_available_models(); 
     int get_free_download_slot();
     void download(const std::string &model_name); 
+    void remove(const std::string &model_name); 
     void enqueue_download_task(DownloadTask task);
     void print_available_models();
     fs::path target_path_from_model(std::string model_name);
-    void print_to_parent(const std::string& message, const std::string& canal = "cout");
     void reload();
     void worker(); 
 
+    virtual void fill_dict(void* dict_to_fill) = 0;
+    virtual void print_to_parent(const std::string &message, const std::string &canal) = 0;
+
     std::string string_id() {
-    std::stringstream str_id; 
-    str_id << this; 
-    return str_id.str();
+        std::stringstream str_id; 
+        str_id << this; 
+        return str_id.str();
     }
 };
 
-
-ModelDownloader::ModelDownloader(c74::min::object_base* obj): d_parent(obj) {
-    // d_path = d_path / ".." / "nn_tilde" / "models";
-    min::path path = min::path("nn~", min::path::filetype::external); 
-    if (path) {
-        d_path = fs::absolute(fs::path(path) / "..");
-    }
-}
-
-ModelDownloader::ModelDownloader(c74::min::object_base* obj, std::string external_name): d_parent(obj) {
-    min::path path = min::path(external_name, min::path::filetype::external);
-    if (path) {
-        d_path = fs::absolute(fs::path(path) / "..");
-    }
-}
-
-ModelDownloader::ModelDownloader(c74::min::object_base* obj, fs::path download_location): d_path(download_location), d_parent(obj) {
-}
+ModelDownloader::ModelDownloader(fs::path download_location): d_path(download_location) {}
 
 ModelDownloader::~ModelDownloader() {
     {
@@ -253,11 +235,26 @@ fs::path ModelDownloader::target_path_from_model(std::string model_name) {
     return d_path / (model_name + ".ts");
 }
 
+std::string lock_path_from_target(std::string target_path, std::string model_name) {
+    fs::path target_path_fs = target_path;
+    auto lock_name = (std::string(".") + model_name + "_lock");
+    std::string lock_path = fs::absolute(target_path_fs.parent_path() / lock_name); 
+    return lock_path;
+}
+
 void download_thread(ModelDownloader *parent, std::string model_name, std::string target_path, int dl_idx)
 {
     parent->print_to_parent("downloading model " + model_name + "...", "cwarn");
 
-    // start download
+    // create lock file, to not download two times the same model
+    std::string lock_path = lock_path_from_target(target_path, model_name);
+    FILE* lock_file = fopen(lock_path.c_str(), "w");
+    fputc('l', lock_file);
+    if (!lock_file) {
+        parent->print_to_parent(std::string("could not open file for writing : ") + target_path, "cerr"); 
+        return;
+    }
+
     try {
         CURL* curl;
         FILE* file;
@@ -270,6 +267,8 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
             if (!file) {
                 curl_easy_cleanup(curl);
                 parent->print_to_parent(std::string("could not open file for writing : ") + target_path, "cerr"); 
+                fclose(lock_file);
+                fs::remove(lock_path);
                 return;
             }
 
@@ -282,6 +281,8 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
             if (res != CURLE_OK) {
                 parent->print_to_parent("error during download : " + std::string(curl_easy_strerror(res)), "cerr");
                 fclose(file);
+                fclose(lock_file);
+                fs::remove(lock_path);
                 curl_easy_cleanup(curl);
                 return;
             } 
@@ -295,13 +296,27 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
             } else {
                 parent->print_to_parent("model " + model_name + " downloaded!", "cwarn");
             }
+            fclose(lock_file);
+            fs::remove(lock_path);
             return; 
         }
     } catch (...) {
         parent->print_to_parent("failed to download  " + model_name, "cerr");
+        fclose(lock_file);
+        fs::remove(lock_path);
         return ; 
     }
     
+}
+
+void ModelDownloader::remove(const std::string &model_name) {
+    auto target_path = target_path_from_model(model_name);
+    if (fs::exists(target_path)) {
+        fs::remove(target_path);
+        print_to_parent("model " + model_name + " deleted.", "cwarn");
+    } else {
+        print_to_parent("could not find model " + model_name , "cerr");
+    }
 }
 
 void ModelDownloader::download(const std::string &model_name) {
@@ -320,12 +335,10 @@ void ModelDownloader::download(const std::string &model_name) {
             fs::remove(target_path);
         }
     }
+    if (fs::exists(lock_path_from_target(target_path, model_name))) {
+        print_to_parent("model " + model_name + " is already downloading.", "cwarn");
+        return; 
+    }
     int download_id = d_threads.size();
     enqueue_download_task([this, model_name, target_path, download_id]() { download_thread(this, model_name, target_path, download_id); });
-}
-
-void ModelDownloader::print_to_parent(const std::string &message, const std::string &canal) {
-    std::string method = "print";
-    min::atoms args = {string_id(), canal, message};
-    d_parent->try_call(method, args);
 }

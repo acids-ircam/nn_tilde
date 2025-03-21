@@ -18,6 +18,7 @@ endif()
 include_directories( 
 	"${C74_INCLUDES}", 
 	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared",
 )
 find_package(Torch REQUIRED)
 
@@ -43,6 +44,11 @@ add_library(
 	${SOURCE_FILES}
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE backend)
+target_link_libraries(${PROJECT_NAME} PRIVATE backend)
+target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
+target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
+
+
 
 if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
 set_target_properties(${PROJECT_NAME} PROPERTIES

@@ -18,6 +18,8 @@ endif()
 include_directories( 
 	"${C74_INCLUDES}", 
 	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared",
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../../shared",
 	# "${CURL_INCLUDE_LOCATION}"
 )
 
@@ -50,47 +52,38 @@ target_link_libraries(${PROJECT_NAME} PRIVATE backend)
 target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
 target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 
-
-# set(CURL_DYLIB_PATH "${CURL_LOCATION}/libcurl.4.dylib")
-# add_library(curl SHARED IMPORTED)
-# set_target_properties(curl PROPERTIES
-#     IMPORTED_LOCATION "${CURL_LOCATION}/libcurl.4.dylib"
-# )
-# target_link_libraries(${PROJECT_NAME} PRIVATE curl)
-
-
 if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
-set_target_properties(${PROJECT_NAME} PROPERTIES
-BUILD_WITH_INSTALL_RPATH FALSE
-LINK_FLAGS "-Wl,-rpath,@loader_path/"
-)
+	set_target_properties(${PROJECT_NAME} PROPERTIES
+	BUILD_WITH_INSTALL_RPATH FALSE
+	LINK_FLAGS "-Wl,-rpath,@loader_path/"
+	)
 endif()
 
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
 
 if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
-add_custom_command( 
-		TARGET ${PROJECT_NAME} 
-		POST_BUILD 
-		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/" 
-		COMMENT "Copy Torch Libraries" 
-	)
-
-# add_custom_command( 
-# 		TARGET ${PROJECT_NAME} 
-# 		POST_BUILD 
-# 		COMMAND cp "${CURL_DYLIB_PATH}" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/"
-# 		COMMENT "Copy libcurl library" 
-# 	)
-
-if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 	add_custom_command( 
-		TARGET ${PROJECT_NAME} 
-		POST_BUILD 
-		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo"
-		COMMENT "Codesign external" 
-	)
-endif()
+			TARGET ${PROJECT_NAME} 
+			POST_BUILD 
+			COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/" 
+			COMMENT "Copy Torch Libraries" 
+		)
+
+	# add_custom_command( 
+	# 		TARGET ${PROJECT_NAME} 
+	# 		POST_BUILD 
+	# 		COMMAND cp "${CURL_DYLIB_PATH}" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/"
+	# 		COMMENT "Copy libcurl library" 
+	# 	)
+
+	if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+		add_custom_command( 
+			TARGET ${PROJECT_NAME} 
+			POST_BUILD 
+			COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo"
+			COMMENT "Codesign external" 
+		)
+	endif()
 endif()
 
 if (MSVC) # COPY TORCH DLL IN THE LOADER FOLDER

@@ -1,5 +1,6 @@
 #pragma once
 #include "c74_min.h"
+#include <nlohmann/json.hpp>
 #include "../../../backend/backend.h"
 
 namespace nn_tools {
@@ -11,7 +12,6 @@ namespace nn_tools {
         auto parsed_value  = reinterpret_cast<max::t_object*>(value);
         max::dictionary_appenddictionary(d, key, parsed_value);
     }
-
 
     min::dict dict_from_model_info(const ModelInfo & info) {
         auto str = std::stringstream();
@@ -50,6 +50,48 @@ namespace nn_tools {
         append_to_dictionary(new_dict, min::symbol("attributes"), attribute_dict);
         auto out_dict = min::dict(new_dict);
         return out_dict;
+    }
+    
+    void json_walk(max::t_dictionary* dict, nlohmann::json json) {
+        for (auto& el : json.items()) {
+            // std::cout << "key: " << el.key() << ", value:" << el.value() << '\n';
+            min::symbol key = el.key(); 
+            auto val = el.value();
+            if (val.is_null()) {
+            } else if ((json.is_boolean())||(json.is_number_integer())||(json.is_number_unsigned())) {
+                max::dictionary_appendlong(dict, key, val.get<long>());
+            } else if (val.is_number_float()) {
+                max::dictionary_appendfloat(dict, key, val.get<float>());
+            } else if (val.is_string()) {
+                max::dictionary_appendsym(dict, key, min::symbol(val.get<std::string>())); 
+            } else if (val.is_array()) {
+                std::vector<min::atom> atoms; 
+                for (const auto& v: val){
+                    if ((v.is_boolean())||(v.is_number_integer())||(v.is_number_unsigned())) {
+                        atoms.emplace_back(v.get<long>());
+                    } else if (v.is_number_float()) {
+                        atoms.emplace_back(v.get<float>());
+                    } else if (v.is_string()) {
+                        atoms.emplace_back(v.get<std::string>());
+                    }
+                }
+                max::dictionary_appendatoms(dict, key, atoms.size(), atoms.data());
+            } else if (val.is_object()) {
+                auto sub_dict = max::dictionary_new();
+                json_walk(sub_dict, val);
+                append_to_dictionary(dict, key, sub_dict);
+            } else {
+                std::cerr << "Unknown type" << std::endl;
+            }
+        }
+                
+    }
+
+    void fill_dict_with_json(min::dict* dict_to_fill, nlohmann::json json) {
+        auto global_dict = max::dictionary_new();
+        json_walk(global_dict, json);
+        auto min_dict = min::dict(global_dict);
+        dict_to_fill->copyunique(min_dict);
     }
 }
 
