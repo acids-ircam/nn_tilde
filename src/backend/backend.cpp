@@ -37,7 +37,7 @@ void Backend::perform(std::vector<float *> in_buffer,
   // COPY BUFFER INTO A TENSOR
   std::vector<at::Tensor> tensor_in;
   // for (auto buf : in_buffer)
-  for (int i(0); i < in_dim; i++) {
+  for (int i(0); i < in_dim * n_batches; i++) {
     if (i < in_buffer.size()) {
       tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
     } else {
