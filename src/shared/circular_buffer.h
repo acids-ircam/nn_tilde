@@ -28,6 +28,8 @@ circular_buffer<in_type, out_type>::circular_buffer() {}
 template <class in_type, class out_type>
 void circular_buffer<in_type, out_type>::initialize(size_t size) {
   _buffer = std::make_unique<out_type[]>(size);
+  auto zero_val = static_cast<out_type>(0.0f);
+  std::fill(_buffer.get(), _buffer.get() + size, zero_val);
   _max_size = size;
 }
 

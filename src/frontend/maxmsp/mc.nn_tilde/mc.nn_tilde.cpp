@@ -145,7 +145,7 @@ void mc_nn::init_inlets_and_outlets() {
                         .get(i)
                         .toStringRef();
     } catch (...) {
-      input_label = "(multisignal) model input " + std::to_string(i);
+      input_label = "(multichannel) model input " + std::to_string(i);
     }
     m_inlets.push_back(std::make_unique<inlet<>>(this, input_label, "multichannelsignal"));
   }
@@ -159,7 +159,7 @@ void mc_nn::init_inlets_and_outlets() {
                          .get(i)
                          .toStringRef();
     } catch (...) {
-      output_label = "(multisignal) model output " + std::to_string(i);
+      output_label = "(multichannel) model output " + std::to_string(i);
     }
     m_outlets.push_back(
         std::make_unique<outlet<>>(this, output_label, "multichannelsignal"));
