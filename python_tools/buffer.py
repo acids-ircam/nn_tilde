@@ -28,6 +28,12 @@ class Buffer():
     def from_buffer(self, buffer: "Buffer"):
         return self.set_value(buffer.value, sr = buffer.sr)
 
+    @staticmethod
+    def copy(buffer: "Buffer"):
+        buffer_n = Buffer()
+        buffer_n.from_buffer(buffer)
+        return buffer_n
+
     def set_value(self, x: torch.Tensor, sr: int | float | None = None) -> int:        
         _has_valid_bounds = self.check_bounds(x)
         if not _has_valid_bounds:

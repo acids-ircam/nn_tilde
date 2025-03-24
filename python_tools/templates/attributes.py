@@ -11,7 +11,8 @@ def _get_sig_type(param):
     elif param in [torch.Tensor]:
         return "torch.Tensor"
     elif param in [Buffer]:
-        return "Tuple[torch.Tensor, int]"
+        # return "Tuple[torch.Tensor, int]"
+        return "str"
     else:
         raise TypeError('type %s not known'%type(param))
 
@@ -21,7 +22,7 @@ def get_attribute_setter(attribute_name, attribute_params):
     setter_atoms = []
     for i in range(len(attribute_params)):
         if attribute_params[i] == TYPE_HASH[Buffer]:
-            setter_atoms.append(f'Buffer({attribute_name}{i}[0], sr={attribute_name}{i}[1])')
+            setter_atoms.append(f'Buffer.copy(self.{attribute_name}[{i}])')
         else:
             setter_atoms.append(f"{attribute_name}{i}")
     setter = f"self.{attribute_name} = (" + ", ".join(setter_atoms) + ",)"

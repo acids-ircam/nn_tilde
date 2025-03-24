@@ -33,6 +33,10 @@ struct LockedModel {
   std::mutex mutex;
 };
 
+
+
+
+
 class Backend {
 
 protected:
@@ -45,9 +49,11 @@ protected:
   c10::DeviceType m_device;
   bool m_use_gpu;
   std::vector<std::string> retrieve_buffer_attributes();
+  std::unique_ptr<std::thread> set_attribute_thread; 
   double m_sr; 
 
 public:
+  using DataType = float; 
   using ArgsType = std::vector<c10::IValue>;
   using KwargsType = std::unordered_map<std::string, c10::IValue>;
   using BufferMap = std::map<std::string, StaticBuffer<float>>;
@@ -64,15 +70,14 @@ public:
   std::string get_attribute_as_string(std::string attribute_name);
   void set_attribute(std::string attribute_name,
                      std::vector<std::string> attribute_args, 
-                     const std::map<std::string, StaticBuffer<float>> &buffer_array);
+                     const Backend::BufferMap &buffer_array);
 
   // buffer attributes
   bool is_buffer_element_of_attribute(std::string attribute_name, int attribute_elt_idx);
+  // auto get_buffer_attribtues() { return m_buffer_attributes; }
   std::string get_buffer_name(std::string attribute_name, int attribute_elt_idx);
   int update_buffer(std::string buffer_id, StaticBuffer<float> &buffer);
   int reset_buffer(std::string);
-  template <typename data_type>
-  c10::IValue make_buffer(StaticBuffer<data_type> buffer);
 
   std::vector<int> get_method_params(std::string method);
   int get_higher_ratio();

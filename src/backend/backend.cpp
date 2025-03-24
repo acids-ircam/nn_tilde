@@ -4,11 +4,16 @@
 #include <algorithm>
 #include <iostream>
 #include <exception>
+#include <stdio.h>
 #include <stdlib.h>
 
 #define CPU torch::kCPU
 #define CUDA torch::kCUDA
 #define MPS torch::kMPS
+
+#define REFRESH_THREAD_INTERVAL 50
+
+
 
 Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
   at::init_num_threads();
@@ -76,19 +81,6 @@ void Backend::perform(std::vector<float *> in_buffer,
   int out_batches(tensor_out.size(0)), out_channels(tensor_out.size(1)),
       out_n_vec(tensor_out.size(2));
 
-  // for (int b(0); b < out_batches; b++) {
-  //   for (int c(0); c < out_channels; c++) {
-  //     std::cout << b << ";" << c << ";" << tensor_out[b][c].min().item<float>() << std::endl;
-  //   }
-  // }
-
-  // CHECKS ON TENSOR SHAPE
-  // if (out_batches * out_channels != out_buffer.size()) {
-  //   std::cout << "bad out_buffer size, expected " << out_batches * out_channels
-  //             << " buffers, got " << out_buffer.size() << "!\n";
-  //   return;
-  // }
-
   if (out_n_vec != n_vec) {
     std::cout << "model output size is not consistent, expected " << n_vec
               << " samples, got " << out_n_vec << "!\n";
@@ -96,7 +88,6 @@ void Backend::perform(std::vector<float *> in_buffer,
   }
 
   tensor_out = tensor_out.to(CPU);
-  // tensor_out = tensor_out.reshape({out_batches * out_channels, -1});
 
   int out_buffer_dim = out_buffer.size() / n_batches;
   for (int i(0); i < out_buffer_dim; i++) {
@@ -390,18 +381,13 @@ void Backend::set_attribute(std::string attribute_name,
       // buffer case
       case 5: {
         auto buffer_name = get_buffer_name(attribute_name, i);
+        // std::cout << "setting buffer " << buffer_name << std::endl; 
         if (!buffer_array.contains(buffer_name)) {
           throw std::string("buffer for argument ") + buffer_name + std::string(" not found. Did you initialise it?");
         } else {
           auto buffer = buffer_array.at(buffer_name);
-          // make buffer object
-          auto tensor = 2 * torch::ones_like(buffer.to_tensor()).to(m_device);
-          auto sr = static_cast<int>(buffer.sr());
-          auto buffer_input = c10::ivalue::Tuple::create(tensor, sr);
-          // append buffer to inputs
-          auto min = tensor.min(); 
-          auto max = tensor.max(); 
-          setter_inputs.push_back(buffer_input);
+          update_buffer(buffer_name, buffer); 
+          setter_inputs.push_back(c10::IValue(buffer_name));
         }
         break;
       }
@@ -420,6 +406,10 @@ void Backend::set_attribute(std::string attribute_name,
     if (setter_result != 0) {
       throw "setter returned -1";
     }
+  } catch (std::string &e) {
+    throw "setter for " + attribute_name + " failed : " + e;
+  } catch (std::exception &e) {
+    throw "setter for " + attribute_name + " failed : " + e.what();
   } catch (...) {
     throw "setter for " + attribute_name + " failed";
   }
@@ -481,7 +471,9 @@ std::string Backend::get_buffer_name(std::string attribute_name, int attribute_e
 
 bool Backend::is_buffer_element_of_attribute(std::string attribute_name, int attribute_elt_idx) {
   std::string target_buffer_name = get_buffer_name(attribute_name, attribute_elt_idx);
+  // std::cout << "current registered buffers : " << m_buffer_attributes.size() << std::endl; 
   for (auto buffer_name: m_buffer_attributes) {
+    // std::cout << "target buffer name : " << target_buffer_name << "; compared buffer name : " << buffer_name << std::endl;
     if (buffer_name == target_buffer_name) {
       return true;
     }
@@ -498,6 +490,7 @@ std::vector<std::string> Backend::retrieve_buffer_attributes() {
       auto model_method = m_model.get_method(getter_name);
       auto model_out = model_method(empty_args(), empty_kwargs()).toList().vec();
       for (int i = 0; i < model_out.size(); i++) {
+        // std::cout << "adding " << model_out[i].toStringRef() << " to buffer list" << std::endl; 
         bufferNames.push_back(model_out[i].toStringRef());
       }
       model_lock.unlock();
@@ -526,8 +519,8 @@ int Backend::reset_buffer(std::string buffer_name) {
 int Backend::update_buffer(std::string buffer_name, StaticBuffer<float> &buffer) {
   std::string setter_method = "set_buffer_attribute";
   auto args = empty_args(); auto kwargs = empty_kwargs();
-  auto tensor = buffer.to_tensor(); auto sr = static_cast<int>(buffer.sr());
-  auto tensor_min = tensor.min(); auto tensor_max = tensor.max(); 
+  auto tensor = buffer.to_tensor().to(m_device); auto sr = static_cast<int>(buffer.sr());
+  // auto tensor_min = tensor.min(); auto tensor_max = tensor.max(); 
   auto tensor_size = {tensor.size(0), tensor.size(1)};
   args.push_back(buffer_name); args.push_back(tensor); args.push_back(sr);
   std::unique_lock<std::mutex> model_lock(m_model_mutex);

@@ -45,7 +45,7 @@ template <typename nn_name, typename op_type = vector_operator<>>
 class nn_base : public object<nn_name>, public op_type {
 public:
   
-  using MaxBufferList = std::map<std::string, StaticBuffer<float>>;
+  using BufferList = std::map<std::string, StaticBuffer<float>>;
 
   nn_base(const atoms &args = {});
   ~nn_base<nn_name, op_type>();
@@ -196,7 +196,7 @@ public:
         }};
 
   message <> get_available_models_callback{
-    this, "get_available_models", 
+    this, "print_available_models", 
     description{"print available models to console"}, 
     MIN_FUNCTION {
         this->dump_available_models(); 
@@ -207,13 +207,22 @@ public:
     this, "download", 
     description{"download a model from IRCAM Forum API"}, 
     MIN_FUNCTION {
+      std::string model_card, optional_name;
       if (args.size() == 0) {
         cerr << "please provide a model card (print downloadable models with get_available_models messages)" << endl;
+      } else if (args.size() == 1) {
+        min::symbol model_card_s = args[0];
+        model_card = std::string(model_card_s.c_str());
+        optional_name = "";
+      } else {
+        min::symbol model_card_s = args[0];
+        min::symbol optional_name_s = args[1];
+        model_card = std::string(model_card_s.c_str());
+        optional_name = std::string(optional_name_s.c_str()); 
       }
-      std::string model_card = args[0];
       try {
         if (this->m_downloader.get()->is_ready())
-          this->m_downloader.get()->download(model_card);
+          this->m_downloader.get()->download(model_card, optional_name);
       } catch (std::string &e) {
         cerr << e << endl;
       }
@@ -290,7 +299,7 @@ public:
           attribute_name = args[1];
           std::vector<std::string> attribute_args;
 
-          MaxBufferList buffers;
+          BufferList buffers;
           if (has_settable_attribute(attribute_name)) {
 
             for (int i = 2; i < args.size(); i++) {

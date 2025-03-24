@@ -53,7 +53,7 @@ public:
         init_external(args); 
      }
 
-    int get_sample_rate() {
+    int get_sample_rate() override {
         return samplerate(); 
     }
 

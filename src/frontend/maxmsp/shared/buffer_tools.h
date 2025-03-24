@@ -119,8 +119,8 @@ StaticBuffer<data_type> BufferManager::static_buffer_from_max_buffer(c74::min::b
 int BufferManager::bind_buffer_attribute(Backend *backend, std::string element, c74::min::object_base* object) {
 if (this->buffer_track) {
     std::string method = "print";
-    c74::min::atoms args = {string_id(), "cout", element + " modified"};
-    object->try_call(method, args);
+    // c74::min::atoms args = {string_id(), "cout", element + " modified"};
+    // object->try_call(method, args);
     int buffer_idx = get_buffer_index(buffer_attributes, element);
     if (buffer_idx == -1) { return -1; }
     auto buffer_name = m_max_buffers[buffer_idx].get()->name();
@@ -148,8 +148,8 @@ if (this->buffer_track) {
 int BufferManager::unbind_buffer_attribute(Backend *backend, std::string element, c74::min::object_base* object) {
   if (this->buffer_track) {
     std::string method = "print";
-    c74::min::atoms args = {string_id(), "cout", element + " unbounded"};
-    object->try_call(method, args);
+    // c74::min::atoms args = {string_id(), "cout", element + " unbounded"};
+    // object->try_call(method, args);
     // get buffer
     int buffer_idx = get_buffer_index(buffer_attributes, element);
     if (buffer_idx == -1) { return -1; }
@@ -172,8 +172,8 @@ int BufferManager::unbind_buffer_attribute(Backend *backend, std::string element
 int BufferManager::modify_buffer_attribute(Backend *backend, std::string element, c74::min::object_base* object) {
   if (this->buffer_track) {
     std::string method = "print";
-    c74::min::atoms args = {string_id(), "cout", element + " modified"};
-    object->try_call(method, args);
+    // c74::min::atoms args = {string_id(), "cout", element + " modified"};
+    // object->try_call(method, args);
     int buffer_idx = get_buffer_index(buffer_attributes, element);
     if (buffer_idx == -1) { return -1; }
     auto buffer_name = m_max_buffers[buffer_idx].get()->name();

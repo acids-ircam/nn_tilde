@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
+
+
 # import curl
 FetchContent_Declare(
   curl
@@ -40,6 +42,15 @@ if (APPLE)
     message("CMAKE_OSX_ARCHITECTURES: ${CMAKE_OSX_ARCHITECTURES}")
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum OS X deployment version")
     add_compile_options(-std=c++20)
+    set(MODELS_PATH_LOCATION "~/Documents/ACIDS/Models")
+endif()
+
+if (MSVC)
+  set(MODELS_PATH_LOCATION "C:\\Program Files\\YourApplication\\ACIDS\\Models")
+endif() 
+
+if (UNIX AND NOT APPLE) 
+  set(MODELS_PATH_LOCATION "/urs/share/acids/models")
 endif()
 
 find_package(Torch REQUIRED)
@@ -58,8 +69,8 @@ if ((NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
 endif()
 
 if(APPLE OR MSVC)
-    # add_subdirectory(frontend/maxmsp/nn.info) # MAX MSP EXTERNAL
-    # add_subdirectory(frontend/maxmsp/nn_tilde) # MAX MSP EXTERNAL
-    # add_subdirectory(frontend/maxmsp/mc.nn_tilde) # MAX MSP EXTERNAL
+    add_subdirectory(frontend/maxmsp/nn.info) # MAX MSP EXTERNAL
+    add_subdirectory(frontend/maxmsp/nn_tilde) # MAX MSP EXTERNAL
+    add_subdirectory(frontend/maxmsp/mc.nn_tilde) # MAX MSP EXTERNAL
     add_subdirectory(frontend/maxmsp/mcs.nn_tilde) # MAX MSP EXTERNAL
 endif()

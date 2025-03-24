@@ -177,18 +177,28 @@ public:
     this, "download", 
     description{"download a model from IRCAM Forum API"}, 
     MIN_FUNCTION {
+      std::string model_card, optional_name;
       if (args.size() == 0) {
         cerr << "please provide a model card (print downloadable models with get_available_models messages)" << endl;
+      } else if (args.size() == 1) {
+        min::symbol model_card_s = args[0];
+        model_card = std::string(model_card_s.c_str());
+        optional_name = "";
+      } else {
+        min::symbol model_card_s = args[0];
+        min::symbol optional_name_s = args[1]; 
+        model_card = std::string(model_card_s.c_str());
+        optional_name = std::string(optional_name_s.c_str()); 
       }
-      std::string model_card = args[0];
       try {
         if (this->m_downloader.get()->is_ready())
-          this->m_downloader.get()->download(model_card);
+          this->m_downloader.get()->download(model_card, optional_name);
       } catch (std::string &e) {
         cerr << e << endl;
       }
       return {}; 
-    }};
+    }
+  };
 
   message <> delete_models {
     this, "delete", 

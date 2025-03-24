@@ -68,12 +68,11 @@ public:
     std::string get_api_root();
     bool update_available_models(); 
     std::vector<std::string> get_available_models(); 
-    int get_free_download_slot();
-    void download(const std::string &model_name); 
+    void download(const std::string &model_name, const std::string &custom_name = ""); 
     void remove(const std::string &model_name); 
     void enqueue_download_task(DownloadTask task);
     void print_available_models();
-    fs::path target_path_from_model(std::string model_name);
+    fs::path target_path_from_model(const std::string model_name, const std::string custom_name = "");
     void reload();
     void worker(); 
 
@@ -231,8 +230,14 @@ void ModelDownloader::enqueue_download_task(DownloadTask task) {
     condition.notify_one();   
 }
 
-fs::path ModelDownloader::target_path_from_model(std::string model_name) {
-    return d_path / (model_name + ".ts");
+fs::path ModelDownloader::target_path_from_model(const std::string model_name, const std::string custom_name) {
+    std::string name_to_write;
+    if (custom_name == "") {
+        name_to_write = model_name; 
+    } else {
+        name_to_write = custom_name; 
+    }
+    return d_path / (name_to_write + ".ts");
 }
 
 std::string lock_path_from_target(std::string target_path, std::string model_name) {
@@ -319,17 +324,17 @@ void ModelDownloader::remove(const std::string &model_name) {
     }
 }
 
-void ModelDownloader::download(const std::string &model_name) {
+void ModelDownloader::download(const std::string &model_name, const std::string &custom_name) {
     if (!_is_ready) {
         throw std::string("model downloader has not been initialised, or did not manage to fetch available content");
     }
     if (!d_available_models.contains(model_name)) {
         throw std::string("model name " + model_name + " not available.");
     }
-    auto target_path = target_path_from_model(model_name);
+    auto target_path = target_path_from_model(model_name, custom_name);
     if (fs::exists(target_path)) {
         if (!is_file_empty(target_path)) {
-            print_to_parent("model " + model_name + " seems to be already downloaded.", "cwarn");
+            print_to_parent("model " + target_path.string() + " seems to be already downloaded.", "cwarn");
             return;
         } else {
             fs::remove(target_path);
