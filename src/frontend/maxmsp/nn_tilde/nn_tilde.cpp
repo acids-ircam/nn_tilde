@@ -28,6 +28,11 @@ void model_perform_async(nn_class *nn_instance) {
     }
   }
   std::vector<float *> in_model, out_model;
+
+  if (nn_instance->wait_for_buffer_reset) {
+    nn_instance->init_buffers(); 
+  }
+
   for (int c(0); c < nn_instance->m_model_in; c++)
     in_model.push_back(nn_instance->m_in_model[c].get());
   for (int c(0); c < nn_instance->m_model_out; c++)
@@ -36,6 +41,9 @@ void model_perform_async(nn_class *nn_instance) {
   while (!nn_instance->m_should_stop_perform_thread) {
     if (nn_instance->m_data_available_lock.try_acquire_for(
             std::chrono::milliseconds(REFRESH_THREAD_INTERVAL))) {
+          if (nn_instance->wait_for_buffer_reset) {
+            nn_instance->init_buffers(); 
+          }
           if (nn_instance->had_buffer_reset) {
             in_model.clear(); 
             for (int c(0); c < nn_instance->m_model_in; c++) {
@@ -145,6 +153,7 @@ void nn::perform(audio_bundle input, audio_bundle output) {
           auto n_outs = std::min(n_outlets, m_model_out);
           for (int c(0); c < n_outs; c++)
             m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
+
 
           // SIGNAL PERFORM THREAD THAT DATA IS AVAILABLE
           m_data_available_lock.release();

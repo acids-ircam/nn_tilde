@@ -541,6 +541,7 @@ void nn_base<nn_name, op_type>::load_model(const std::string& model_path) {
   }
   m_model->use_gpu(gpu);
   m_higher_ratio = m_model->get_higher_ratio();
+  settable_attributes = m_model->get_settable_attributes(); 
   m_buffer_manager.init_buffer_list(m_model.get(), this);
   
   // SET PARAMS
@@ -615,6 +616,11 @@ bool nn_base<nn_name, op_type>::has_settable_attribute(std::string attribute) {
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::operator()(audio_bundle input, audio_bundle output) {
+
+  if (wait_for_buffer_reset) {
+    init_buffers(); 
+  }
+
   auto dsp_vec_size = output.frame_count();
 
   // CHECK IF MODEL IS LOADED AND ENABLED

@@ -94,7 +94,7 @@ void Backend::perform(std::vector<float *> in_buffer,
     for (int j(0); j < n_batches; j++) {
       if (i < tensor_out.size(1)) {
         auto out_ptr = tensor_out.index({j, i}).contiguous().data_ptr<float>();
-        memcpy(out_buffer[j * out_dim + i], out_ptr, n_vec * sizeof(float));
+        memcpy(out_buffer[j * n_out_channels + i], out_ptr, n_vec * sizeof(float));
       } else {
         // put zeros
         memset(out_buffer[j * n_out_channels + i], 0, n_vec *sizeof(float));

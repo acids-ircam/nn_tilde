@@ -9,6 +9,7 @@ void model_perform(nn_class* nn_instance) {
     in_model.push_back(nn_instance->m_in_model[c].get());
   for (int c(0); c < nn_instance->n_outlets; c++)
     out_model.push_back(nn_instance->m_out_model[c].get());
+    
   if (nn_instance->had_buffer_reset) {
     nn_instance->had_buffer_reset = false; 
   }
@@ -26,6 +27,9 @@ void model_perform_async(nn_class* nn_instance) {
     }
   }
   std::vector<float *> in_model, out_model;
+  if (nn_instance->wait_for_buffer_reset) {
+    nn_instance->init_buffers(); 
+  }
   for (int c(0); c < nn_instance->n_inlets; c++)
     in_model.push_back(nn_instance->m_in_model[c].get());
   for (int c(0); c < nn_instance->n_outlets; c++)
@@ -34,6 +38,9 @@ void model_perform_async(nn_class* nn_instance) {
   while (!nn_instance->m_should_stop_perform_thread) {
     if (nn_instance->m_data_available_lock.try_acquire_for(
             std::chrono::milliseconds(REFRESH_THREAD_INTERVAL))) {
+        if (nn_instance->wait_for_buffer_reset) {
+          nn_instance->init_buffers(); 
+        }
         if (nn_instance->had_buffer_reset) {
           in_model.clear(); 
           for (int c(0); c < nn_instance->m_model_in * nn_instance->get_batches(); c++) {
@@ -114,7 +121,11 @@ public:
 };
 
 int mc_nn::get_batches() {
-  return *std::max_element(channel_map.begin(), channel_map.end());
+  if (channel_map.size() == 0) {
+    return 1;
+  } else {
+    return *std::max_element(channel_map.begin(), channel_map.end());
+  }
 }
 
 void mc_nn::init_inputs_and_outputs(const atoms& args)  {
@@ -155,6 +166,10 @@ void mc_nn::init_inlets_and_outlets() {
 }
 
 void mc_nn::init_buffers() {
+  if (channel_map.size() == 0) {
+    for (int i(0); i < m_model_in; i++)
+        channel_map.push_back(1);
+  }
   if (m_buffer_size == -1) {
     // NO THREAD MODE
     m_buffer_size = DEFAULT_BUFFER_SIZE;
@@ -300,8 +315,10 @@ long simplemc_multichanneloutputs(c74::max::t_object *x, long index,
 
 long simplemc_inputchanged(c74::max::t_object *x, long index, long count) {
   minwrap<mc_nn> *ob = (minwrap<mc_nn> *)(x);
-  if (ob->m_min_object.channel_map[index] != count) {
-    ob->m_min_object.update_channel_map(index, count);
+  if (ob->m_min_object.channel_map.size() != 0) {
+    if (ob->m_min_object.channel_map[index] != count) {
+      ob->m_min_object.update_channel_map(index, count);
+    }
   }
   return true; 
 }
