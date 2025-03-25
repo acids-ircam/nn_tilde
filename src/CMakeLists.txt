@@ -32,7 +32,6 @@ FetchContent_MakeAvailable(json)
 
 # message("CURL LOCATION : ${CURL_LOCATION}")
 # list(APPEND CMAKE_PREFIX_PATH CURL_LOCATION)
-list(APPEND CMAKE_PREFIX_PATH ../env/lib/python3.12/site-packages/torch)
 
 if (APPLE)
     set(CMAKE_CXX_FLAGS "-faligned-allocation")
