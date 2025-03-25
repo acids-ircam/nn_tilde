@@ -26,6 +26,18 @@
 
 using namespace c74::min;
 
+#define DEBUG 0
+#ifdef DEBUG
+    #if DEBUG == 1
+        #define DEBUG_PRINT(fmt, ...) printf("DEBUG: " fmt "\n", ##__VA_ARGS__)
+    #else
+        #define DEBUG_PRINT(fmt, ...)
+    #endif
+#else
+    #define DEBUG_PRINT(fmt, ...)
+#endif
+
+
 unsigned power_ceil(unsigned x) {
   if (x <= 1)
     return 1;
@@ -374,6 +386,7 @@ void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
       empty_mode = true;    
     } else {
       m_path = to_model_path(model_path);
+      empty_mode = false;
     }
   }
   
@@ -390,6 +403,9 @@ void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
       m_buffer_size = int(args[3]);
     }
     if (n_outlets == -1) { n_outlets = 1;}
+    DEBUG_PRINT("empty mode");
+    DEBUG_PRINT("%d inlets", n_inlets);
+    DEBUG_PRINT("%d outlets", n_outlets);
   } else {
     if (args.size() > 1) { // TWO ARGUMENTS ARE GIVEN
       m_method = std::string(args[1]);
@@ -405,6 +421,9 @@ void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
       auto outlets_arg = int(args[4]);
       if (outlets_arg >= 1) { n_outlets = outlets_arg; }
     }
+    DEBUG_PRINT("loading model : %s", std::string(m_path).c_str()); 
+    DEBUG_PRINT("%d inlets", n_inlets);
+    DEBUG_PRINT("%d outlets", n_outlets);
     load_model(m_path);
   }
 }
@@ -531,6 +550,7 @@ void nn_base<nn_name, op_type>::update_method(const std::string &method) {
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::load_model(const std::string& model_path) {
+  DEBUG_PRINT("model path: %s", model_path.c_str());
   m_ready = false;
   try {
     auto path = to_model_path(model_path);

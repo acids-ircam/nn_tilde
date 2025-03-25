@@ -137,7 +137,7 @@ int mcs_nn::get_batches() {
 }
 
 void mcs_nn::init_inputs_and_outputs(const atoms &args) {
-  bool empty_mode; 
+  bool empty_mode = false; 
   if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
     auto model_path = std::string(args[0]);
     if (model_path == "void") {
