@@ -168,7 +168,7 @@ void model_perform(t_nn_tilde *x) {
     PdErrorCatcher error_catcher(x);
     try {
         x->m_model->perform(x->m_in_model_ptrs, x->m_out_model_ptrs, 
-                          x->m_buffer_size, x->m_method->s_name, 1);
+                            x->m_method->s_name, 1, x->m_out_dim, x->m_buffer_size);
     } catch (const std::exception& e) {
         pd_error(x, "nn~: model perform error: %s", e.what());
     }

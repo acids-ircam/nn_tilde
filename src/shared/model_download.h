@@ -65,6 +65,7 @@ public:
     int init_downloader(bool force_refresh = false);
     void init_threads();
     bool is_ready();
+    bool has_model(const std::string &model_card);
     std::string get_api_root();
     bool update_available_models(); 
     std::vector<std::string> get_available_models(); 
@@ -124,7 +125,7 @@ bool ModelDownloader::is_ready() {
 
 bool ModelDownloader::update_available_models() {
     _api_root = get_api_root();
-    auto url = _api_root + "get_available_models";
+    auto url = _api_root + "available_models";
     auto model_as_string = get_string_from_api_callback(url);
     d_available_models = nlohmann::json::parse(model_as_string);
     return true;
@@ -158,7 +159,6 @@ void ModelDownloader::reload() {
 }
 
 std::string ModelDownloader::get_api_root() {
-// TODO is this safe? 
 unsigned char b[] = {104, 116, 116, 112, 115, 58,  47,  47, 112, 108, 97,
                     121, 46,  102, 111, 114, 117, 109, 46, 105, 114, 99,
                     97,  109, 46,  102, 114, 47,  114, 97, 118, 101, 45,
@@ -186,11 +186,15 @@ std::vector<std::string> ModelDownloader::get_available_models() {
         throw std::string("model downloader has not been initialised, or did not manage to fetch available content");
     }
     auto models_keys = std::vector<std::string>();
-    if (d_available_models.contains("available_models")) {
-        models_keys = d_available_models["available_models"];
-    } else {
-        for (const auto& key : d_available_models.items()) {
-            models_keys.push_back(key.key());
+    for (const auto& source : d_available_models.items()) {
+        auto current_source = source.key(); 
+        for (const auto& model: source.value().items()) {
+            auto current_model = model.key(); 
+            for (const auto& model_name: model.value().items()) {
+                std::stringstream model_card(""); 
+                model_card << current_source << "/" << current_model << "/" << model_name.key(); 
+                models_keys.push_back(model_card.str()); 
+            }
         }
     }
     return models_keys;
@@ -230,10 +234,21 @@ void ModelDownloader::enqueue_download_task(DownloadTask task) {
     condition.notify_one();   
 }
 
+std::vector<std::string> split_model_card(std::string model_name) {
+    auto ss = std::stringstream(model_name);
+    std::string segment;
+    std::vector<std::string> segments;
+    while (std::getline(ss, segment, '/')) {
+        segments.push_back(segment);
+    }
+    return segments;
+}
+
 fs::path ModelDownloader::target_path_from_model(const std::string model_name, const std::string custom_name) {
     std::string name_to_write;
     if (custom_name == "") {
-        name_to_write = model_name; 
+        auto segments = split_model_card(model_name);
+        name_to_write = segments[segments.size() - 1];
     } else {
         name_to_write = custom_name; 
     }
@@ -242,15 +257,18 @@ fs::path ModelDownloader::target_path_from_model(const std::string model_name, c
 
 std::string lock_path_from_target(std::string target_path, std::string model_name) {
     fs::path target_path_fs = target_path;
-    auto lock_name = (std::string(".") + model_name + "_lock");
-    std::string lock_path = fs::absolute(target_path_fs.parent_path() / lock_name); 
+    std::stringstream lock_name("."); 
+    for (auto p: split_model_card(model_name)) {
+        lock_name << p << '_' ; 
+    }
+    lock_name << "lock";
+    std::string lock_path = fs::absolute(target_path_fs.parent_path() / lock_name.str()); 
     return lock_path;
 }
 
 void download_thread(ModelDownloader *parent, std::string model_name, std::string target_path, int dl_idx)
 {
     parent->print_to_parent("downloading model " + model_name + "...", "cwarn");
-
     // create lock file, to not download two times the same model
     std::string lock_path = lock_path_from_target(target_path, model_name);
     FILE* lock_file = fopen(lock_path.c_str(), "w");
@@ -266,7 +284,7 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
         CURLcode res;
 
         curl = curl_easy_init();
-        std::string url = (parent->get_api_root()) + "get_model?model_name=" + model_name; 
+        std::string url = (parent->get_api_root()) + "download_model?model=" + model_name; 
         if (curl) {
             file = fopen(target_path.c_str(), "wb");
             if (!file) {
@@ -299,7 +317,7 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
                 parent->print_to_parent("failed to download  " + model_name, "cerr");
                 fs::remove(target_path);
             } else {
-                parent->print_to_parent("model " + model_name + " downloaded!", "cwarn");
+                parent->print_to_parent("model " + model_name + " downloaded at " + target_path, "cwarn");
             }
             fclose(lock_file);
             fs::remove(lock_path);
@@ -324,11 +342,24 @@ void ModelDownloader::remove(const std::string &model_name) {
     }
 }
 
+bool ModelDownloader::has_model(const std::string &model_name) {
+    auto parts = split_model_card(model_name);
+    auto models_json = d_available_models; 
+    for (auto p: parts) {
+        if (models_json.contains(p)) {
+            models_json = models_json[p];
+        } else {
+            return false;
+        } 
+    }
+    return true; 
+}
+
 void ModelDownloader::download(const std::string &model_name, const std::string &custom_name) {
     if (!_is_ready) {
         throw std::string("model downloader has not been initialised, or did not manage to fetch available content");
     }
-    if (!d_available_models.contains(model_name)) {
+    if (!has_model(model_name)) {
         throw std::string("model name " + model_name + " not available.");
     }
     auto target_path = target_path_from_model(model_name, custom_name);

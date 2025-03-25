@@ -59,7 +59,7 @@ public:
   virtual void init_downloader(); 
   virtual void init_inputs_and_outputs(const atoms& args); 
   virtual void init_inlets_and_outlets();
-  virtual void init_buffers(); 
+  virtual void init_buffers();
   virtual void init_process();
   virtual int get_sample_rate() = 0;
   virtual void init_external(const atoms &args) {
@@ -82,8 +82,11 @@ public:
   int n_inlets, m_model_in, m_in_ratio, n_outlets, m_model_out, m_out_ratio, m_higher_ratio, n_batches;
   bool has_settable_attribute(std::string attribute);
   bool is_valid_print_key(std::string string);
+  bool wait_for_buffer_reset = false; 
+  bool had_buffer_reset = true; 
   void load_model(const std::string &model);
   void update_model(const std::string &model);
+  virtual void update_method(const std::string &method); 
   path to_model_path(std::string model_path);
   
   // BUFFER ATTRIBUTES MANAGER
@@ -91,6 +94,7 @@ public:
 
   // BUFFER RELATED MEMBERS
   int m_buffer_size;
+  int m_buffer_in, m_buffer_out; 
   std::unique_ptr<circular_buffer<double, float>[]> m_in_buffer;
   std::unique_ptr<circular_buffer<float, double>[]> m_out_buffer;
   std::vector<std::unique_ptr<float[]>> m_in_model, m_out_model;
@@ -229,6 +233,23 @@ public:
       return {}; 
     }
   };
+
+  message <> set_method {
+    this, "method", 
+    description{"set the current method of model"}, 
+    MIN_FUNCTION {
+      if (args.size() == 0) {
+        cerr << "please provide a method" << endl; 
+      }
+      std::string method = args[0]; 
+      try {
+        this->update_method(method);
+      } catch (std::string &e) {
+        cerr << e << endl;   
+      }
+      return {};
+    }
+  };
   
   message <> delete_models {
     this, "delete", 
@@ -343,6 +364,7 @@ template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::init_downloader() {
   m_downloader = std::make_unique<MaxModelDownloader>(this, nn_name::get_external_name()); 
 }
+
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
   bool empty_mode; 
@@ -358,11 +380,11 @@ void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
   if (empty_mode) {
     if (args.size() > 1) { // FOUR ARGUMENTS ARE GIVEN
       auto inlets_arg = int(args[1]);
-      if (inlets_arg > 1) { n_inlets = inlets_arg; }
+      if (inlets_arg >= 1) { n_inlets = inlets_arg; }
     }
     if (args.size() > 2) { // FIVE ARGUMENTS ARE GIVEN
       auto outlets_arg = int(args[2]);
-      if (outlets_arg > 1) { n_outlets = outlets_arg; }
+      if (outlets_arg >= 1) { n_outlets = outlets_arg; }
     } 
     if (args.size() > 3) { // THREE ARGUMENTS ARE GIVEN
       m_buffer_size = int(args[3]);
@@ -377,11 +399,11 @@ void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
     }
     if (args.size() > 3) { // FOUR ARGUMENTS ARE GIVEN
       auto inlets_arg = int(args[3]);
-      if (inlets_arg > 1) { n_inlets = inlets_arg; }
+      if (inlets_arg >= 1) { n_inlets = inlets_arg; }
     }
     if (args.size() > 4) { // FIVE ARGUMENTS ARE GIVEN
       auto outlets_arg = int(args[4]);
-      if (outlets_arg > 1) { n_outlets = outlets_arg; }
+      if (outlets_arg >= 1) { n_outlets = outlets_arg; }
     }
     load_model(m_path);
   }
@@ -473,63 +495,75 @@ void nn_base<nn_name, op_type>::update_model(const std::string &model) {
 }
 
 template <typename nn_name, typename op_type>
-void nn_base<nn_name, op_type>::load_model(const std::string& model_path) {
+void nn_base<nn_name, op_type>::update_method(const std::string &method) {
+  if (!m_model->is_loaded()) {
+    cerr << "no model is set yet" << endl;
+    return; 
+  }
+  if (m_model->has_method(method)) {
+    m_method = method; 
+    auto params = m_model->get_method_params(m_method);
+    // input parameters
+    m_model_in = params[0];
+    if (n_inlets == -1) {
+      n_inlets = m_model_in;
+    } 
+    m_in_ratio = params[1];
 
+    // output parameters
+    m_model_out = params[2];
+    if (n_outlets == -1) {
+      n_outlets = params[2];
+    }
+    m_out_ratio = params[3]; 
+
+    if (m_model_in != n_inlets) {
+      cwarn << "nn_base~ has been initialised with " << n_inlets << " inputs, but current model has " << m_model_in << endl;
+    }
+    if (m_model_out != n_outlets) {
+      cwarn << "nn_base~ has been initialised with " << n_outlets << " outputs, but current model has " << m_model_out << endl;
+    }
+  } else {
+    cerr << "model " << m_path << "does not have method " << method << endl; 
+  }
+  wait_for_buffer_reset = true; 
+}
+
+template <typename nn_name, typename op_type>
+void nn_base<nn_name, op_type>::load_model(const std::string& model_path) {
+  m_ready = false;
   try {
     auto path = to_model_path(model_path);
     m_model.get()->load(path, get_sample_rate(), &m_method);
   } catch (std::string &e) {
     cerr << e << endl;
+    return; 
   }
   m_model->use_gpu(gpu);
   m_higher_ratio = m_model->get_higher_ratio();
   m_buffer_manager.init_buffer_list(m_model.get(), this);
-
-  // SET PARAMS
-  auto params = m_model->get_method_params(m_method);
-  // input parameters
-  m_model_in = params[0];
-  if (n_inlets == -1) {
-    n_inlets = m_model_in;
-  } 
-  m_in_ratio = params[1];
-
-  // output parameters
-  m_model_out = params[2];
-  if (n_outlets == -1) {
-    n_outlets = params[2];
-  }
-  m_out_ratio = params[3]; 
-
-  if (m_model_in != n_inlets) {
-    cwarn << "nn_base~ has been initialised with " << n_inlets << " inputs, but current model has " << m_model_in << endl;
-  }
-  if (m_model_out != n_outlets) {
-    cwarn << "nn_base~ has been initialised with " << n_outlets << " outputs, but current model has " << m_model_out << endl;
-  }
-
-  // GET MODEL'S SETTABLE ATTRIBUTES
-  try {
-    settable_attributes = m_model->get_settable_attributes();
-  } catch (...) {
-    cwarn << "could not retrieve model attributes ; maybe because of deprecated model." << endl;
-  }
   
+  // SET PARAMS
+  update_method(m_method);
   m_ready = true;
-  return;
 }
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::init_buffers() { 
+  if (!m_ready) { return; }
   if (m_buffer_size == -1) {
     // NO THREAD MODE
     m_buffer_size = DEFAULT_BUFFER_SIZE;
-  }
-  if (m_buffer_size < m_higher_ratio) {
-    cerr << "buffer size too small, switching to " << m_buffer_size << endl;
+  } else if (m_buffer_size == 0) {
+    m_use_thread = false; 
     m_buffer_size = m_higher_ratio;
   } else {
-    m_buffer_size = power_ceil(m_buffer_size);
+    if (m_buffer_size < m_higher_ratio) {
+      cerr << "buffer size too small, switching to " << m_buffer_size << endl;
+      m_buffer_size = m_higher_ratio;
+    } else {
+      m_buffer_size = power_ceil(m_buffer_size);
+    }
   }
 
   // Calling forward in a thread causes memory leak in windows.
@@ -537,41 +571,37 @@ void nn_base<nn_name, op_type>::init_buffers() {
 #ifdef _WIN32
   m_use_thread = false;
 #endif
-  // TO DO : buffer size change (or prevent this do be possible)
-  if (m_in_buffer.get() == nullptr) {
-    m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(n_inlets);
-    if (m_in_buffer.get()->max_size() < m_buffer_size) {
-      for (int i = 0; i < n_inlets; i++) {
-        m_in_buffer[i].initialize(m_buffer_size);
-      }
-    }
-  } 
-
-  if (m_out_buffer.get() == nullptr) {
-    if (m_out_buffer.get() != nullptr) { m_out_buffer.release(); }
-    m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(n_outlets);
-    if (m_out_buffer.get()->max_size() < m_buffer_size) {
-      for (int i = 0; i < n_outlets; i++) {
-        m_out_buffer[i].initialize(m_buffer_size);
-      }
-    }
-  } 
-
-  if (m_in_model.size() == 0) {
+  
+  if (m_in_buffer.get() != nullptr) { m_in_buffer.release(); }
+  m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(n_inlets);
+  if (m_in_buffer.get()->max_size() < m_buffer_size) {
     for (int i = 0; i < n_inlets; i++) {
-      m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
-      auto buf = m_in_model[i].get();
-      for (int j = 0; j < m_buffer_size; j++) {buf[j] = 0.; }
+      m_in_buffer[i].initialize(m_buffer_size);
     }
   }
 
-  if (m_out_model.size() == 0) {
+  if (m_out_buffer.get() == nullptr) { m_out_buffer.release(); }
+  m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(n_outlets);
+  if (m_out_buffer.get()->max_size() < m_buffer_size) {
     for (int i = 0; i < n_outlets; i++) {
-      m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
-      auto buf = m_out_model[i].get();
-      for (int j = 0; j < m_buffer_size; j++) {buf[j] = 0.; }
+      m_out_buffer[i].initialize(m_buffer_size);
     }
   }
+
+  m_in_model.clear(); 
+  for (int i = 0; i < m_model_in; i++) {
+    m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
+    std::fill(m_in_model[i].get(), m_in_model[i].get() + m_buffer_size, 0.); 
+  }
+
+  m_out_model.clear(); 
+  for (int i = 0; i < m_model_out; i++) {
+    m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
+    std::fill(m_out_model[i].get(), m_out_model[i].get() + m_buffer_size, 0.); 
+  }
+
+  wait_for_buffer_reset = false; 
+  had_buffer_reset = true; 
 }
 
 template <typename nn_name, typename op_type>

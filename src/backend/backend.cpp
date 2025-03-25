@@ -21,7 +21,8 @@ Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
 
 void Backend::perform(std::vector<float *> in_buffer,
                       std::vector<float *> out_buffer, 
-                      int n_vec, std::string method, int n_batches) {
+                      std::string method, 
+                      int n_batches, int n_out_channels, int n_vec) {
   c10::InferenceMode guard;
 
   auto params = get_method_params(method);
@@ -89,15 +90,14 @@ void Backend::perform(std::vector<float *> in_buffer,
 
   tensor_out = tensor_out.to(CPU);
 
-  int out_buffer_dim = out_buffer.size() / n_batches;
-  for (int i(0); i < out_buffer_dim; i++) {
+  for (int i(0); i < n_out_channels; i++) {
     for (int j(0); j < n_batches; j++) {
       if (i < tensor_out.size(1)) {
         auto out_ptr = tensor_out.index({j, i}).contiguous().data_ptr<float>();
-        memcpy(out_buffer[j * out_buffer_dim + i], out_ptr, n_vec * sizeof(float));
+        memcpy(out_buffer[j * out_dim + i], out_ptr, n_vec * sizeof(float));
       } else {
         // put zeros
-        memset(out_buffer[j * out_buffer_dim + i], 0, n_vec *sizeof(float));
+        memset(out_buffer[j * n_out_channels + i], 0, n_vec *sizeof(float));
       }
     }
   }
@@ -159,6 +159,7 @@ bool Backend::has_method(std::string method_name) {
   }
   return false;
 }
+
 
 bool Backend::has_settable_attribute(std::string attribute) {
   for (const auto &a : get_settable_attributes()) {

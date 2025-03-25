@@ -1,22 +1,6 @@
 #include "../shared/nn_base.h"
 #include "c74_min.h"
 
-template<typename nn_class>
-void check_loop_buffers(nn_class *mc_nn_instance, std::vector<float *> &in_model, std::vector<float *> &out_model) {
-  if (mc_nn_instance->m_in_model.size() != in_model.size())
-  {
-    in_model.clear();
-    for (auto &ptr : mc_nn_instance->m_in_model)
-      in_model.push_back(ptr.get());
-
-  }
-  if (mc_nn_instance->m_out_model.size() != out_model.size())
-  {
-    out_model.clear();
-    for (auto &ptr : mc_nn_instance->m_out_model)
-      out_model.push_back(ptr.get());
-  }
-}
 
 template <typename nn_class>
 void model_perform(nn_class* nn_instance) {
@@ -25,9 +9,12 @@ void model_perform(nn_class* nn_instance) {
     in_model.push_back(nn_instance->m_in_model[c].get());
   for (int c(0); c < nn_instance->n_outlets; c++)
     out_model.push_back(nn_instance->m_out_model[c].get());
+  if (nn_instance->had_buffer_reset) {
+    nn_instance->had_buffer_reset = false; 
+  }
 
-  nn_instance->m_model->perform(in_model, out_model, nn_instance->m_buffer_size,
-                                nn_instance->m_method, nn_instance->get_batches());
+  nn_instance->m_model->perform(in_model, out_model, nn_instance->m_method, 
+                                nn_instance->get_batches(), nn_instance->n_outlets, nn_instance->m_buffer_size);
 }
 
 template <typename nn_class>
@@ -45,13 +32,24 @@ void model_perform_async(nn_class* nn_instance) {
     out_model.push_back(nn_instance->m_out_model[c].get());
 
   while (!nn_instance->m_should_stop_perform_thread) {
-    check_loop_buffers(nn_instance, in_model, out_model);
     if (nn_instance->m_data_available_lock.try_acquire_for(
             std::chrono::milliseconds(REFRESH_THREAD_INTERVAL))) {
-        nn_instance->m_model->perform(in_model, out_model,
-                                      nn_instance->m_buffer_size,
+        if (nn_instance->had_buffer_reset) {
+          in_model.clear(); 
+          for (int c(0); c < nn_instance->m_model_in * nn_instance->get_batches(); c++) {
+            in_model.push_back(nn_instance->m_in_model[c].get());
+          }
+          out_model.clear(); 
+          for (int c(0); c < nn_instance->m_model_out * nn_instance->get_batches(); c++) {
+            out_model.push_back(nn_instance->m_out_model[c].get());
+          }
+        }
+        nn_instance->m_model->perform(in_model, 
+                                      out_model,
                                       nn_instance->m_method, 
-                                      nn_instance->get_batches());
+                                      nn_instance->get_batches(),
+                                      nn_instance->m_out_model.size() / nn_instance->get_batches(),
+                                      nn_instance->m_buffer_size);
         nn_instance->m_result_available_lock.release();
     }
   }
@@ -90,15 +88,14 @@ public:
     void perform(audio_bundle input, audio_bundle output) override;
 
     // channel handling
-    std::vector<int> chans;
-    void reset_buffers(); 
+    std::vector<int> channel_map;
     int get_batches(); 
-    bool check_inputs(); 
 
     void init_inputs_and_outputs(const atoms& atoms) override; 
     void init_inlets_and_outlets() override; 
     void init_buffers() override; 
     void init_process() override; 
+    bool update_channel_map(const long& index, const long& count); 
 
     message<> maxclass_setup{
       this, "maxclass_setup",
@@ -116,23 +113,14 @@ public:
       }};
 };
 
-bool mc_nn::check_inputs() {
-  bool check = true;
-  for (int i = 1; i < chans.size(); i++) {
-    if (chans[i] != chans[0])
-      check = false;
-  }
-  return check;
-}
-
 int mc_nn::get_batches() {
-  return *std::min_element(chans.begin(), chans.end());
+  return *std::max_element(channel_map.begin(), channel_map.end());
 }
 
 void mc_nn::init_inputs_and_outputs(const atoms& args)  {
     nn_base::init_inputs_and_outputs(args);
     for (int i(0); i < m_model_in; i++)
-        chans.push_back(1);
+        channel_map.push_back(1);
 }
 
 void mc_nn::init_inlets_and_outlets() {
@@ -178,19 +166,38 @@ void mc_nn::init_buffers() {
     m_buffer_size = power_ceil(m_buffer_size);
   }
 
-    m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(
-      m_model_in * get_batches());
-    for (int i(0); i < m_model_in * get_batches(); i++) {
-        m_in_buffer[i].initialize(m_buffer_size);
-        m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
+ if (m_in_buffer.get() != nullptr) { m_in_buffer.release(); }
+  m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(n_inlets * get_batches());
+  if (m_in_buffer.get()->max_size() < m_buffer_size) {
+    for (int i = 0; i < n_inlets * get_batches(); i++) {
+      m_in_buffer[i].initialize(m_buffer_size);
     }
+  }
+  m_buffer_in = n_inlets * get_batches();
 
-    m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(
-      m_model_out * get_batches());
-    for (int i(0); i < m_model_out * get_batches(); i++) {
-        m_out_buffer[i].initialize(m_buffer_size);
-        m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
+  if (m_out_buffer.get() == nullptr) { m_out_buffer.release(); }
+  m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(n_outlets * get_batches());
+  if (m_out_buffer.get()->max_size() < m_buffer_size) {
+    for (int i = 0; i < n_outlets * get_batches(); i++) {
+      m_out_buffer[i].initialize(m_buffer_size);
     }
+  }
+  m_buffer_out = n_outlets * get_batches();
+
+  m_in_model.clear(); 
+  for (int i = 0; i < m_model_in * get_batches(); i++) {
+    m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
+    std::fill(m_in_model[i].get(), m_in_model[i].get() + m_buffer_size, 0.); 
+  }
+
+  m_out_model.clear(); 
+  for (int i = 0; i < m_model_out * get_batches(); i++) {
+    m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
+    std::fill(m_out_model[i].get(), m_out_model[i].get() + m_buffer_size, 0.); 
+  }
+
+  wait_for_buffer_reset = false; 
+  had_buffer_reset = true; 
 }
 
 void mc_nn::init_process() {
@@ -202,52 +209,88 @@ void mc_nn::init_process() {
 
 void mc_nn::perform(audio_bundle input, audio_bundle output) {
   auto vec_size = input.frame_count();
+  auto chan_size = input.channel_count(); 
 
-  // COPY INPUT TO CIRCULAR BUFFER
-  int dim_offset = 0;
-  for (int i(0); i < m_inlets.size(); i++) {
-    for (int b(0); b < get_batches(); b++) {
-      auto in = input.samples(dim_offset + b);
-      m_in_buffer[i * get_batches() + b].put(in, vec_size);
+  if (m_ready) {
+    if (wait_for_buffer_reset) {
+      init_buffers();
     }
-    dim_offset += chans[i];
-  }
-
-  if (m_in_buffer[0].full()) { // BUFFER IS FULL
-    if (!m_use_thread) {
-      // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
-      for (int c(0); c < n_inlets * get_batches(); c++)
-        m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
-
-      // CALL MODEL PERFORM IN CURRENT THREAD
-      model_perform(this);
-
-      // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
-      for (int c(0); c < n_outlets * get_batches(); c++)
-        m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
-
-    } else if (m_result_available_lock.try_acquire()) {
-      // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
-      for (int c(0); c < n_inlets * get_batches(); c++)
-        m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
-
-      // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
-      for (int c(0); c < n_outlets * get_batches(); c++)
-        m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
-
-      // SIGNAL PERFORM THREAD THAT DATA IS AVAILABLE
-      m_data_available_lock.release();
+    // COPY INPUT TO CIRCULAR BUFFER
+    int current_batch = 0; 
+    int current_chan = 0; 
+    int n_batches = get_batches(); 
+    for (int c_in(0); c_in < chan_size; c_in++) {
+      auto in = input.samples(c_in); 
+      auto buf_idx = current_batch * n_batches + current_chan; 
+      if (buf_idx < n_inlets * n_batches) {
+        m_in_buffer[buf_idx].put(in, vec_size);
+      }
+      current_chan++; 
+      if (current_chan >= channel_map[current_batch]) {
+        current_batch++;
+        current_chan=0; 
+      }
     }
-  }
 
-  // COPY CIRCULAR BUFFER TO OUTPUT
-  for (int b(0); b < get_batches(); b++) {
-    for (int d(0); d < m_outlets.size(); d++) {
-      auto out = output.samples(d * get_batches() + b);
-      m_out_buffer[b * m_outlets.size() + d].get(out, vec_size);
+    if (m_in_buffer[0].full()) { // BUFFER IS FULL
+      if (!m_use_thread) {
+       
+        // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
+        auto n_ins = std::min(n_inlets, m_model_in);
+        for (int c(0); c < n_ins * get_batches(); c++)
+          m_in_buffer[c].get(m_in_model[c].get(), m_buffer_size);
+
+        // CALL MODEL PERFORM IN CURRENT THREAD
+        model_perform(this);
+
+        // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
+        auto n_outs = std::min(n_outlets, m_model_out);
+        for (int c(0); c < n_outs * get_batches(); c++)
+          m_out_buffer[c].put(m_out_model[c].get(), m_buffer_size);
+
+      } else if (m_result_available_lock.try_acquire()) {
+        
+        // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
+        auto n_ins = std::min(n_inlets, m_model_in);
+        for (int b(0); b < n_batches; b++) {
+          for (int c(0); c < n_ins; c++) {
+            m_in_buffer[b * n_ins + c].get(m_in_model[b * n_ins + c].get(), m_buffer_size);
+          }
+        }
+
+        // TRANSFER MEMORY BETWEEN OUTPUT CIRCULAR BUFFER AND MODEL BUFFER
+        auto n_outs = std::min(n_outlets, m_model_out);
+        for (int b(0); b < n_batches; b++) {
+          for (int c(0); c < n_outs; c++) {
+            m_out_buffer[b * n_outs + c].put(m_out_model[b * m_model_out + c].get(), m_buffer_size);
+          }
+        }
+
+        // SIGNAL PERFORM THREAD THAT DATA IS AVAILABLE
+        m_data_available_lock.release();
+      }
+    }
+
+    // COPY CIRCULAR BUFFER TO OUTPUT
+    auto n_outs = std::min(m_model_out, n_outlets); 
+    for (int b(0); b < n_batches; b++) {
+      for (int d(0); d < n_outs; d++) {
+        auto out = output.samples(d * n_batches + b); 
+        m_out_buffer[b * n_outs + d].get(out, vec_size);
+      }
     }
   }
 }
+
+bool mc_nn::update_channel_map(const long& index, const long& count) {
+  bool needs_refresh = false; 
+  if (channel_map[index] != count) {
+    channel_map[index] = count; 
+    wait_for_buffer_reset = true; 
+  }
+  return true; 
+}
+
 
 long simplemc_multichanneloutputs(c74::max::t_object *x, long index,
                                   long count) {
@@ -257,17 +300,10 @@ long simplemc_multichanneloutputs(c74::max::t_object *x, long index,
 
 long simplemc_inputchanged(c74::max::t_object *x, long index, long count) {
   minwrap<mc_nn> *ob = (minwrap<mc_nn> *)(x);
-  bool needs_refresh = false;
-  if (ob->m_min_object.chans[index] != count) {
-    auto old_n_batch = ob->m_min_object.get_batches();
-    ob->m_min_object.chans[index] = count;
-    auto new_n_batch = ob->m_min_object.get_batches();
-    if (old_n_batch != new_n_batch) {
-      ob->m_min_object.init_buffers();
-    }
-    needs_refresh = true;
+  if (ob->m_min_object.channel_map[index] != count) {
+    ob->m_min_object.update_channel_map(index, count);
   }
-  return needs_refresh;
+  return true; 
 }
 
 
