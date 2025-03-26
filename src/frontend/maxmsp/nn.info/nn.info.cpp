@@ -46,7 +46,8 @@ public:
   void dump_path();
   void dump_methods();
   void dump_attributes();
-  void dump_parameters(const std::string& method);
+  void dump_method_parameters(const std::string& method);
+  void dump_attribute_parameters(const std::string& method);
   void dump_dictionary();
   void dump_object();
   void dump_downloadable_models(); 
@@ -95,6 +96,15 @@ public:
       return {};
     }
   };
+
+  // MESSAGES
+  message<> bang_callback{
+      this, "bang", 
+        description{"dumps every model information available"},
+        MIN_FUNCTION {
+          this->dump_object();  
+          return {};
+        }};
 
   // MESSAGES
   message<> dump_callback{
@@ -149,8 +159,14 @@ public:
       if (args.size() == 0) {
         cerr << "parameters takes a valid method as first argument." << endl;
       }
-      std::string method = args[0];
-      this->dump_parameters(method);
+      std::string method_or_attribute = args[0];
+      if (m_model_info.attribute_properties.contains(method_or_attribute)) {
+        this->dump_attribute_parameters(method_or_attribute);
+      } else if (m_model_info.method_properties.contains(method_or_attribute)) {
+        this->dump_method_parameters(method_or_attribute);
+      } else {
+        cerr << method_or_attribute << " not found in model" << endl;
+      }
       return {};
     }
   };
@@ -369,7 +385,7 @@ void nn_info::dump_attributes() {
 }
 
 
-void nn_info::dump_parameters(const std::string& method) {
+void nn_info::dump_method_parameters(const std::string& method) {
   if (!has_model) {
     cerr << "please set a model before" << endl;
     return;
@@ -386,6 +402,25 @@ void nn_info::dump_parameters(const std::string& method) {
   outlet->send({symbol(params.name), symbol("channels_out"), params.channels_in});
   outlet->send({symbol(params.name), symbol("ratio_in"), params.ratio_out});
   outlet->send({symbol(params.name), symbol("ratio_out"), params.ratio_out});
+}
+
+void nn_info::dump_attribute_parameters(const std::string& attribute) {
+  if (!has_model) {
+    cerr << "please set a model before" << endl;
+    return;
+  }
+  auto attribute_props = m_model_info.attribute_properties;
+  if (attribute_props.find(attribute) == attribute_props.end()) {
+    cerr << "attribute " << attribute << " does not seem to be valid." << endl;
+    return;
+  }
+  // Iterating over the keys
+  auto outlet = m_outlets[3].get();
+  auto params = m_model_info.attribute_properties[attribute];  
+  atoms attr_types = {symbol(params.name), symbol("attribute_type")};
+  for (auto attr_type: params.attribute_types) 
+    attr_types.push_back(symbol(attr_type));
+  outlet->send(attr_types); 
 }
 
 void nn_info::dump_dictionary() {
@@ -425,9 +460,10 @@ void nn_info::dump_object() {
   }
   this->dump_methods(); 
   this->dump_attributes(); 
-  for (const auto& pair : m_model_info.attribute_properties) {
-    this->dump_parameters({pair.first});
-  }
+  for (const auto& pair : m_model_info.attribute_properties)
+    this->dump_attribute_parameters({pair.first});
+  for (const auto& pair : m_model_info.method_properties)
+    this->dump_method_parameters({pair.first});
   this->dump_dictionary(); 
   this->dump_downloadable_models(); 
 }
