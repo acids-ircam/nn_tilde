@@ -1,8 +1,9 @@
 name: Build nn_tilde
-# on:
-#   push:
-#     tags:
-#       - "t*"
+on:
+  push:
+    branches:
+      - devdeploy
+
 jobs:
   osx-arm64-build:
     runs-on: self-hosted
