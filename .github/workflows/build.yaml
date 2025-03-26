@@ -1,11 +1,11 @@
 name: Build nn_tilde
-on:
-  push:
-    tags:
-      - "t*"
+# on:
+#   push:
+#     tags:
+#       - "t*"
 jobs:
   osx-arm64-build:
-    runs-on: macos-latest
+    runs-on: self-hosted
     steps:
       - name: Check out code
         uses: actions/checkout@v2
@@ -47,46 +47,46 @@ jobs:
             nn_max_msp_macOS_arm64.tar.gz
             nn_puredata_macOS_arm64.tar.gz
 
-  osx-x64-build:
-    runs-on: macos-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - run: git submodule update --init --recursive
-      - name: Setup torch
-        run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-2.0.0.zip -o libtorch.zip
-          unzip libtorch.zip
-      - name: Setup puredata
-        run: |
-          mkdir puredata_include
-          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
-      - name: Build
-        run: |
-          mkdir build
-          cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include 
-          make
-      - name: Max/MSP Package creation
-        run: |
-          mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
-          tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
-      - name: PureData Package creation
-        run: |
-          rm -fr nn_tilde
-          mv build/frontend/puredata/nn_tilde .
-          rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
-          tar -czvf nn_puredata_macOS_x64.tar.gz nn_tilde
-      - name: Upload binaries
-        uses: actions/upload-artifact@v2
-        with:
-          name: nn_tilde
-          path: |
-            nn_max_msp_macOS_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
+  # osx-x64-build:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - name: Check out code
+  #       uses: actions/checkout@v2
+  #     - run: git submodule update --init --recursive
+  #     - name: Setup torch
+  #       run: |
+  #         curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-2.0.0.zip -o libtorch.zip
+  #         unzip libtorch.zip
+  #     - name: Setup puredata
+  #       run: |
+  #         mkdir puredata_include
+  #         curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+  #     - name: Build
+  #       run: |
+  #         mkdir build
+  #         cd build
+  #         cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include 
+  #         make
+  #     - name: Max/MSP Package creation
+  #       run: |
+  #         mkdir nn_tilde
+  #         mkdir nn_tilde/help
+  #         mv src/externals nn_tilde
+  #         cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+  #         tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
+  #     - name: PureData Package creation
+  #       run: |
+  #         rm -fr nn_tilde
+  #         mv build/frontend/puredata/nn_tilde .
+  #         rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
+  #         tar -czvf nn_puredata_macOS_x64.tar.gz nn_tilde
+  #     - name: Upload binaries
+  #       uses: actions/upload-artifact@v2
+  #       with:
+  #         name: nn_tilde
+  #         path: |
+  #           nn_max_msp_macOS_x64.tar.gz
+  #           nn_puredata_macOS_x64.tar.gz
 
   windows-x64-build:
     runs-on: windows-latest
@@ -133,23 +133,23 @@ jobs:
             nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
 
-  AutomaticRelease:
-    runs-on: ubuntu-latest
-    needs: [osx-arm64-build, osx-x64-build, windows-x64-build]
-    steps:
-      - name: Download build binaries
-        uses: actions/download-artifact@v2
-        with:
-          name: nn_tilde
-      - name: Automated Release
-        uses: "marvinpinto/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          files: |
-            nn_max_msp_macOS_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
-            nn_max_msp_macOS_arm64.tar.gz
-            nn_puredata_macOS_arm64.tar.gz
-            nn_max_msp_windows_x64.tar.gz
-            nn_puredata_windows_x64.tar.gz
+  # AutomaticRelease:
+  #   runs-on: ubuntu-latest
+  #   needs: [osx-arm64-build, osx-x64-build, windows-x64-build]
+  #   steps:
+  #     - name: Download build binaries
+  #       uses: actions/download-artifact@v2
+  #       with:
+  #         name: nn_tilde
+  #     - name: Automated Release
+  #       uses: "marvinpinto/action-automatic-releases@latest"
+  #       with:
+  #         repo_token: "${{ secrets.GITHUB_TOKEN }}"
+  #         prerelease: false
+  #         files: |
+  #           nn_max_msp_macOS_x64.tar.gz
+  #           nn_puredata_macOS_x64.tar.gz
+  #           nn_max_msp_macOS_arm64.tar.gz
+  #           nn_puredata_macOS_arm64.tar.gz
+  #           nn_max_msp_windows_x64.tar.gz
+  #           nn_puredata_windows_x64.tar.gz
