@@ -181,6 +181,7 @@ public:
       if (!is_valid) {
         return {};
       }
+      DEBUG_PRINT("asked to print %s on %s", std::string(args[2]).c_str(), std::string(args[1]).c_str());
       if (args[1] == "cout") {
         cout << args[2] << endl;
       } else if (args[1] == "cerr") {
@@ -374,21 +375,32 @@ void nn_base<nn_name, op_type>::init_model() {
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::init_downloader() {
-  m_downloader = std::make_unique<MaxModelDownloader>(this, nn_name::get_external_name()); 
+  try {
+    m_downloader = std::make_unique<MaxModelDownloader>(this, nn_name::get_external_name()); 
+  } catch (std::string &e) {
+    cerr << "failed to init downloader. caught exception : " << e << endl;
+  }
 }
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
+  DEBUG_PRINT("parsing inputs & outputs...");
   bool empty_mode; 
   if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
     auto model_path = std::string(args[0]);
     if (model_path == "void") {
       empty_mode = true;    
     } else {
-      m_path = to_model_path(model_path);
+      try {
+        m_path = to_model_path(model_path);
+      } catch (std::string &e) {
+        cerr << e << endl; 
+        error(); 
+      }
       empty_mode = false;
     }
   }
+  DEBUG_PRINT("empty mode set to %d", empty_mode);
   
   if (empty_mode) {
     if (args.size() > 1) { // FOUR ARGUMENTS ARE GIVEN
@@ -515,37 +527,41 @@ void nn_base<nn_name, op_type>::update_model(const std::string &model) {
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::update_method(const std::string &method) {
-  if (!m_model->is_loaded()) {
-    cerr << "no model is set yet" << endl;
-    return; 
-  }
-  if (m_model->has_method(method)) {
-    m_method = method; 
-    auto params = m_model->get_method_params(m_method);
-    // input parameters
-    m_model_in = params[0];
-    if (n_inlets == -1) {
-      n_inlets = m_model_in;
-    } 
-    m_in_ratio = params[1];
+  try {
+    if (!m_model->is_loaded()) {
+      cerr << "no model is set yet" << endl;
+      return; 
+    }
+    if (m_model->has_method(method)) {
+      m_method = method; 
+      auto params = m_model->get_method_params(m_method);
+      // input parameters
+      m_model_in = params[0];
+      if (n_inlets == -1) {
+        n_inlets = m_model_in;
+      } 
+      m_in_ratio = params[1];
 
-    // output parameters
-    m_model_out = params[2];
-    if (n_outlets == -1) {
-      n_outlets = params[2];
-    }
-    m_out_ratio = params[3]; 
+      // output parameters
+      m_model_out = params[2];
+      if (n_outlets == -1) {
+        n_outlets = params[2];
+      }
+      m_out_ratio = params[3]; 
 
-    if (m_model_in != n_inlets) {
-      cwarn << "nn_base~ has been initialised with " << n_inlets << " inputs, but current model has " << m_model_in << endl;
+      if (m_model_in != n_inlets) {
+        cwarn << "nn_base~ has been initialised with " << n_inlets << " inputs, but current model has " << m_model_in << endl;
+      }
+      if (m_model_out != n_outlets) {
+        cwarn << "nn_base~ has been initialised with " << n_outlets << " outputs, but current model has " << m_model_out << endl;
+      }
+    } else {
+      cerr << "model " << m_path << "does not have method " << method << endl; 
     }
-    if (m_model_out != n_outlets) {
-      cwarn << "nn_base~ has been initialised with " << n_outlets << " outputs, but current model has " << m_model_out << endl;
-    }
-  } else {
-    cerr << "model " << m_path << "does not have method " << method << endl; 
+    wait_for_buffer_reset = true; 
+  } catch (std::string &e) {
+    cerr << "failed to set method to " << method << ". Caught exception : " << e << endl; 
   }
-  wait_for_buffer_reset = true; 
 }
 
 template <typename nn_name, typename op_type>
@@ -555,17 +571,20 @@ void nn_base<nn_name, op_type>::load_model(const std::string& model_path) {
   try {
     auto path = to_model_path(model_path);
     m_model.get()->load(path, get_sample_rate(), &m_method);
+    DEBUG_PRINT("model loaded"); 
+    m_model->use_gpu(gpu);
+    m_higher_ratio = m_model->get_higher_ratio();
+    settable_attributes = m_model->get_settable_attributes(); 
+    DEBUG_PRINT("attributes setted"); 
+    m_buffer_manager.init_buffer_list(m_model.get(), this);
   } catch (std::string &e) {
     cerr << e << endl;
     return; 
   }
-  m_model->use_gpu(gpu);
-  m_higher_ratio = m_model->get_higher_ratio();
-  settable_attributes = m_model->get_settable_attributes(); 
-  m_buffer_manager.init_buffer_list(m_model.get(), this);
-  
+
   // SET PARAMS
   update_method(m_method);
+  DEBUG_PRINT("method updated"); 
   m_ready = true;
 }
 
