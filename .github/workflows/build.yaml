@@ -10,7 +10,6 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v2
-        repository: 
       - run: git submodule update --init --recursive
       - name: Setup miniconda
         run: |
