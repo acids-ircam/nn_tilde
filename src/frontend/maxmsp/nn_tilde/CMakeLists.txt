@@ -54,7 +54,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 
 if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
 	set_target_properties(${PROJECT_NAME} PROPERTIES
-	BUILD_WITH_INSTALL_RPATH FALSE
+	INSTALL_RPATH "@executable_path"
+	BUILD_WITH_INSTALL_RPATH FALSE 
 	LINK_FLAGS "-Wl,-rpath,@loader_path/"
 	)
 endif()
@@ -65,16 +66,25 @@ if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
 	add_custom_command( 
 			TARGET ${PROJECT_NAME} 
 			POST_BUILD 
-			COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/" 
+			COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+			COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
 			COMMENT "Copy Torch Libraries" 
 		)
 
-	# add_custom_command( 
-	# 		TARGET ${PROJECT_NAME} 
-	# 		POST_BUILD 
-	# 		COMMAND cp "${CURL_DYLIB_PATH}" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/"
-	# 		COMMENT "Copy libcurl library" 
-	# 	)
+	add_custom_command( 
+		TARGET ${PROJECT_NAME} 
+		POST_BUILD 
+		COMMAND cp "${CMAKE_CURRENT_BINARY_DIR}/../../../_deps/curl-build/lib/libcurl.dylib" "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+		COMMAND cp "${CMAKE_CURRENT_BINARY_DIR}/../../../_deps/curl-build/lib/libcurl-d.dylib" "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+		COMMENT "Copy libcurl" 
+	)
+
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+		COMMAND /bin/sh ${CMAKE_SOURCE_DIR}/otool_fix.sh "$<TARGET_FILE:${PROJECT_NAME}>"
+		COMMAND install_name_tool -delete_rpath "${CMAKE_BINARY_DIR}/_deps/curl-build/lib" "$<TARGET_FILE:${PROJECT_NAME}>" | True
+		COMMAND install_name_tool -delete_rpath "${TORCH_INSTALL_PREFIX}/lib" "$<TARGET_FILE:${PROJECT_NAME}>" | True
+		COMMENT "copying additional libraries"
+	)
 
 	if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 		add_custom_command( 

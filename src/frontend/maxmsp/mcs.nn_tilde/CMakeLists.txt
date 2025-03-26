@@ -69,6 +69,22 @@ add_custom_command(
 		COMMENT "Copy Torch Libraries" 
 	)
 
+	add_custom_command( 
+		TARGET ${PROJECT_NAME} 
+		POST_BUILD 
+		COMMAND cp "${CMAKE_CURRENT_BINARY_DIR}/../../../_deps/curl-build/lib/libcurl.dylib" "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+		COMMAND cp "${CMAKE_CURRENT_BINARY_DIR}/../../../_deps/curl-build/lib/libcurl-d.dylib" "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+		COMMENT "Copy libcurl" 
+	)
+
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+		COMMAND /bin/sh ${CMAKE_SOURCE_DIR}/otool_fix.sh "$<TARGET_FILE:${PROJECT_NAME}>"
+		COMMAND install_name_tool -delete_rpath "${CMAKE_BINARY_DIR}/_deps/curl-build/lib" "$<TARGET_FILE:${PROJECT_NAME}>" | True
+		COMMAND install_name_tool -delete_rpath "${TORCH_INSTALL_PREFIX}/lib" "$<TARGET_FILE:${PROJECT_NAME}>" | True
+		COMMENT "copying additional libraries"
+	)
+
+
 if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
 	add_custom_command( 
 		TARGET ${PROJECT_NAME} 

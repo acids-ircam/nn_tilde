@@ -75,7 +75,6 @@ public:
 
     static std::string get_external_name() { return "nn~";} 
     nn(const atoms &args = {}) {
-        std::cout << "coucoucoucou" << std::endl; 
         init_external(args); 
      }
 
@@ -91,13 +90,19 @@ public:
     }
 
     void init_external(const atoms &args) override {
-      init_model(); DEBUG_PRINT("initializing model");
-      init_downloader(); DEBUG_PRINT("initializing downloader");
+      DEBUG_PRINT("initializing model");
+      init_model(); 
+      DEBUG_PRINT("initializing downloader");
+      init_downloader(); 
       if (!args.size()) { return; } 
-      init_inputs_and_outputs(args); DEBUG_PRINT("initializing inputs & outputs");
-      init_inlets_and_outlets(); DEBUG_PRINT("initializing inlets & outlets");
-      init_buffers(); DEBUG_PRINT("initializing buffers");
-      init_process(); DEBUG_PRINT("initializing process"); 
+      DEBUG_PRINT("initializing inputs & outputs");
+      init_inputs_and_outputs(args); 
+      DEBUG_PRINT("initializing inlets & outlets");
+      init_inlets_and_outlets(); 
+      DEBUG_PRINT("initializing buffers");
+      init_buffers(); 
+      DEBUG_PRINT("initializing process"); 
+      init_process(); 
     } 
     void perform(audio_bundle input, audio_bundle output) override;
 
