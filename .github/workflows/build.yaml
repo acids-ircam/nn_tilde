@@ -10,6 +10,7 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v2
+        repository: 
       - run: git submodule update --init --recursive
       - name: Setup miniconda
         run: |
@@ -40,13 +41,13 @@ jobs:
           mv build/frontend/puredata/nn_tilde .
           rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
           tar -czvf nn_puredata_macOS_arm64.tar.gz nn_tilde
-      - name: Upload binaries
-        uses: actions/upload-artifact@v2
-        with:
-          name: nn_tilde
-          path: |
-            nn_max_msp_macOS_arm64.tar.gz
-            nn_puredata_macOS_arm64.tar.gz
+      # - name: Upload binaries
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: nn_tilde
+      #     path: |
+      #       nn_max_msp_macOS_arm64.tar.gz
+      #       nn_puredata_macOS_arm64.tar.gz
 
   # osx-x64-build:
   #   runs-on: macos-latest
