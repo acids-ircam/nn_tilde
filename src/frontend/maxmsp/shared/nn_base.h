@@ -4,6 +4,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <algorithm>
 #include "c74_min.h"
 #include "max_model_download.h"
 #include "buffer_tools.h"

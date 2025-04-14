@@ -17,7 +17,7 @@ using namespace c74::min;
 
 class nn_info : public object<nn_info>, public vector_operator<> {
 public:
-  MIN_DESCRIPTION{"Interface for deep learning models"};
+  MIN_DESCRIPTION{"Fetching information from deep learning models"};
   MIN_TAGS{"audio, deep learning, ai"};
   MIN_AUTHOR{"Axel Chemla--Romeu-Santos"};
 
@@ -61,7 +61,7 @@ public:
   message<> maxclass_setup{
       this, "maxclass_setup",
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
-        cout << "nn.info~ " << VERSION << " - torch " << TORCH_VERSION
+        cout << "nn.info " << VERSION << " - torch " << TORCH_VERSION
              << " - 2025 - Antoine Caillon & Axel Chemla--Romeu-Santos" << endl;
         cout << "visit https://forum.ircam.fr" << endl;
         return {};

@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cstdio>
 #include <filesystem>
 #include <iostream>
@@ -41,13 +42,13 @@ bool is_file_empty(const fs::path filePath) {
 class ModelDownloader {
 
 protected:
-    fs::path d_path;
+    fs::path d_path, d_cert_path;
     bool _is_ready = false;
     static bool create_path(const fs::path& path);
     // api root
     std::string _api_root;
     // available models callbacks
-    static std::string get_string_from_api_callback(std::string &adress);
+    std::string get_string_from_api_callback(std::string &adress);
     json d_available_models;
     // downloading attributes
     std::vector<std::thread> d_threads;
@@ -65,6 +66,7 @@ public:
     int init_downloader(bool force_refresh = false);
     void init_threads();
     bool is_ready();
+    bool has_valid_certificate();
     bool has_model(const std::string &model_card);
     std::string get_api_root();
     bool update_available_models(); 
@@ -74,20 +76,28 @@ public:
     void enqueue_download_task(DownloadTask task);
     void print_available_models();
     fs::path target_path_from_model(const std::string model_name, const std::string custom_name = "");
+    fs::path get_certificate_path() { return d_cert_path; }
     void reload();
     void worker(); 
 
     virtual void fill_dict(void* dict_to_fill) = 0;
     virtual void print_to_parent(const std::string &message, const std::string &canal) = 0;
+    virtual fs::path cert_path_from_path(fs::path path) = 0;
 
     std::string string_id() {
         std::stringstream str_id; 
         str_id << this; 
         return str_id.str();
     }
+
+    void find_and_replace_char(std::string& str, char oldChar, char newChar) {
+        for (size_t pos = 0; (pos = str.find(oldChar, pos)) != std::string::npos; pos++) {
+            str[pos] = newChar;
+        }
+    }
 };
 
-ModelDownloader::ModelDownloader(fs::path download_location): d_path(download_location) {}
+ModelDownloader::ModelDownloader(fs::path download_location): d_path(download_location / "..") {}
 
 ModelDownloader::~ModelDownloader() {
     {
@@ -106,9 +116,30 @@ void ModelDownloader::init_threads() {
     }
 }
 
+bool ModelDownloader::has_valid_certificate() {
+    if (d_cert_path == "") {
+        return false;
+    } else if (!fs::exists(d_cert_path)) {
+        #if defined(_WIN32) || defined(_WIN64)
+            std::string error_message = "Could not find certificate at " + d_cert_path.string();
+        #elif defined(__APPLE__) || defined(__MACH__)
+            std::string error_message = "Could not find certificate in external bundle";
+        #elif defined(__linux__)
+            std::string error_message = "Could not find certificate at " + d_cert_path.string() + "; did you install ca-certificates?";
+        #else
+            std::string error_message ="Could not find certificate at " + d_cert_path.string() + "; wrong compilation platform";
+        #endif
+        
+        print_to_parent(error_message, "cwarn");
+        return false;
+    }
+    return true;
+}
+
 int ModelDownloader::init_downloader(bool force_refresh) {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     bool is_path_ok = create_path(d_path);
+    bool is_certificate_ok = has_valid_certificate(); 
     bool is_model_list_available = update_available_models();
     init_threads();
     _is_ready = (is_path_ok && is_model_list_available);
@@ -137,14 +168,14 @@ std::string ModelDownloader::get_string_from_api_callback(std::string &address) 
     std::string readBuffer; 
 
     curl = curl_easy_init();
-
     if (curl) {
         curl_easy_setopt(curl, CURLOPT_URL, address.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, JSONWriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        curl_easy_setopt(curl, CURLOPT_CAINFO, d_cert_path.string().c_str());
         res = curl_easy_perform(curl);
         if (res != CURLE_OK) {
-            throw std::string("could not fetch available models from API: ");
+            throw std::string("could not fetch available models from API. Code from API: ") + std::to_string(res);
         }
         // Clean up
         curl_easy_cleanup(curl);
@@ -225,7 +256,6 @@ void ModelDownloader::worker() {
     }
 }
 
-
 void ModelDownloader::enqueue_download_task(DownloadTask task) {
     {
         std::unique_lock<std::mutex> lock(mutex);
@@ -262,7 +292,7 @@ std::string lock_path_from_target(std::string target_path, std::string model_nam
         lock_name << p << '_' ; 
     }
     lock_name << "lock";
-    std::string lock_path = fs::absolute(target_path_fs.parent_path() / lock_name.str()); 
+    std::string lock_path = fs::absolute(target_path_fs.parent_path() / lock_name.str()).string(); 
     return lock_path;
 }
 
@@ -298,6 +328,7 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
             curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, ModelWriteCallback);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
+            curl_easy_setopt(curl, CURLOPT_CAINFO, parent->get_certificate_path().string().c_str());
             
             // Perform the request
             res = curl_easy_perform(curl);
@@ -363,18 +394,18 @@ void ModelDownloader::download(const std::string &model_name, const std::string 
         throw std::string("model name " + model_name + " not available.");
     }
     auto target_path = target_path_from_model(model_name, custom_name);
-    if (fs::exists(target_path)) {
+    if (std::filesystem::exists(target_path)) {
         if (!is_file_empty(target_path)) {
             print_to_parent("model " + target_path.string() + " seems to be already downloaded.", "cwarn");
             return;
         } else {
-            fs::remove(target_path);
+            std::filesystem::remove(target_path);
         }
     }
-    if (fs::exists(lock_path_from_target(target_path, model_name))) {
+    if (std::filesystem::exists(lock_path_from_target(target_path.string(), model_name))) {
         print_to_parent("model " + model_name + " is already downloading.", "cwarn");
         return; 
     }
     int download_id = d_threads.size();
-    enqueue_download_task([this, model_name, target_path, download_id]() { download_thread(this, model_name, target_path, download_id); });
+    enqueue_download_task([this, model_name, target_path, download_id]() { download_thread(this, model_name, target_path.string(), download_id); });
 }

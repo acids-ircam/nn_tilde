@@ -13,8 +13,8 @@ with open("requirements.txt", "r") as requirements:
 setuptools.setup(
     name="nn_tilde",
     version=VERSION,
-    author="Antoine CAILLON",
-    author_email="caillon@ircam.fr",
+    author="Antoine CAILLON & Axel CHEMLA--ROMEU-SANTOS",
+    author_email="chemla@ircam.fr",
     description="Set of tools to create nn_tilde compatible models.",
     long_description=readme,
     long_description_content_type="text/markdown",

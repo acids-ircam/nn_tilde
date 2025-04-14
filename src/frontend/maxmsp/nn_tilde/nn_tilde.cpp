@@ -1,8 +1,6 @@
 #include "../shared/nn_base.h"
 #include "c74_min.h"
 
-
-
 template <typename nn_class>
 void model_perform(nn_class* nn_instance) {
   std::vector<float *> in_model, out_model;

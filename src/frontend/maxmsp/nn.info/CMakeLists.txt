@@ -3,29 +3,21 @@
 
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 set(C74_MIN_API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../min-api)
 include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 
 if (APPLE)
-	set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0")
+	set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12")
 endif()
+
 
 #############################################################
 # MAX EXTERNAL
 #############################################################
-
-
-include_directories( 
-	"${C74_INCLUDES}", 
-	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
-	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared",
-)
-find_package(Torch REQUIRED)
-
-set(
-SOURCE_FILES
-	nn.info.cpp
-)
 
 if (UNIX)
 	execute_process(
@@ -34,55 +26,81 @@ if (UNIX)
 			OUTPUT_VARIABLE VERSION
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
-	message(${VERSION})
+	message("version : ${VERSION}")
 	add_definitions(-DVERSION="${VERSION}")
 endif()
+
+
+
+set(
+SOURCE_FILES
+	nn.info.cpp
+)
 
 add_library( 
 	${PROJECT_NAME} 
 	MODULE
 	${SOURCE_FILES}
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE backend)
-target_link_libraries(${PROJECT_NAME} PRIVATE backend)
-target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
-target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 
+include_directories( 
+	"${C74_INCLUDES}", 
+	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared",
+)
+
+if (MSVC)
+	include_directories(${VCPKG_INCLUDE_DIR})
+	link_directories(${VCPKG_LIB_DIR})
+endif()
+
+
+target_link_libraries(${PROJECT_NAME} PRIVATE backend)
+
+if (UNIX)
+	set(CONDA_ENV_PATH "${CMAKE_SOURCE_DIR}/../env")
+	set(CURL_INCLUDE_DIR "${CONDA_ENV_PATH}/include")
+	set(CURL_LIBRARY "${CONDA_ENV_PATH}/lib/libcurl.dylib")
+	include_directories(${CURL_INCLUDE_DIR})
+elseif(MSVC)
+	set(VCPKG_PATH "${CMAKE_SOURCE_DIR}/../vcpkg")
+	set(CURL_INCLUDE_DIR "${VCPKG_PATH}/packages/curl_x64-windows/include")
+	set(CURL_LIBRARY "${VCPKG_PATH}/packages/curl_x64-windows/lib/libcurl.lib")
+endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${CURL_LIBRARY})
+
+
+
+include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
+
+if (MSVC)
+	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+	set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+	set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
+	target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+endif()
 
 
 if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
 set_target_properties(${PROJECT_NAME} PROPERTIES
-BUILD_WITH_INSTALL_RPATH FALSE
-LINK_FLAGS "-Wl,-rpath,@loader_path/"
+	BUILD_WITH_INSTALL_RPATH FALSE
+	LINK_FLAGS "-Wl,-rpath,@loader_path/"
 )
 endif()
 
-include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
 
-if (APPLE) # COPY TORCH DYLIB IN THE LOADER FOLDER
-add_custom_command( 
-		TARGET ${PROJECT_NAME} 
+
+
+if (APPLE) # COPY DYLIBS IN THE LOADER FOLDER
+
+	add_custom_command(
+		TARGET ${PROJECT_NAME}
 		POST_BUILD 
-		COMMAND cp "${TORCH_INSTALL_PREFIX}/lib/*.dylib" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo/Contents/MacOS/" 
-		COMMENT "Copy Torch Libraries" 
+		COMMAND ${CMAKE_COMMAND} -E copy  "${CMAKE_SOURCE_DIR}/../env/ssl/cert.pem" "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+		COMMAND ${CMAKE_SOURCE_DIR}/../env/bin/python ${CMAKE_SOURCE_DIR}/../install/dylib_fix.py -p "$<TARGET_FILE:${PROJECT_NAME}>" -l "${CMAKE_BINARY_DIR}/_deps"  "${CMAKE_SOURCE_DIR}/../env" "${HOMEBREW_PREFIX}"
+		COMMENT "Fixing libraries, certificates, permissions, codesigning, quarantine"
 	)
-
-if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
-	add_custom_command( 
-		TARGET ${PROJECT_NAME} 
-		POST_BUILD 
-		COMMAND "codesign" "--force" "--deep" "-s" "-" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${${PROJECT_NAME}_EXTERN_OUTPUT_NAME}.mxo"
-		COMMENT "Codesign external" 
-	)
-endif()
-endif()
-
-if (MSVC) # COPY TORCH DLL IN THE LOADER FOLDER
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${TORCH_INSTALL_PREFIX}/lib/" ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/
-)
-endif()
-
-if (MSVC)
-	set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+	
 endif()

@@ -64,7 +64,7 @@ void BufferManager::link_attribute_to_buffer(std::string buffer_name, c74::min::
   if (buffer_index > -1) {
     m_max_buffers[buffer_index].get()->set(target_max_buffer);
   } else {
-    throw "could not link" + buffer_name + "to max buffer" + std::string(target_max_buffer);
+    throw "could not link" + buffer_name + "to max buffer" + target_max_buffer.c_str();
   }
 }
 

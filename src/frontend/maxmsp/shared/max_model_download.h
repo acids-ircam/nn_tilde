@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cstdio>
 #include <filesystem>
 #include <iostream>
@@ -32,22 +33,37 @@ public:
 
     void fill_dict(void* dict_to_fill);
     void print_to_parent(const std::string &message, const std::string &canal);
-
+    fs::path cert_path_from_path(fs::path path) {
+        #if defined(_WIN32) || defined(_WIN64)
+            std::string perm_path = (path / ".." / ".." / "support" / "cacert.pem").string();
+            find_and_replace_char(perm_path, '/', '\\');
+        #elif defined(__APPLE__) || defined(__MACH__)
+            std::string perm_path = path / "Contents" / "MacOS" / "cert.pem";
+        #else
+            std::string perm_path = (path / "..").string();
+        #endif
+        return perm_path;
+    }
 };
 
 
 MaxModelDownloader::MaxModelDownloader(c74::min::object_base* obj): d_parent(obj) {
     // d_path = d_path / ".." / "nn_tilde" / "models";
     min::path path = min::path("nn~", min::path::filetype::external); 
+    std::string path_str = path;
     if (path) {
-        d_path = fs::absolute(fs::path(path) / "..");
+        d_cert_path = cert_path_from_path(fs::path(path_str));
+        d_path = fs::absolute(fs::path(path_str) / "..");
     }
 }
 
 MaxModelDownloader::MaxModelDownloader(c74::min::object_base* obj, std::string external_name): d_parent(obj) {
     min::path path = min::path(external_name, min::path::filetype::external);
+    std::string path_str = path;
+    fs::path fs_path(path_str);
     if (path) {
-        d_path = fs::absolute(fs::path(path) / "..");
+        d_cert_path = cert_path_from_path(fs::path(path_str));
+        d_path = fs::absolute(fs::path(path_str) / "..");
     }
 }
 
