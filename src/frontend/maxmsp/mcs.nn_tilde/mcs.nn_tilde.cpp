@@ -138,22 +138,29 @@ int mcs_nn::get_batches() {
 
 void mcs_nn::init_inputs_and_outputs(const atoms &args) {
   bool empty_mode = false; 
+  DEBUG_PRINT("parsing inputs & outputs...");
   if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
     auto model_path = std::string(args[0]);
     if (model_path == "void") {
       empty_mode = true;    
     } else {
-      m_path = to_model_path(model_path);
+      try {
+        m_path = to_model_path(model_path);
+      } catch (std::string &e) {
+        error(e);
+      }
     }
   }
   
   if (empty_mode) {
+    DEBUG_PRINT("empty mode");
     if (args.size() > 1) { // FOUR ARGUMENTS ARE GIVEN
-      auto n_batches = int(args[1]);
+      n_batches = int(args[1]);
     }
     if (args.size() > 2) { // THREE ARGUMENTS ARE GIVEN
       m_buffer_size = int(args[2]);
     }
+    channel_map = std::vector<long>(n_batches, 1); 
   } else {
     if (args.size() > 1) { // TWO ARGUMENTS ARE GIVEN
       m_method = std::string(args[1]);
@@ -165,6 +172,7 @@ void mcs_nn::init_inputs_and_outputs(const atoms &args) {
       m_buffer_size = int(args[3]);
     }
     channel_map = std::vector<long>(n_batches, 1); 
+    DEBUG_PRINT("loading model..."); 
     load_model(m_path);
   }
 }
@@ -184,6 +192,9 @@ bool mcs_nn::update_channel_map(const long& index, const long& count)
 }
 
 void mcs_nn::init_inlets_and_outlets() {
+   
+  DEBUG_PRINT("loading model..."); 
+  DEBUG_PRINT("n_batches : %d", n_batches); 
   std::string input_label; 
   for (int i(0); i < n_batches; i++) {
     input_label = "(multichannel) batch " + std::to_string(i) + "(" + std::to_string(m_model_in) + " dimensions)";
@@ -202,10 +213,13 @@ void mcs_nn::init_inlets_and_outlets() {
 }
 
 void mcs_nn::init_buffers() {
+  DEBUG_PRINT("initializing buffers...");
+  if (!m_ready) { return; }
   if (m_buffer_size == -1) {
     // NO THREAD MODE
     m_buffer_size = DEFAULT_BUFFER_SIZE;
   }
+  DEBUG_PRINT("buffer size : %d", m_buffer_size);
   if (m_buffer_size == 0) {
     m_use_thread = false; 
     m_buffer_size = m_higher_ratio; 
@@ -218,6 +232,7 @@ void mcs_nn::init_buffers() {
     }
   }
 
+ DEBUG_PRINT("initializing with n_mc_inputs : %d", n_mc_inputs());
  if (m_in_buffer.get() != nullptr) { m_in_buffer.release(); }
   m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(n_mc_inputs());
   if (m_in_buffer.get()->max_size() < m_buffer_size) {
@@ -227,6 +242,7 @@ void mcs_nn::init_buffers() {
   }
   m_buffer_in = n_mc_inputs(); 
 
+  DEBUG_PRINT("initializing with outputs : %d x %d", n_outlets, m_model_out);
   if (m_out_buffer.get() == nullptr) { m_out_buffer.release(); }
   m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(n_outlets * m_model_out);
   if (m_out_buffer.get()->max_size() < m_buffer_size) {
@@ -236,17 +252,21 @@ void mcs_nn::init_buffers() {
   }
   m_buffer_out = n_outlets * m_model_out;
 
+  DEBUG_PRINT("initializing with model buffer inputs : %d x %d", m_model_in, n_inlets);
   m_in_model.clear(); 
   for (int i = 0; i < m_model_in * n_inlets; i++) {
     m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
     std::fill(m_in_model[i].get(), m_in_model[i].get() + m_buffer_size, 0.); 
   }
 
+  DEBUG_PRINT("initializing with model buffer ouputs : %d x %d", m_model_out, n_outlets);
   m_out_model.clear(); 
   for (int i = 0; i < m_model_out * n_outlets; i++) {
     m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
     std::fill(m_out_model[i].get(), m_out_model[i].get() + m_buffer_size, 0.); 
   }
+
+  DEBUG_PRINT("buffers initialized");
 
   wait_for_buffer_reset = false; 
   had_buffer_reset = true; 
@@ -262,17 +282,20 @@ void mcs_nn::update_method(const std::string &method) {
     auto params = m_model->get_method_params(m_method);
     // input parameters
     m_model_in = params[0];
-    if (n_inlets == -1) {
-      n_inlets = m_model_in;
-    } 
+    // if (n_inlets == -1) {
+    //   n_inlets = m_model_in;
+    // } 
     m_in_ratio = params[1];
 
     // output parameters
     m_model_out = params[2];
-    if (n_outlets == -1) {
-      n_outlets = params[2];
-    }
+    // if (n_outlets == -1) {
+    //   n_outlets = params[2];
+    // }
     m_out_ratio = params[3]; 
+
+    wait_for_buffer_reset = true; 
+    
   } else {
     cerr << "method " << method << " not present in model" << endl;
   }

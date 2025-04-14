@@ -395,8 +395,7 @@ void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
       try {
         m_path = to_model_path(model_path);
       } catch (std::string &e) {
-        cerr << e << endl; 
-        error(); 
+        error(e);
       }
       empty_mode = false;
     }
