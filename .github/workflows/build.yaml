@@ -16,7 +16,7 @@ jobs:
           ref: dev
           fetch-depth: 0
       - run: | 
-          git lfs pull
+          git lfs checkout
           git submodule update --init --recursive
           git fetch --tags
           du -sh src/models/*
