@@ -14,7 +14,7 @@ jobs:
           git submodule update --init --recursive
           git fetch --tags
           du -sh src/models/*
-          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models
+          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
       - name: Setup LLVM
         run: |
           brew install llvm 
@@ -68,7 +68,7 @@ jobs:
           git submodule update --init --recursive
           git fetch --tags
           git describe --tags --always
-          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models
+          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
 
       - name: Install x86_64 Homebrew
         run: |
@@ -125,7 +125,6 @@ jobs:
           mkdir nn_tilde
           mkdir nn_tilde/help
           mv src/externals src/help src/support src/patchers src/extras src/package-info.json src/icon.png src/source src/models src/misc nn_tilde
-          curl -L https://nubo.ircam.fr/index.php/s/7xBPxJZA6nJFHkG -o ${{ secrets.WHEEL_PATH }}
           tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
@@ -203,6 +202,7 @@ jobs:
           path: 
             ${{ matrix.artifact-name }}.tar.gz
 
+            
   windows-x64-build:
     runs-on: windows-latest
     steps:
@@ -211,7 +211,7 @@ jobs:
       - run: | 
           git submodule update --init --recursive
           git fetch --tags
-          curl -L ${{ secrets.WHEEL_PATH }} -o src/models
+          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
       - name: Downloading Torch 
         run: |
           curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.6.0%2Bcpu.zip > "libtorch.zip"
