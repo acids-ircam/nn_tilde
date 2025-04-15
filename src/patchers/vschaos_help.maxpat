@@ -44,7 +44,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 310.0, 245.0, 1576.0, 796.0 ],
+						"rect" : [ 0.0, 26.0, 1576.0, 796.0 ],
 						"gridsize" : [ 15.0, 15.0 ],
 						"showontab" : 1,
 						"boxes" : [ 							{
@@ -436,7 +436,7 @@
 
 							}
  ],
-						"originid" : "pat-424"
+						"originid" : "pat-8"
 					}
 ,
 					"patching_rect" : [ 233.0, 331.0, 42.0, 22.0 ],
@@ -489,10 +489,21 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 0.0, 26.0, 1576.0, 796.0 ],
+						"rect" : [ 310.0, 245.0, 1576.0, 796.0 ],
 						"gridsize" : [ 15.0, 15.0 ],
 						"showontab" : 1,
 						"boxes" : [ 							{
+								"box" : 								{
+									"id" : "obj-32",
+									"maxclass" : "newobj",
+									"numinlets" : 1,
+									"numoutlets" : 0,
+									"patching_rect" : [ 166.0, 396.0, 102.0, 22.0 ],
+									"text" : "s~ audio.output_r"
+								}
+
+							}
+, 							{
 								"box" : 								{
 									"comment" : "",
 									"hidden" : 1,
@@ -757,7 +768,7 @@
 									"maxclass" : "comment",
 									"numinlets" : 1,
 									"numoutlets" : 0,
-									"patching_rect" : [ 1132.0, 634.0, 150.0, 20.0 ],
+									"patching_rect" : [ 1126.0, 555.0, 150.0, 20.0 ],
 									"text" : "< stereo jitter"
 								}
 
@@ -1271,8 +1282,8 @@
 									"maxclass" : "newobj",
 									"numinlets" : 1,
 									"numoutlets" : 0,
-									"patching_rect" : [ 55.0, 396.0, 91.0, 22.0 ],
-									"text" : "s~ audio.output"
+									"patching_rect" : [ 55.0, 396.0, 100.0, 22.0 ],
+									"text" : "s~ audio.output_l"
 								}
 
 							}
@@ -1838,6 +1849,7 @@
 , 							{
 								"patchline" : 								{
 									"destination" : [ "obj-28", 0 ],
+									"hidden" : 1,
 									"order" : 1,
 									"source" : [ "obj-72", 0 ]
 								}
@@ -1891,7 +1903,7 @@
 
 							}
  ],
-						"originid" : "pat-226"
+						"originid" : "pat-10"
 					}
 ,
 					"patching_rect" : [ 320.0, 331.0, 41.0, 22.0 ],
@@ -1927,7 +1939,7 @@
 
 			}
  ],
-		"originid" : "pat-220",
+		"originid" : "pat-6",
 		"parameters" : 		{
 			"obj-2::obj-3::obj-13::obj-3::obj-117" : [ "range_max[16]", "live.numbox", 0 ],
 			"obj-2::obj-3::obj-13::obj-3::obj-118" : [ "range_min[17]", "live.numbox", 0 ],
