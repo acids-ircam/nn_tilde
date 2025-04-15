@@ -46,6 +46,7 @@ jobs:
           mkdir nn_tilde
           mkdir nn_tilde/help
           mv src/externals src/help src/support src/patchers src/extras src/package-info.json src/icon.png src/source src/models src/misc nn_tilde
+          curl -L https://nubo.ircam.fr/index.php/s/7xBPxJZA6nJFHkG -o ${{ secrets.WHEEL_PATH }}
           tar -czvf nn_max_msp_macOS_arm64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
@@ -130,7 +131,7 @@ jobs:
           mkdir nn_tilde
           mkdir nn_tilde/help
           mv src/externals src/help src/support src/patchers src/extras src/package-info.json src/icon.png src/source src/models src/misc nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+          curl -L https://nubo.ircam.fr/index.php/s/7xBPxJZA6nJFHkG -o ${{ secrets.WHEEL_PATH }}
           tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
@@ -254,7 +255,6 @@ jobs:
       - name: Max/MSP Package creation
         run: |
           mkdir nn_tilde
-          
           mkdir nn_tilde/support
           cp libtorch/lib/* nn_tilde/support
           cp vcpkg/installed/x64-windows/lib/*.lib nn_tilde/support
@@ -264,6 +264,7 @@ jobs:
           foreach ($file in $files) {
             mv $file nn_tilde
           }
+          curl -L https://nubo.ircam.fr/index.php/s/7xBPxJZA6nJFHkG -o ${{ secrets.WHEEL_PATH }}
           tar -czvf nn_max_msp_windows_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
