@@ -14,7 +14,7 @@ jobs:
         with: 
           lfs: true
       - run: | 
-          git lfs fetch origin dev
+          git lfs fetch 
           git lfs checkout
           git submodule update --init --recursive
           git fetch --tags
