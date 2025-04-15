@@ -14,14 +14,13 @@ jobs:
         with:
           lfs: true
       - run: | 
-          git lfs pull
           git submodule update --init --recursive
           git fetch --tags
-          GIT_TRACE=1 git describe --tags --always
+          git lfs pull
+          du -sh src/models/*
       - name: Setup LLVM
         run: |
           brew install llvm 
-
       - name: Setup miniconda
         run: |
           curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh > miniconda.sh
@@ -171,8 +170,8 @@ jobs:
         with:
           lfs: true
       - run: | 
-          git lfs pull
           git submodule update --init --recursive
+          git lfs pull
           git fetch --tags
           GIT_TRACE=1 git describe --tags --always
       - name: Setup LLVM
