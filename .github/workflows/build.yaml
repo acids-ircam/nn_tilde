@@ -11,9 +11,11 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v2
+        with: 
+          lfs: true
+          ref: dev
+          fetch-depth: 0
       - run: | 
-          brew install git-lfs
-          git lfs install
           git lfs pull
           git submodule update --init --recursive
           git fetch --tags
