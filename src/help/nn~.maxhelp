@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 539.0, 194.0, 956.0, 713.0 ],
+		"rect" : [ 167.0, 112.0, 956.0, 713.0 ],
 		"gridsize" : [ 15.0, 15.0 ],
 		"toolbars_unpinned_last_save" : 2,
 		"showrootpatcherontab" : 0,
@@ -930,7 +930,7 @@
 
 							}
  ],
-						"originid" : "pat-8"
+						"originid" : "pat-17"
 					}
 ,
 					"patching_rect" : [ 217.0, 287.0, 76.0, 22.0 ],
@@ -1682,7 +1682,7 @@
 
 							}
  ],
-						"originid" : "pat-10"
+						"originid" : "pat-19"
 					}
 ,
 					"patching_rect" : [ 390.0, 287.0, 110.0, 22.0 ],
@@ -2335,7 +2335,7 @@
 
 							}
  ],
-						"originid" : "pat-12"
+						"originid" : "pat-21"
 					}
 ,
 					"patching_rect" : [ 903.0, 281.0, 93.0, 22.0 ],
@@ -2756,7 +2756,7 @@
 
 							}
  ],
-						"originid" : "pat-14"
+						"originid" : "pat-23"
 					}
 ,
 					"patching_rect" : [ 573.0, 281.0, 77.0, 22.0 ],
@@ -2785,7 +2785,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 0.0, 26.0, 956.0, 687.0 ],
+						"rect" : [ 167.0, 138.0, 956.0, 687.0 ],
 						"gridsize" : [ 15.0, 15.0 ],
 						"showontab" : 1,
 						"boxes" : [ 							{
@@ -3481,9 +3481,9 @@
 									"maxclass" : "newobj",
 									"numinlets" : 3,
 									"numoutlets" : 3,
-									"outlettype" : [ "signal", "signal", "signal" ],
-									"patching_rect" : [ 23.711338877677917, 238.144316554069519, 142.0, 22.0 ],
-									"text" : "nn~ mc_example identity"
+									"outlettype" : [ "", "", "" ],
+									"patching_rect" : [ 24.0, 238.144316554069519, 141.391744375228882, 22.0 ],
+									"text" : "nn~ demo_mc identity"
 								}
 
 							}
@@ -3617,9 +3617,9 @@
 									"maxclass" : "newobj",
 									"numinlets" : 2,
 									"numoutlets" : 2,
-									"outlettype" : [ "multichannelsignal", "multichannelsignal" ],
-									"patching_rect" : [ 626.804088592529297, 587.917482972145081, 177.0, 22.0 ],
-									"text" : "mcs.nn~ mc_example identity 2"
+									"outlettype" : [ "", "" ],
+									"patching_rect" : [ 627.0, 587.917482972145081, 176.536038517951965, 22.0 ],
+									"text" : "mcs.nn~ demo_mc identity 2"
 								}
 
 							}
@@ -3641,9 +3641,9 @@
 									"maxclass" : "newobj",
 									"numinlets" : 3,
 									"numoutlets" : 3,
-									"outlettype" : [ "multichannelsignal", "multichannelsignal", "multichannelsignal" ],
-									"patching_rect" : [ 237.113388776779175, 594.845327496528625, 161.0, 22.0 ],
-									"text" : "mc.nn~ mc_example identity"
+									"outlettype" : [ "", "", "" ],
+									"patching_rect" : [ 237.0, 594.845327496528625, 160.350494265556335, 22.0 ],
+									"text" : "mc.nn~ demo_mc identity"
 								}
 
 							}
@@ -3784,7 +3784,7 @@
 , 							{
 								"patchline" : 								{
 									"destination" : [ "obj-1", 1 ],
-									"midpoints" : [ 266.201016545295715, 583.402055501937866, 317.613388776779175, 583.402055501937866 ],
+									"midpoints" : [ 266.201016545295715, 583.402055501937866, 317.175247132778168, 583.402055501937866 ],
 									"source" : [ "obj-46", 0 ]
 								}
 
@@ -3806,7 +3806,7 @@
 , 							{
 								"patchline" : 								{
 									"destination" : [ "obj-1", 2 ],
-									"midpoints" : [ 289.912355422973633, 580.402055501937866, 388.613388776779175, 580.402055501937866 ],
+									"midpoints" : [ 289.912355422973633, 580.402055501937866, 387.850494265556335, 580.402055501937866 ],
 									"source" : [ "obj-50", 0 ]
 								}
 
@@ -4107,7 +4107,7 @@
 
 							}
  ],
-						"originid" : "pat-16"
+						"originid" : "pat-25"
 					}
 ,
 					"patching_rect" : [ 1185.0, 281.0, 94.0, 22.0 ],
@@ -4136,7 +4136,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 539.0, 220.0, 956.0, 687.0 ],
+						"rect" : [ 0.0, 26.0, 956.0, 687.0 ],
 						"gridsize" : [ 15.0, 15.0 ],
 						"showontab" : 1,
 						"boxes" : [ 							{
@@ -5171,7 +5171,7 @@
 
 							}
  ],
-						"originid" : "pat-18"
+						"originid" : "pat-27"
 					}
 ,
 					"patching_rect" : [ 67.0, 287.0, 51.0, 22.0 ],
@@ -5561,7 +5561,7 @@
 
 							}
  ],
-						"originid" : "pat-20"
+						"originid" : "pat-29"
 					}
 ,
 					"patching_rect" : [ 745.0, 281.0, 70.0, 22.0 ],
@@ -5787,7 +5787,7 @@
 
 			}
  ],
-		"originid" : "pat-6",
+		"originid" : "pat-15",
 		"dependency_cache" : [ 			{
 				"name" : "after_white.png",
 				"bootpath" : "~/Documents/Max 9/Packages/nn_tilde/misc",
@@ -5800,10 +5800,6 @@
 				"bootpath" : "C74:/media/legacy-tutorials/msp-tut",
 				"type" : "AIFF",
 				"implicit" : 1
-			}
-, 			{
-				"name" : "mc.nn~.mxo",
-				"type" : "iLaX"
 			}
 , 			{
 				"name" : "mcs.nn~.mxo",
