@@ -13,8 +13,8 @@ jobs:
       - run: | 
           git submodule update --init --recursive
           git fetch --tags
-          du -sh src/models/*
           curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
+          du -sh src/models/*
       - name: Setup LLVM
         run: |
           brew install llvm 
