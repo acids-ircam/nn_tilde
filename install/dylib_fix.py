@@ -229,13 +229,13 @@ def most_relevant_lib(lib_name, path_dicts, dep_paths=[], arch="arm64"):
     return path_list[0]
 
 def lib_from_exc_path(exc_path, lib_path):
-    exc_parts = exc_path.parts[1:]
-    lib_parts = lib_path.parts[1:]
+    exc_parts = exc_path.parts
+    lib_parts = lib_path.parts
     assert exc_parts[0] == lib_parts[0], "files do not have a single common root"
     i = 0
     while exc_parts[i] == lib_parts[i]:
         i+=1
-    return os.path.join(*([".."] * (i - 1) + list(lib_parts[i:])))
+    return os.path.join(*([".."] * (len(exc_parts[i:])-1) + list(lib_parts[i:])))
 
 def parse_actions_from_executable(exec_path, dep_paths=[], main_dir = None, verbose=False):
     if verbose: print(f'parsing {str(exec_path)}...')
@@ -292,7 +292,6 @@ def parse_actions_from_executable(exec_path, dep_paths=[], main_dir = None, verb
                     actions.append(['-id', f"@rpath/{v_tmp.name}", str(main_dir / v_tmp.name)])
             else:
                 current_dep = str(libs_hash_linked[k][i]) 
-                # new_dep = f"@rpath/../../../../support/{libs_paths[get_library_name(current_dep)].name}"
                 new_dep = f"@rpath/{lib_from_exc_path(exec_path, main_dir / libs_paths[get_library_name(current_dep)].name)}"
                 if v_tmp.stem == exec_path.stem:
                     actions.append(['-change', current_dep, new_dep, str(exec_dir / v_tmp.name)])
@@ -407,42 +406,3 @@ if __name__ == "__main__":
         except subprocess.CalledProcessError as e: 
             print(f'Could not chmod / codesign file {m} ; codesign needed')
                 
-
-# if args.function == "solve":
-#     actions = []
-#     local_libs = {get_library_name(k): k for k in list(map(str, filter(lambda x, r=args.path.parent: is_executable(r / x), map(Path, os.listdir(args.path.parent)))))}
-#     # parse redirecting actions
-#     libs_to_parse = [str(args.path)] #+ [args.path.parent / l for l in local_libs]
-#     parsed_libs = []
-#     missing_libs = []
-#     idx = 0
-#     main_lib = str(args.path)
-#     while len(libs_to_parse) != 0:
-#         for lib in libs_to_parse:
-#             current_actions, local_libs, parsed_libs, libs_to_parse, missing_libs = get_actions_from_lib(main_lib, Path(lib), local_libs, parsed_libs, args.lib_path, missing_libs)
-#             actions.extend(current_actions)
-#         idx += 1 
-#         if idx > MAX_RECURSE: 
-#             raise RuntimeError('Maximum number of recursive parsing reached : %d'%MAX_RECURSE)
-#     for l in local_libs:
-#         current_path = args.path.parent / l
-#         # actions.append(['clean_rpath', str(os.path.abspath(args.path.parent / local_libs[l]))])
-#         actions.append(['clean_rpath', str(args.path)])
-#     print('found actions : ')
-#     for i, a in enumerate(actions):
-#         print_action(i, a)
-#     if args.safe:
-#         print('continue?')
-#         answ = ""
-#         while answ.lower() not in ['y', 'n']:
-#             answ = input('[y/n] : ')
-#         if answ.lower() == "n": raise SystemExit("raised by user") 
-#     for a in tqdm.tqdm(actions): 
-#         perform_action(a, main_dir = args.path.parent)
-#     for m in os.listdir(args.path.parent):
-#         try:
-#             subprocess.run(['chmod', '+x', f"{args.path.parent / m}"])
-#             subprocess.run(['codesign', '--deep', '--force', '--sign', '-', f"{args.path.parent / m}"])
-#         except subprocess.CalledProcessError as e: 
-#             print(f'Could not chmod / codesign file {m} ; codesign needed')
-
