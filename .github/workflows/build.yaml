@@ -11,12 +11,12 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v2
-        with:
-          lfs: true
       - run: | 
+          brew install git-lfs
+          git lfs install
+          git lfs pull
           git submodule update --init --recursive
           git fetch --tags
-          git lfs pull
           du -sh src/models/*
       - name: Setup LLVM
         run: |
@@ -45,9 +45,6 @@ jobs:
         run: |
           mkdir nn_tilde
           mkdir nn_tilde/help
-          echo "current folder : $(pwd)"
-          echo "current folder ls"
-          echo "current src dir"
           mv src/externals src/help src/support src/patchers src/extras src/package-info.json src/icon.png src/source src/models src/misc nn_tilde
           tar -czvf nn_max_msp_macOS_arm64.tar.gz nn_tilde
       - name: PureData Package creation
