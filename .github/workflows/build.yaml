@@ -13,9 +13,8 @@ jobs:
         uses: actions/checkout@v2
         with: 
           lfs: true
-          ref: dev
-          fetch-depth: 0
       - run: | 
+          git lfs fetch origin dev
           git lfs checkout
           git submodule update --init --recursive
           git fetch --tags
