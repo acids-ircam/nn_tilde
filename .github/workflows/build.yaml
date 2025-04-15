@@ -245,10 +245,10 @@ jobs:
           
       - name: Max/MSP Package creation
         run: |
-          New-Item -ItemType Directory -Force -Path "nn_tilde"
+          mkdir nn_tilde
           $files = @("src\externals", "src\help", "src\support", "src\patchers", "src\extras", "src\package-info.json", "src\logo.png", "src\source", "src\models", "src\misc")
           foreach ($file in $files) {
-            Move-Item $file "$env:GITHUB_WORKSPACE\target"
+            mv $file nn_tilde
           }
           mkdir nn_tilde/support
           cp libtorch/lib/* nn_tilde/support
