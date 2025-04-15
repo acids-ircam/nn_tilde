@@ -210,6 +210,20 @@ class Module(torch.nn.Module):
         return True
 
     @torch.jit.export
+    def get_sample_rate(self) -> int: 
+        sr = self.sr
+        if torch.jit.isinstance(sr, Optional[int]):
+            if sr is None:
+                return -1
+            else:
+                return int(sr)
+        else:
+            if sr.value is None:
+                return -1
+            else:
+                return int(sr.value)
+
+    @torch.jit.export
     def set_sample_rate(self, sample_rate: int | None) -> None:
         """set the operative sampling rate of the module on inference."""
         if sample_rate is not None:

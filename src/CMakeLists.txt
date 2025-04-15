@@ -49,10 +49,18 @@ if ((NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
     add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
 endif()
 
+execute_process(
+		COMMAND git describe --tags
+		WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+		OUTPUT_VARIABLE VERSION
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../package-info.json.in "${CMAKE_CURRENT_SOURCE_DIR}/package-info.json")
+
 if(APPLE OR MSVC)
     # MAX MSP EXTERNAL
     add_subdirectory(frontend/maxmsp/nn.info) 
-    add_subdirectory(frontend/maxmsp/nn_tilde)
-    add_subdirectory(frontend/maxmsp/mc.nn_tilde)
-    add_subdirectory(frontend/maxmsp/mcs.nn_tilde)
+    # add_subdirectory(frontend/maxmsp/nn_tilde)
+    # add_subdirectory(frontend/maxmsp/mc.nn_tilde)
+    # add_subdirectory(frontend/maxmsp/mcs.nn_tilde)
 endif()

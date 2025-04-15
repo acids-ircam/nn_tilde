@@ -44,6 +44,13 @@ public:
         #endif
         return perm_path;
     }
+
+    void set_model_directory(const std::string &external_path) {
+        d_path = fs::absolute(fs::path(external_path) / ".." / ".." / "models");
+        if (!fs::exists(d_path)) {
+            fs::create_directories(d_path);
+        }
+    }
 };
 
 
@@ -52,8 +59,8 @@ MaxModelDownloader::MaxModelDownloader(c74::min::object_base* obj): d_parent(obj
     min::path path = min::path("nn~", min::path::filetype::external); 
     std::string path_str = path;
     if (path) {
+        set_model_directory(path_str);
         d_cert_path = cert_path_from_path(fs::path(path_str));
-        d_path = fs::absolute(fs::path(path_str) / "..");
     }
 }
 
@@ -63,11 +70,12 @@ MaxModelDownloader::MaxModelDownloader(c74::min::object_base* obj, std::string e
     fs::path fs_path(path_str);
     if (path) {
         d_cert_path = cert_path_from_path(fs::path(path_str));
-        d_path = fs::absolute(fs::path(path_str) / "..");
+        set_model_directory(path_str);
     }
 }
 
 MaxModelDownloader::MaxModelDownloader(c74::min::object_base* obj, fs::path download_location): ModelDownloader(download_location), d_parent(obj) {
+    d_path = download_location;
 }
 
 

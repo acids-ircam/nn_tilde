@@ -11,6 +11,7 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--path', type=Path, required=True)
 parser.add_argument('-l', '--lib_paths', nargs="*")
+parser.add_argument('-o', '--out_dir', type=Path, default=None, help="optional directory for copying dylibs")
 parser.add_argument('--safe', action="store_true", help="safe mode")
 parser.add_argument('--noclean_rpath', action="store_true", help="does not clean rpath")
 parser.add_argument('--verbose', action="store_true", help="verbose output")
@@ -227,7 +228,16 @@ def most_relevant_lib(lib_name, path_dicts, dep_paths=[], arch="arm64"):
             if path.is_relative_to(libdir): return path
     return path_list[0]
 
-def parse_actions_from_executable(exec_path, dep_paths=[], verbose=False):
+def lib_from_exc_path(exc_path, lib_path):
+    exc_parts = exc_path.parts[1:]
+    lib_parts = lib_path.parts[1:]
+    assert exc_parts[0] == lib_parts[0], "files do not have a single common root"
+    i = 0
+    while exc_parts[i] == lib_parts[i]:
+        i+=1
+    return os.path.join(*([".."] * (i - 1) + list(lib_parts[i:])))
+
+def parse_actions_from_executable(exec_path, dep_paths=[], main_dir = None, verbose=False):
     if verbose: print(f'parsing {str(exec_path)}...')
     libs_deps = {}
     libs_paths = {}
@@ -235,6 +245,7 @@ def parse_actions_from_executable(exec_path, dep_paths=[], verbose=False):
     libs_to_analyse = [exec_path]
     libs_hash = {}
     libs_hash_linked = {}
+
     arch = get_architectures(exec_path)
     # analyse dependencies
     while len(libs_to_analyse) != 0:
@@ -266,19 +277,27 @@ def parse_actions_from_executable(exec_path, dep_paths=[], verbose=False):
 
     actions = []
     exec_dir = exec_path.parent
+    os.makedirs(str(main_dir.resolve()), exist_ok=True)
     for k, v in libs_paths.items():
-        if not (exec_dir / v.name).resolve().exists():
-            actions.append(['copy', str(v), str(exec_dir)])
+        if not (main_dir / v.name).resolve().exists():
+            actions.append(['copy', str(v), str(main_dir)])
     for k, v in libs_hash.items():
         for i, v_tmp in enumerate(v):
             # if str(libs_hash_linked[k][i]).startswith('@rpath'):
             #     continue
             if get_library_name(libs_hash_linked[k][i]) == get_library_name(v_tmp.name):
-                actions.append(['-id', f"@rpath/{v_tmp.name}", str(exec_dir / v_tmp.name)])
+                if v_tmp.stem == exec_path.stem:
+                    actions.append(['-id', f"@rpath/{v_tmp.name}", str(exec_dir / v_tmp.name)])
+                else:
+                    actions.append(['-id', f"@rpath/{v_tmp.name}", str(main_dir / v_tmp.name)])
             else:
                 current_dep = str(libs_hash_linked[k][i]) 
-                new_dep = f"@rpath/{libs_paths[get_library_name(current_dep)].name}"
-                actions.append(['-change', current_dep, new_dep, str(exec_dir / v_tmp.name)])
+                # new_dep = f"@rpath/../../../../support/{libs_paths[get_library_name(current_dep)].name}"
+                new_dep = f"@rpath/{lib_from_exc_path(exec_path, main_dir / libs_paths[get_library_name(current_dep)].name)}"
+                if v_tmp.stem == exec_path.stem:
+                    actions.append(['-change', current_dep, new_dep, str(exec_dir / v_tmp.name)])
+                else:
+                    actions.append(['-change', current_dep, new_dep, str(main_dir / v_tmp.name)])
     return actions
 
 
@@ -305,13 +324,14 @@ def perform_action(action, main_dir):
                                     text=True, 
                                     capture_output=False)
         elif action[0] == "copy":
-            target_path = str(main_dir / os.path.split(action[1])[-1]) 
-            result = subprocess.run(['cp',
-                                 action[1],
-                                 target_path],  
-                                 check=True, 
-                                text=True, 
-                                capture_output=False)
+            target_path = main_dir / os.path.split(action[1])[-1]
+            if not target_path.exists(): 
+                result = subprocess.run(['cp',
+                                    action[1],
+                                    str(target_path)],  
+                                    check=True, 
+                                    text=True, 
+                                    capture_output=False)
         elif action[0] == "-delete_rpath":
             target_path = str(main_dir / os.path.split(action[2])[-1]) 
             result = subprocess.run(['install_name_tool', 
@@ -362,7 +382,8 @@ def print_action(idx, action):
 
 if __name__ == "__main__":
     exec_path = Path(args.path)
-    actions = parse_actions_from_executable(exec_path, args.lib_paths, args.verbose)
+    main_dir = args.out_dir or args.path.parent 
+    actions = parse_actions_from_executable(exec_path, args.lib_paths, main_dir, args.verbose)
     if args.safe:
         for i, a in enumerate(actions):
             print_action(i, a)
@@ -372,16 +393,17 @@ if __name__ == "__main__":
             answ = input('[y/n] : ')
         if answ.lower() == "n": raise SystemExit("raised by user") 
 
+    os.makedirs(str(main_dir.resolve()), exist_ok=True)
     for a in tqdm.tqdm(actions): 
-        perform_action(a, main_dir = args.path.parent)
+        perform_action(a, main_dir = main_dir)
 
-    for m in os.listdir(args.path.parent):
-        if is_executable(args.path.parent / m) and not args.noclean_rpath:
-            actions.append(['clean_rpath', str(args.path.parent / m)])
+    for m in [os.path.join(main_dir, m) for m in os.listdir(main_dir)] + [args.path]:
+        if is_executable(m) and not args.noclean_rpath:
+            actions.append(['clean_rpath', m])
         try:
-            subprocess.run(['chmod', '+x', f"{args.path.parent / m}"])
-            subprocess.run(['codesign', '--deep', '--force', '--sign', '-', f"{args.path.parent / m}"])
-            subprocess.run(["xattr", "-r", "-d", "com.apple.quarantine", f"{args.path.parent / m}"])
+            subprocess.run(['chmod', '+x', m])
+            subprocess.run(['codesign', '--deep', '--force', '--sign', '-', m])
+            subprocess.run(["xattr", "-r", "-d", "com.apple.quarantine", m])
         except subprocess.CalledProcessError as e: 
             print(f'Could not chmod / codesign file {m} ; codesign needed')
                 

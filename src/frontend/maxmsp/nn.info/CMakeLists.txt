@@ -99,7 +99,7 @@ if (APPLE) # COPY DYLIBS IN THE LOADER FOLDER
 		TARGET ${PROJECT_NAME}
 		POST_BUILD 
 		COMMAND ${CMAKE_COMMAND} -E copy  "${CMAKE_SOURCE_DIR}/../env/ssl/cert.pem" "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-		COMMAND ${CMAKE_SOURCE_DIR}/../env/bin/python ${CMAKE_SOURCE_DIR}/../install/dylib_fix.py -p "$<TARGET_FILE:${PROJECT_NAME}>" -l "${CMAKE_BINARY_DIR}/_deps"  "${CMAKE_SOURCE_DIR}/../env" "${HOMEBREW_PREFIX}"
+		COMMAND ${CMAKE_SOURCE_DIR}/../env/bin/python ${CMAKE_SOURCE_DIR}/../install/dylib_fix.py -p "$<TARGET_FILE:${PROJECT_NAME}>" -o "${CMAKE_SOURCE_DIR}/support" -l "${CMAKE_BINARY_DIR}/_deps"   "${CMAKE_SOURCE_DIR}/../env" "${HOMEBREW_PREFIX}"
 		COMMENT "Fixing libraries, certificates, permissions, codesigning, quarantine"
 	)
 	

@@ -70,6 +70,7 @@ public:
     MIN_DESCRIPTION{"Interface for deep learning models"};
     MIN_TAGS{"audio, deep learning, ai"};
     MIN_AUTHOR{"Antoine Caillon & Axel Chemla--Romeu-Santos"};
+    MIN_RELATED{"nn.info, mc.nn~, mcs.nn~"};
 
     static std::string get_external_name() { return "nn~";} 
     nn(const atoms &args = {}) {

@@ -20,6 +20,7 @@ public:
   MIN_DESCRIPTION{"Fetching information from deep learning models"};
   MIN_TAGS{"audio, deep learning, ai"};
   MIN_AUTHOR{"Axel Chemla--Romeu-Santos"};
+  MIN_RELATED{ "nn~, mc.nn~, mcs.nn~"};
 
   nn_info(const atoms &args = {});
   ~nn_info();
@@ -70,7 +71,7 @@ public:
   // ATTRIBUTES
   attribute<symbol> dict_attribute{
     this, "dict", symbol(""), 
-    description{"bind information to target dictionary"}, 
+    description{"bind model information to target dictionary"}, 
     setter{ MIN_FUNCTION {
       std::string dictionary_name = args[0];
       this->bind_dictionary(dictionary_name);
@@ -158,6 +159,7 @@ public:
     MIN_FUNCTION{
       if (args.size() == 0) {
         cerr << "parameters takes a valid method as first argument." << endl;
+        return {}; 
       }
       std::string method_or_attribute = args[0];
       if (m_model_info.attribute_properties.contains(method_or_attribute)) {
@@ -259,24 +261,20 @@ nn_info::nn_info(const atoms &args)
     std::make_unique<outlet<>>(this, "available models for download", "dictionary")
   );
 
-  // import informations from model
-  if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
-    auto model_path = std::string(args[0]);
-    if (model_path.substr(model_path.length() - 3) != ".ts")
-      model_path = model_path + ".ts";
-    auto current_path = path(model_path);
-    try {
-      scan_model(current_path);
-    } catch (std::string& errorstr) {
-      cerr << errorstr << endl; 
-      error();
-    }
-  }
 
   try {
     m_downloader = std::make_unique<MaxModelDownloader>(this, std::string("nn.info")); 
   } catch (...) {
     cwarn << "could not initialise model downloader" << endl;
+  }
+
+  // import informations from model
+  if (args.size() > 0) { // ONE ARGUMENT IS GIVEN
+    auto model_path = std::string(args[0]);
+    set_model_path(model_path);
+    if (m_path == "") {
+      error(std::string("could not find model : ") + model_path);
+    }
   }
 }
 
@@ -317,6 +315,7 @@ void nn_info::bind_dictionary(const std::string& dict_name) {
 
 void nn_info::scan_model(path path) {
   std::string model_path = path;
+  cout << "parsing model : " << model_path << endl; 
   auto m_model = Backend();
   if (m_model.load(model_path, samplerate())) {
     // cerr << "error loading path " << model_path << endl;
@@ -326,12 +325,12 @@ void nn_info::scan_model(path path) {
   // parse things
   try {
     m_model_info = m_model.get_model_info();
+    has_model = true; 
+    m_path = model_path;
+    update_dictionary();
   } catch (std::string &error) {
     throw error; 
   }
-  has_model = true; 
-  m_path = model_path;
-  update_dictionary();
 }
 
 void nn_info::set_model_path(const std::string& model_path) {
@@ -339,10 +338,21 @@ void nn_info::set_model_path(const std::string& model_path) {
   try {
     if (model_path.substr(model_path.length() - 3) != ".ts")
       model_path_checked = model_path_checked + ".ts";
-    auto current_path = path(model_path_checked);
+    min::path current_path; 
+    if (m_downloader) {
+      auto download_path = m_downloader->get_download_path() / model_path_checked; 
+      if (std::filesystem::exists(download_path)) {
+        current_path = path(download_path.string());
+        scan_model(current_path);
+        return;
+      }
+    }
+    current_path = path(model_path_checked);
     scan_model(current_path);
   } catch (std::string& stringerr) {
     cerr << stringerr << endl;
+  } catch (std::exception& e) {
+    cerr << e.what() << endl; 
   }
 }
 

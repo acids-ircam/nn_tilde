@@ -70,9 +70,10 @@ long simplemc_inputchanged(c74::max::t_object *x, long index, long count);
 class mc_nn: public nn_base<mc_nn, mc_operator<>> {
 
 public:
-    MIN_DESCRIPTION{"Interface for deep learning models"};
+    MIN_DESCRIPTION{"Multi-channel interface for deep learning models"};
     MIN_TAGS{"audio, deep learning, ai"};
     MIN_AUTHOR{"Antoine Caillon & Axel Chemla--Romeu-Santos"};
+    MIN_RELATED{"nn.info, nn~, mcs.nn~"};
 
     static std::string get_external_name() { return "mc.nn~";} 
     mc_nn(const atoms &args = {}) {

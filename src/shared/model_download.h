@@ -71,6 +71,7 @@ public:
     std::string get_api_root();
     bool update_available_models(); 
     std::vector<std::string> get_available_models(); 
+    fs::path get_download_path() { return d_path; }
     void download(const std::string &model_name, const std::string &custom_name = ""); 
     void remove(const std::string &model_name); 
     void enqueue_download_task(DownloadTask task);
@@ -298,7 +299,7 @@ std::string lock_path_from_target(std::string target_path, std::string model_nam
 
 void download_thread(ModelDownloader *parent, std::string model_name, std::string target_path, int dl_idx)
 {
-    parent->print_to_parent("downloading model " + model_name + "...", "cwarn");
+    parent->print_to_parent("downloading model " + model_name + "...", "cout");
     // create lock file, to not download two times the same model
     std::string lock_path = lock_path_from_target(target_path, model_name);
     FILE* lock_file = fopen(lock_path.c_str(), "w");
@@ -348,7 +349,7 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
                 parent->print_to_parent("failed to download  " + model_name, "cerr");
                 fs::remove(target_path);
             } else {
-                parent->print_to_parent("model " + model_name + " downloaded at " + target_path, "cwarn");
+                parent->print_to_parent("model " + model_name + " downloaded at " + target_path, "cout");
             }
             fclose(lock_file);
             fs::remove(lock_path);

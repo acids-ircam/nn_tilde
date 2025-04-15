@@ -512,6 +512,13 @@ path nn_base<nn_name, op_type>::to_model_path(std::string model_path) {
   try {
     if (model_path.substr(model_path.length() - 3) != ".ts")
       model_path = model_path + ".ts";
+    // first look in "models" subfolder
+    if (m_downloader) {
+      auto download_path = m_downloader->get_download_path() / model_path; 
+      if (std::filesystem::exists(download_path)) {
+        return path(download_path.string());
+      }
+    }
     auto parsed_path = path(model_path);
     return parsed_path;
   } catch (std::exception& e) {
@@ -556,7 +563,7 @@ void nn_base<nn_name, op_type>::update_method(const std::string &method) {
         cwarn << "nn_base~ has been initialised with " << n_outlets << " outputs, but current model has " << m_model_out << endl;
       }
     } else {
-      cerr << "model " << m_path << "does not have method " << method << endl; 
+      cerr << "model " << m_path << " does not have method " << method << endl; 
     }
     wait_for_buffer_reset = true; 
   } catch (std::string &e) {
@@ -622,7 +629,7 @@ void nn_base<nn_name, op_type>::init_buffers() {
 
   if (m_out_buffer.get() == nullptr) { m_out_buffer.release(); }
   m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(n_outlets);
-  if (m_out_buffer.get()->max_size() < m_buffer_size) {
+if (m_out_buffer.get()->max_size() < m_buffer_size) {
     for (int i = 0; i < n_outlets; i++) {
       m_out_buffer[i].initialize(m_buffer_size);
     }
