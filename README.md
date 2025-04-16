@@ -8,10 +8,6 @@
 
 Grab the [latest release of nn~](https://github.com/acids-ircam/nn_tilde/releases/latest) ! Be sure to download the correct version for your installation.
 
-**Mac users**, you should download the arm64 version if _and only if_ your Mac is a M1-2, and your installation of Max/MSP or PureData is not using Rosetta !
-
-**Windows users**, for now it is required that all `.dll` files in the `nn~` package are copied next to the ˋMax.exeˋ executable.
-
 ## MaxMSP
 
 Uncompress the `.tar.gz` file in the Package folder of your Max installation, i.e. in `Documents/Max 8/Packages/`.
@@ -20,7 +16,14 @@ You can then instantiate an `nn~` object. Depending on your installation, you mi
 
 <img width=500px src="assets/quarantine_warning.png"/>
 
-In most cases, proceeding with the removal will disable this warning until the next update of `nn~`. If MacOS continues to block the external, you might have to compile it yourself.
+In most cases, proceeding with the removal will disable this warning until the next update of `nn~`. If MacOS continues to block the external you can try to codesign locally and remove the external from quarantine: 
+
+```bash
+cd "~/Max X/Packages/nn_tilde
+sudo codesign --deep --force --sign - support/*.dylib
+sudo codesign --deep --force --sign - externals/*/Contents/MacOS/*
+xattr -r -d com.apple.quarantine externals/*/Contents/MacOS/*  
+```
 
 Right click on the `nn~` object to open the help patch, and follow the tabs to learn more about this project.
 
@@ -40,17 +43,11 @@ xattr -r -d com.apple.quarantine .
 
 At its core, `nn~` is a translation layer between Max/MSP or PureData and the [libtorch c++ interface for deep learning](https://pytorch.org/). Alone, `nn~` is like an empty shell, and **requires pretrained models** to operate. You can find a few [RAVE](https://github.com/acids-ircam/RAVE) models [here](https://acids-ircam.github.io/rave_models_download), or a few [vschaos2](https://github.com/acids-ircam/vschaos2) models [here](https://www.dropbox.com/sh/avdeiza7c6bn2of/AAAGZsnRo9ZVMa0iFhouCBL-a?dl=0).
 
-Pretrained model for `nn~` are **torchscript files**, with a `.ts` extension. Create a folder somewhere on your computer, for example in
+Pretrained model for `nn~` are **torchscript files**, with a `.ts` extension. You can add these files to `nn_tilde/models` folders, or any place accessible through Max / Pd filesystem (Max: `Options/File Preferences`, PureData: `File/Preferences/Path`).
 
-```bash
-Documents/pretrained_models/
-```
+**New** : since v1.6.0, some models are directly downloadable through IRCAM Forum API. 
 
-and add this path to Max or PureData include path (Max: `Options/File Preferences`, PureData: `File/Preferences/Path`).
-
-## Loading a model
-
-Once this is done, you can load a model using the following syntax (here to load a pretrained model located in `Documents/pretrained_models/decoder_only.ts`)
+Once this is done, you can load a model with `nn~` by providing its name as first argument (for example, here `isis.ts` located inside `nn_tilde/models` for Max, or among the PureData patch):  
 
 <table>
   <tr>
@@ -65,34 +62,21 @@ Once this is done, you can load a model using the following syntax (here to load
 
 Note that you **have** to include the `.ts` extension in the PureData version. Depending on the model loaded, there will be a different number of inlets / outlets, corresponding to the different inputs and outputs of the model.
 
-## Selecting a method
+## Model information fetching
 
-A given pretrained model might have several different _methods_, with different effects and usage. For example, the [RAVE model](https://github.com/acids-ircam/RAVE) has three different methods, corresponding to different subparts of the model. For the sake of the example, we will describe them in the following table:
+Coming with v1.6.0, the `nn.info` object allows model inspection and fetching avilable models for download on the IRCAM-API. With this object, you can get available methods and attributes for a given model. For example, you can see below that a RAVE model has three different methods : `encode`, `decode`, and `forward`.
 
-| Method name           | Description                                      | Inputs                       | Outputs                      |
-| --------------------- | ------------------------------------------------ | ---------------------------- | ---------------------------- |
-| **encode**            | Encodes an audio signal into a latent trajectory | audio signal                 | multiple latent trajectories |
-| **decode**            | Decodes a latent trajectory into an audio signal | multiple latent trajectories | audio signal                 |
-| **forward** (default) | Encodes _and_ decodes an audio signal            | audio signal                 | audio signal                 |
+<center>
+<img src="assets/max_nninfo.png"/>
+</center>
 
-The user can switch between methods during instanciation by adding a second argument to `nn~` calling the desired method.
+### Methods
 
-<table>
-  <tr>
-    <th width="50%">Max / MSP</th>
-    <th width="50%">PureData</th>
-  </tr>
-  <tr>
-    <td><img width="100%" src="assets/max_method.png" /></td>
-    <td><img width="100%" src="assets/pd_method.png" /></td>
-  </tr>
-</table>
+Models can have several _methods_, that correspond to several processing pipelines the model can achieve. Hence, each method can have a different number in inlets / outlets. The method is given as the third argument (for exemple, `decode` above), and equals `forward` by default.
 
-## Using attributes
+### Attributes
 
-It is possible to configure models after their initialization using special _attributes_, whose type and effect is entirely defined by the model itself, with the exception of the `enable` attribute which can be set to either 0 or 1 to enable or disable the model, potentially saving up computation.
-
-Model attributes can be set using _messages_, with the following syntax:
+It is possible the internal state of the module through _attributes_, that are **model-dependent** and defined at exportation. Model attributes can be set using _messages_, with the following syntax:
 
 ```bash
 set ATTRIBUTE_NAME ATTRIBUTE_VAL_1 ATTRIBUTE_VAL_2
@@ -111,8 +95,6 @@ Using Max/MSP and PureData graphical objects, this can lead to an intuitive way 
   </tr>
 </table>
 
-The attribute list and values are again **model dependant** and should retrieved in the documentation of the model.
-
 ## Buffer configuration
 
 Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonable computational load. You can modify its size through the use of an additional integer after the method declaration, as shown below
@@ -128,7 +110,7 @@ Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonab
   </tr>
 </table>
 
-## Multicanal (Max/MSP)
+## Multichannel (Max/MSP)
 
 The Max/MSP release of `nn~` includes additional externals, namely `mc.nn~` and `mcs.nn~`, allowing the use of the multicanal abilities of Max 8+ to simplify the patching process with `nn~` and optionally decrease the computational load.
 
@@ -158,6 +140,30 @@ Enable / Disable computation to save up computation without deleting the model. 
 
 Dynamically reloads the model. Can be useful if you want to periodically update the state of a model during a training.
 
+### dump
+
+Prints methods / attributes of the loaded model. 
+
+### print_available_models
+
+Prints models downloadable through API.
+
+### download
+
+Download a model from the API. 
+
+### delete
+
+Deletes a downloaded model.
+
+### load
+
+Change dynamically the incoming model. 
+
+### method
+
+Change dynamically the used method.
+
 # Build Instructions
 
 ## macOS
@@ -166,34 +172,65 @@ Dynamically reloads the model. Can be useful if you want to periodically update 
 - Run the following commands:
 
 ```bash
-git clone https://github.com/acids-ircam/nn_tilde --recursive
+git clone https://github.com/acids-ircam/nn_tilde --recurse-submodules
 cd nn_tilde
+curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh > miniconda.sh
+chmod +x ./miniconda.sh
+bash ./miniconda.sh -b -u -p ./env
+source ./env/bin/activate
+pip install -r requirements.txt
+conda install -c conda-forge curl
 mkdir build
 cd build
-cmake ../src/ -DCMAKE_PREFIX_PATH=/path/to/libtorch -DCMAKE_BUILD_TYPE=Release
-make
+mkdir puredata_include
+curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+export CC=$(brew --prefix llvm)/bin/clang
+export CXX=$(brew --prefix llvm)/bin/clang++
+cd build
+cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_PREFIX_PATH=../env/lib/python3.12/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=../puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
+cmake --build . --config Release
 ```
+please replace `arm64` in the last line by `x86_64` if you want compile for 64 bits. You can remove `-DPUREDATA_INCLUDE_DIR=../puredata_include` to compile only for Max. The Max package is produced in `src/`,  and Pd external in `build/frontend/puredata/Release`.
 
-- Copy the produced `.mxo` external inside `~/Documents/Max 8/Packages/nn_tilde/externals/`
-
-You can build `nn~` for PureData by adding `-DPUREDATA_INCLUDE_DIR=/Applications/Pd-X.XX-X.app/Contents/Resources/src/` to the cmake call.
 
 ## Windows
 
 - Download Libtorch (CPU) and dependencies [here](https://pytorch.org/get-started/locally/) and unzip to a known directory.
-- Install Visual Studio and the C++ tools
-- Run the following commands:
-
+- Install [Visual Studio Redistribuable](https://learn.microsoft.com/fr-fr/cpp/windows/latest-supported-vc-redist?view=msvc-170) 
+- Run the following commands (here for Git Bash):
 ```bash
 git clone https://github.com/acids-ircam/nn_tilde --recurse-submodules
 cd nn_tilde
+curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.6.0%2Bcpu.zip > "libtorch.zip"
+unzip libtorch.zip
+mkdir pd
+cd pd
+curl -L https://msp.ucsd.edu/Software/pd-0.55-2.msw.zip -o pd.zip
+unzip pd.zip
+mv pd*/src .
+mv pd*/bin .
+cd ..
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg 
+./bootstrap-vcpkg.bat
+./vcpkg.exe integrate install
+./vcpkg.exe install curl
+cd ..
 mkdir build
 cd build
-cmake ..\src -A x64 -DCMAKE_PREFIX_PATH="<unzipped libtorch directory>" -DPUREDATA_INCLUDE_DIR="<path-to-pd/src>" -DPUREDATA_BIN_DIR="<path-to-pd/bin>"
+mkdir puredata_include
+curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+export CC=$(brew --prefix llvm)/bin/clang
+export CXX=$(brew --prefix llvm)/bin/clang++
+cd build
+cmake ../src -G "Visual Studio 17 2022" -DTorch_DIR=../libtorch/share/cmake/Torch -DPUREDATA_INCLUDE_DIR=../pd/src -DPUREDATA_BIN_DIR=../pd/bin -A x64
 cmake --build . --config Release
 ```
+You can remove `-DPUREDATA_INCLUDE_DIR=../puredata_include` to compile only for Max. The Max package is produced in `src/`,  and Pd external in `build/frontend/puredata/Release`.
 
 ## Raspberry Pi
+
+**not availble in v1.6.0, planned in next version ; please take previous versions if needed**
 
 While nn~ can be compiled and used on Raspberry Pi, you may have to consider using lighter deep learning models. We currently only support 64bit OS.
 

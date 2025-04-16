@@ -19,16 +19,14 @@ endif()
 # MAX EXTERNAL
 #############################################################
 
-if (UNIX)
-	execute_process(
-			COMMAND git describe --tags
-			WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-			OUTPUT_VARIABLE VERSION
-			OUTPUT_STRIP_TRAILING_WHITESPACE
-	)
-	message("version : ${VERSION}")
-	add_definitions(-DVERSION="${VERSION}")
-endif()
+execute_process(
+		COMMAND git describe --tags
+		WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+		OUTPUT_VARIABLE VERSION
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+message("version : ${VERSION}")
+add_definitions(-DVERSION="${VERSION}")
 
 
 
