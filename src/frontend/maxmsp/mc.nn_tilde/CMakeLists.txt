@@ -88,10 +88,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 endif()
 
 
-
-
 if (APPLE) # COPY DYLIBS IN THE LOADER FOLDER
-
 	add_custom_command(
 		TARGET ${PROJECT_NAME}
 		POST_BUILD 
