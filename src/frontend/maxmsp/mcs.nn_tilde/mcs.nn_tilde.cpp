@@ -93,6 +93,8 @@ public:
     } 
     void perform(audio_bundle input, audio_bundle output) override;
 
+    void dump_object() override;
+
     // channel handling
     int get_batches(); 
     int n_mc_inputs() {
@@ -416,6 +418,30 @@ long simplemc_inputchanged(c74::max::t_object *x, long index, long count) {
   return true;
 }
 
-
+void mcs_nn::dump_object() {
+  cout << "model_path: " << std::string(m_path) << endl;
+  if (m_model) {
+    if (m_model->is_loaded()) {
+      cout << "input dimension: " << m_model_in << endl;
+      cout << "output dimension: " << m_model_out << endl;
+    } else {
+      cout << "input dimension: no model yet" << endl;
+      cout << "output dimension: no model yet" << endl;
+    }
+  } else {
+    cout << "input dimension: no model yet" << endl;
+    cout << "output dimension: no model yet" << endl;
+  }
+  cout << "input ratio: " << std::to_string(m_in_ratio) << endl; 
+  cout << "output ratio: " << std::to_string(m_out_ratio) << endl; 
+  cout << "methods: ";
+  for (auto method: m_model->get_available_methods())
+    cout << method << "; ";
+  cout << endl; 
+  cout << "attributes: ";
+  for (auto attribute: m_model->get_settable_attributes())
+    cout << attribute << "; ";
+  cout << endl;
+}
 
 MIN_EXTERNAL(mcs_nn);

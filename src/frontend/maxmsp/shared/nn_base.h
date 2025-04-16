@@ -126,7 +126,7 @@ public:
   logger cwarn;
 
   // HELPERS
-  void dump_object();
+  virtual void dump_object();
   void print_to_cout(std::string &message);
   void print_to_cerr(std::string &message);
 
@@ -691,8 +691,8 @@ void nn_base<nn_name, op_type>::operator()(audio_bundle input, audio_bundle outp
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::dump_object() {
   cout << "model_path: " << std::string(m_path) << endl;
-  cout << "inlets: " << std::to_string(m_inlets.size()) << endl;
-  cout << "outlets: " << std::to_string(m_outlets.size()) << endl;
+  cout << "input dimension: " << std::to_string(m_inlets.size()) << endl;
+  cout << "output dimension: " << std::to_string(m_outlets.size()) << endl;
   cout << "input ratio: " << std::to_string(m_in_ratio) << endl; 
   cout << "output ratio: " << std::to_string(m_out_ratio) << endl; 
   cout << "methods: ";
@@ -704,6 +704,7 @@ void nn_base<nn_name, op_type>::dump_object() {
     cout << attribute << "; ";
   cout << endl;
 }
+
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::print_to_cout(std::string &message) {
   cout << message << endl;
