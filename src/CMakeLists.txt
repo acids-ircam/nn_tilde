@@ -5,8 +5,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 
 add_custom_target(copy_linking_file ALL
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script"
-    COMMENT "Patching Max linkings"
+  COMMAND ${CMAKE_COMMAND} -E remove "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script"
+  COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script"
+  COMMENT "Patching Max linkings"
 )
 
 set(CONDA_ENV_PATH "${CMAKE_SOURCE_DIR}/../env")
