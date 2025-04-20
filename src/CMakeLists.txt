@@ -61,11 +61,8 @@ execute_process(
 		OUTPUT_VARIABLE VERSION
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../package-info.json.in "${CMAKE_CURRENT_SOURCE_DIR}/package-info.json")
-
-
-add_executable(${CMAKE_SOURCE_DIR} main.cpp)
-add_dependencies(myapp copy_data)
 
 if(APPLE OR MSVC)
     # MAX MSP EXTERNAL
