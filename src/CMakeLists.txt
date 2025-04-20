@@ -4,6 +4,11 @@ project(nn_tilde)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 
+configure_file(
+  "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script/max-linker-flags.txt"
+  COPYONLY
+)
+
 add_custom_target(copy_linking_file ALL
   COMMAND ${CMAKE_COMMAND} -E remove "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script/max-linker-flags.txt"
   COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script"
