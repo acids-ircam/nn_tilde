@@ -19,16 +19,13 @@ Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
   at::init_num_threads();
 }
 
-void Backend::perform(std::vector<float *> in_buffer,
-                      std::vector<float *> out_buffer, 
+void Backend::perform(std::vector<float *> &in_buffer,
+                      std::vector<float *> &out_buffer, 
                       std::string method, 
                       int n_batches, int n_out_channels, int n_vec) {
   c10::InferenceMode guard;
 
   auto params = get_method_params(method);
-  // std::cout << "in_buffer length : " << in_buffer.size() << std::endl;
-  // std::cout << "out_buffer length : " << out_buffer.size() << std::endl;
-
   if (!params.size())
     return;
 
@@ -45,21 +42,16 @@ void Backend::perform(std::vector<float *> in_buffer,
   // for (auto buf : in_buffer)
   for (int i(0); i < in_dim * n_batches; i++) {
     if (i < in_buffer.size()) {
-      tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}));
+      tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}).clone());
     } else {
       tensor_in.push_back(torch::zeros({1, 1, n_vec}));
     }
-    // std::cout << i << " : " << tensor_in[i].min().item<float>() << std::endl;
   }
 
   auto cat_tensor_in = torch::cat(tensor_in, 1);
   cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
   cat_tensor_in = cat_tensor_in.select(-1, -1);
   cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
-  // std::cout << cat_tensor_in.size(0) << ";" << cat_tensor_in.size(1) << ";" << cat_tensor_in.size(2) << std::endl;
-  // for (int i = 0; i < cat_tensor_in.size(1); i++ ) 
-    // std::cout << cat_tensor_in[0][i][0] << ";";
-  // std::cout << std::endl;
 
   // SEND TENSOR TO DEVICE
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
@@ -107,12 +99,14 @@ int Backend::load(std::string path, double sampleRate, const std::string* target
   try {
     auto model = torch::jit::load(path);
     if (target_method != nullptr) {
-      // if target_method is not null, check if loaded model has it
-      auto locked_model = LockedModel(); 
-      locked_model.model = &model;  
-      auto methods = get_available_methods(&locked_model);
-      if (std::find(methods.begin(), methods.end(), *target_method) == methods.end()) {
-        throw "path " + path + "does not contain target method " + (*target_method); 
+      if (!(*target_method).empty()) {
+        // if target_method is not null, check if loaded model has it
+        auto locked_model = LockedModel(); 
+        locked_model.model = &model;  
+        auto methods = get_available_methods(&locked_model);
+        if (std::find(methods.begin(), methods.end(), *target_method) == methods.end()) {
+          throw "path " + path + " does not contain target method " + (*target_method); 
+        }
       }
     }
     model.eval();
@@ -152,6 +146,9 @@ int Backend::reload() {
 }
 
 bool Backend::has_method(std::string method_name) {
+  if (!is_loaded()){
+    return false; 
+  }
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
   for (const auto &m : m_model.get_methods()) {
     if (m.name() == method_name)
@@ -159,7 +156,6 @@ bool Backend::has_method(std::string method_name) {
   }
   return false;
 }
-
 
 bool Backend::has_settable_attribute(std::string attribute) {
   for (const auto &a : get_settable_attributes()) {

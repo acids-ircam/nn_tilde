@@ -81,9 +81,14 @@ public:
     if (!args.size()) { return; } 
     init_inputs_and_outputs(args);
     init_inlets_and_outlets();
-    init_buffers(); 
+    if (init_buffers_at_init()) {
+      init_buffers(); 
+    } else {
+      wait_for_buffer_reset = true; 
+    }
     init_process();
   } 
+  virtual bool init_buffers_at_init() { return true; }
 
   // BACKEND RELATED MEMBERS
   std::unique_ptr<Backend> m_model;
@@ -95,11 +100,21 @@ public:
   int n_inlets, m_model_in, m_in_ratio, n_outlets, m_model_out, m_out_ratio, m_higher_ratio, n_batches;
   bool has_settable_attribute(std::string attribute);
   bool is_valid_print_key(std::string string);
+  bool buffer_initialised = false; 
   bool wait_for_buffer_reset = false; 
   bool had_buffer_reset = true; 
-  void load_model(const std::string &model);
+  bool can_perform() {
+    if (m_model->is_loaded()) {
+      if (m_model->has_method(m_method)) {
+        return true;
+      }
+    }
+    return false;
+  }
   void update_model(const std::string &model);
-  virtual void update_method(const std::string &method); 
+  virtual void load_model(const std::string &model);
+  virtual void set_method(std::string method);  
+  virtual void update_method(std::string method = ""); 
   path to_model_path(std::string model_path);
   
   // BUFFER ATTRIBUTES MANAGER
@@ -174,7 +189,6 @@ public:
 
   // BOOT STAMP
   // message<> maxclass_setup;  
-
   message<> print {
     this, "print", 
     MIN_FUNCTION {
@@ -248,7 +262,7 @@ public:
     }
   };
 
-  message <> set_method {
+  message <> update_method_fn {
     this, "method", 
     description{"set the current method of model"}, 
     MIN_FUNCTION {
@@ -257,7 +271,14 @@ public:
       }
       std::string method = args[0]; 
       try {
-        this->update_method(method);
+        if (m_model->is_loaded()) {
+          if (!m_model->has_method(method)) {
+            cerr << "current model does not have method " << method << endl; 
+            return args; 
+          }
+        }
+        this->set_method(method);
+        this->wait_for_buffer_reset = true; 
       } catch (std::string &e) {
         cerr << e << endl;   
       }
@@ -380,6 +401,8 @@ void nn_base<nn_name, op_type>::init_downloader() {
     m_downloader = std::make_unique<MaxModelDownloader>(this, nn_name::get_external_name()); 
   } catch (std::string &e) {
     cerr << "failed to init downloader. caught exception : " << e << endl;
+  } catch (std::exception &e) {
+    cerr << "failed to init downloader. caught exception : " << e.what() << endl;
   }
 }
 
@@ -437,6 +460,11 @@ void nn_base<nn_name, op_type>::init_inputs_and_outputs(const atoms &args) {
     DEBUG_PRINT("%d inlets", n_inlets);
     DEBUG_PRINT("%d outlets", n_outlets);
     load_model(m_path);
+    if ((!m_method.empty()) && (m_model->is_loaded()))
+      update_method(); 
+    if ((n_inlets == -1) || (n_outlets == -1)) {
+      error("could not initialise object");
+    }
   }
 }
 
@@ -521,6 +549,8 @@ path nn_base<nn_name, op_type>::to_model_path(std::string model_path) {
     }
     auto parsed_path = path(model_path);
     return parsed_path;
+  } catch (std::string &e) {
+    throw e; 
   } catch (std::exception& e) {
     std::string exception_str = e.what();
     throw exception_str;
@@ -530,18 +560,31 @@ path nn_base<nn_name, op_type>::to_model_path(std::string model_path) {
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::update_model(const std::string &model) {
   load_model(model);
+  if ((m_model->is_loaded()) && m_model->has_method(m_method)) {
+    update_method(); 
+  }
 }
 
 template <typename nn_name, typename op_type>
-void nn_base<nn_name, op_type>::update_method(const std::string &method) {
+void nn_base<nn_name, op_type>::set_method(std::string method) {
+  m_method = method; 
+}
+
+template <typename nn_name, typename op_type>
+void nn_base<nn_name, op_type>::update_method(std::string method) {
   try {
-    if (!m_model->is_loaded()) {
-      cerr << "no model is set yet" << endl;
-      return; 
+    // if (!m_model->is_loaded()) {
+    //   cerr << "no model is set yet" << endl;
+    //   return; 
+    // }
+    if (method.empty()) {
+      if (m_method.empty()) {
+        return;
+      } 
+      method = m_method; 
     }
     if (m_model->has_method(method)) {
-      m_method = method; 
-      auto params = m_model->get_method_params(m_method);
+      auto params = m_model->get_method_params(method);
       // input parameters
       m_model_in = params[0];
       if (n_inlets == -1) {
@@ -562,62 +605,98 @@ void nn_base<nn_name, op_type>::update_method(const std::string &method) {
       if (m_model_out != n_outlets) {
         cwarn << "nn_base~ has been initialised with " << n_outlets << " outputs, but current model has " << m_model_out << endl;
       }
+      
+      set_method(method); 
+
+      if (m_buffer_size == -1) {
+        // NO THREAD MODE
+        m_buffer_size = m_higher_ratio;
+      }
+      DEBUG_PRINT("buffer size : %d", m_buffer_size);
+      if (m_buffer_size == 0) {
+        m_use_thread = false; 
+        m_buffer_size = m_higher_ratio; 
+      } else {
+        if (m_buffer_size < m_higher_ratio) {
+          cerr << "buffer size too small, switching to " << m_buffer_size << endl;
+          m_buffer_size = m_higher_ratio;
+        } else {
+          m_buffer_size = power_ceil(m_buffer_size);
+        }
+      }
     } else {
       cerr << "model " << m_path << " does not have method " << method << endl; 
+      m_ready = false; 
     }
     wait_for_buffer_reset = true; 
   } catch (std::string &e) {
     cerr << "failed to set method to " << method << ". Caught exception : " << e << endl; 
+  } catch (std::exception &e) {
+    cerr << "failed to set method to " << method << ". Caught exception : " << e.what() << endl; 
   }
+
+  DEBUG_PRINT("updating buffer size by default");
+  if (m_buffer_size == -1) {
+    // NO THREAD MODE
+    m_buffer_size = DEFAULT_BUFFER_SIZE;
+  }
+  if (m_buffer_size == 0) {
+    m_use_thread = false; 
+    m_buffer_size = DEFAULT_BUFFER_SIZE; 
+  } 
 }
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::load_model(const std::string& model_path) {
   DEBUG_PRINT("model path: %s", model_path.c_str());
-  m_ready = false;
+  if (m_method.empty()) 
+    m_method = "forward";
+
   try {
     auto path = to_model_path(model_path);
-    m_model.get()->load(path, get_sample_rate(), &m_method);
+    m_model.get()->load(path, get_sample_rate()); 
     DEBUG_PRINT("model loaded"); 
     m_model->use_gpu(gpu);
     m_higher_ratio = m_model->get_higher_ratio();
     settable_attributes = m_model->get_settable_attributes(); 
     DEBUG_PRINT("attributes setted"); 
     m_buffer_manager.init_buffer_list(m_model.get(), this);
+    m_ready = true; 
+
+    if (!m_model->has_method(m_method)) {
+      cwarn << model_path << " loaded, but does not have method " << m_method << endl; 
+
+    }
   } catch (std::string &e) {
     cerr << e << endl;
     return; 
   }
-
-  // SET PARAMS
-  update_method(m_method);
-  DEBUG_PRINT("method updated"); 
-  m_ready = true;
 }
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::init_buffers() { 
   if (!m_ready) { return; }
-  if (m_buffer_size == -1) {
-    // NO THREAD MODE
-    m_buffer_size = DEFAULT_BUFFER_SIZE;
-  } else if (m_buffer_size == 0) {
-    m_use_thread = false; 
-    m_buffer_size = m_higher_ratio;
-  } else {
-    if (m_buffer_size < m_higher_ratio) {
-      cerr << "buffer size too small, switching to " << m_buffer_size << endl;
-      m_buffer_size = m_higher_ratio;
-    } else {
-      m_buffer_size = power_ceil(m_buffer_size);
-    }
-  }
+  update_method(); 
+
+  // if (m_buffer_size == -1) {
+  //   m_buffer_size = DEFAULT_BUFFER_SIZE;
+  // } else if (m_buffer_size == 0) {
+  //   m_use_thread = false; 
+  //   m_buffer_size = m_higher_ratio;
+  // } else {
+  //   if (m_buffer_size < m_higher_ratio) {
+  //     cerr << "buffer size too small, switching to " << m_buffer_size << endl;
+  //     m_buffer_size = m_higher_ratio;
+  //   } else {
+  //     m_buffer_size = power_ceil(m_buffer_size);
+  //   }
+  // }
 
   // Calling forward in a thread causes memory leak in windows.
   // See https://github.com/pytorch/pytorch/issues/24237
-#ifdef _WIN32
+  #ifdef _WIN32
   m_use_thread = false;
-#endif
+  #endif
   
   if (m_in_buffer.get() != nullptr) { m_in_buffer.release(); }
   m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(n_inlets);
@@ -627,7 +706,7 @@ void nn_base<nn_name, op_type>::init_buffers() {
     }
   }
 
-  if (m_out_buffer.get() == nullptr) { m_out_buffer.release(); }
+  if (m_out_buffer.get() != nullptr) { m_out_buffer.release(); }
   m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(n_outlets);
 if (m_out_buffer.get()->max_size() < m_buffer_size) {
     for (int i = 0; i < n_outlets; i++) {
@@ -649,6 +728,7 @@ if (m_out_buffer.get()->max_size() < m_buffer_size) {
 
   wait_for_buffer_reset = false; 
   had_buffer_reset = true; 
+  buffer_initialised = true; 
 }
 
 template <typename nn_name, typename op_type>
@@ -663,29 +743,37 @@ bool nn_base<nn_name, op_type>::has_settable_attribute(std::string attribute) {
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::operator()(audio_bundle input, audio_bundle output) {
 
-  if (wait_for_buffer_reset) {
+  // CHECK IF MODEL IS LOADED AND ENABLED
+  if (!m_ready || !enable) {
+    fill_with_zero(output);
+    return;
+  }
+
+  if ((!m_use_thread) && (!buffer_initialised)) {
     init_buffers(); 
   }
 
-  auto dsp_vec_size = output.frame_count();
-
-  // CHECK IF MODEL IS LOADED AND ENABLED
-  if (!m_model->is_loaded() || !enable) {
-    fill_with_zero(output);
-    return;
+  if (can_perform()) {
+    if (buffer_initialised) {
+      auto dsp_vec_size = output.frame_count();
+      // CHECK IF DSP_VEC_SIZE IS LARGER THAN BUFFER SIZE
+      if (dsp_vec_size > m_buffer_size) {
+        cerr << "vector size (" << dsp_vec_size << ") ";
+        cerr << "larger than buffer size (" << m_buffer_size << "). ";
+        cerr << "disabling model.";
+        cerr << endl;
+        enable = false;
+        fill_with_zero(output);
+        return;
+      } 
+      perform(input, output);
+    } 
+    // else {
+    //   fill_with_zero();
+    // }
+  } else {
+    fill_with_zero(output); 
   }
-
-  // CHECK IF DSP_VEC_SIZE IS LARGER THAN BUFFER SIZE
-  if (dsp_vec_size > m_buffer_size) {
-    cerr << "vector size (" << dsp_vec_size << ") ";
-    cerr << "larger than buffer size (" << m_buffer_size << "). ";
-    cerr << "disabling model.";
-    cerr << endl;
-    enable = false;
-    fill_with_zero(output);
-    return;
-  }
-  perform(input, output);
 }
 
 template <typename nn_name, typename op_type>

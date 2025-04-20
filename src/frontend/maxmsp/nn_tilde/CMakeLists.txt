@@ -52,9 +52,9 @@ if (MSVC)
 endif()
 
 include_directories( 
-	"${C74_INCLUDES}", 
-	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
-	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared",
+	"${C74_INCLUDES}" 
+	"${CMAKE_CURRENT_SOURCE_DIR}/../shared"
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared"
 )
 
 if (MSVC)
@@ -81,16 +81,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${CURL_LIBRARY})
 
 
 if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
-set_target_properties(${PROJECT_NAME} PROPERTIES
-	BUILD_WITH_INSTALL_RPATH FALSE
-	LINK_FLAGS "-Wl,-rpath,@loader_path/"
-)
-endif()
-
-
-
-
-if (APPLE) # COPY DYLIBS IN THE LOADER FOLDER
+	set_target_properties(${PROJECT_NAME} PROPERTIES
+		BUILD_WITH_INSTALL_RPATH FALSE
+		# LINK_FLAGS "-Wl,-rpath,@loader_path/"
+		LINK_FLAGS "-Wl"
+	)
 
 	add_custom_command(
 		TARGET ${PROJECT_NAME}
@@ -99,7 +94,6 @@ if (APPLE) # COPY DYLIBS IN THE LOADER FOLDER
 		COMMAND ${CMAKE_SOURCE_DIR}/../env/bin/python ${CMAKE_SOURCE_DIR}/../install/dylib_fix.py -p "$<TARGET_FILE:${PROJECT_NAME}>" -o "${CMAKE_SOURCE_DIR}/support"  -l "${CMAKE_BINARY_DIR}/_deps"  "${CMAKE_SOURCE_DIR}/../env" "${HOMEBREW_PREFIX}"
 		COMMENT "Fixing libraries, certificates, permissions, codesigning, quarantine"
 	)
-	
 endif()
 
 

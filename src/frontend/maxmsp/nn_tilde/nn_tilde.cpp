@@ -20,7 +20,7 @@ void model_perform(nn_class* nn_instance) {
 
 template <typename nn_class>
 void model_perform_async(nn_class *nn_instance) {
-  while (!nn_instance->m_ready){
+  while (!nn_instance->can_perform()){
     std::this_thread::sleep_for(std::chrono::milliseconds(REFRESH_THREAD_INTERVAL));
     if (nn_instance->m_should_stop_perform_thread) {
       return;
@@ -72,7 +72,9 @@ public:
     MIN_AUTHOR{"Antoine Caillon & Axel Chemla--Romeu-Santos"};
     MIN_RELATED{"nn.info, mc.nn~, mcs.nn~"};
 
-    static std::string get_external_name() { return "nn~";} 
+    static std::string get_external_name() {
+       return std::string("nn~");
+    } 
     nn(const atoms &args = {}) {
         init_external(args); 
      }
@@ -98,8 +100,8 @@ public:
       init_inputs_and_outputs(args); 
       DEBUG_PRINT("initializing inlets & outlets");
       init_inlets_and_outlets(); 
-      DEBUG_PRINT("initializing buffers");
-      init_buffers(); 
+      // DEBUG_PRINT("initializing buffers");
+      // init_buffers(); 
       DEBUG_PRINT("initializing process"); 
       init_process(); 
     } 

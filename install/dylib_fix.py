@@ -65,7 +65,11 @@ def extract_rpaths(executable_path, replace_dynamic_paths = True):
                 rpaths[i] = re.sub("@loader_path", str(executable_path.parent), r)
         
 
-        return list(map(Path, rpaths))
+        for i, r in enumerate(rpaths):
+            if r.startswith("@loader_path") or r.startswith("@loader_path") or r.startswith("@executable_path"):
+                continue 
+            rpaths[i] = Path(r)
+        return rpaths
 
     except subprocess.CalledProcessError as e:
         print(f"An error occurred: {e}")
@@ -238,6 +242,8 @@ def lib_from_exc_path(exc_path, lib_path):
     return os.path.join(*([".."] * (len(exc_parts[i:])-1) + list(lib_parts[i:])))
 
 def parse_actions_from_executable(exec_path, dep_paths=[], main_dir = None, verbose=False):
+    if not os.path.exists(exec_path):
+        raise FileNotFoundError(exec_path)
     if verbose: print(f'parsing {str(exec_path)}...')
     libs_deps = {}
     libs_paths = {}
@@ -287,15 +293,17 @@ def parse_actions_from_executable(exec_path, dep_paths=[], main_dir = None, verb
             #     continue
             if get_library_name(libs_hash_linked[k][i]) == get_library_name(v_tmp.name):
                 if v_tmp.stem == exec_path.stem:
-                    actions.append(['-id', f"@rpath/{v_tmp.name}", str(exec_dir / v_tmp.name)])
+                    actions.append(['-id', f"@loader_path/{v_tmp.name}", str(exec_dir / v_tmp.name)])
                 else:
-                    actions.append(['-id', f"@rpath/{v_tmp.name}", str(main_dir / v_tmp.name)])
+                    actions.append(['-id', f"@loader_path/{v_tmp.name}", str(main_dir / v_tmp.name)])
             else:
                 current_dep = str(libs_hash_linked[k][i]) 
-                new_dep = f"@rpath/{lib_from_exc_path(exec_path, main_dir / libs_paths[get_library_name(current_dep)].name)}"
+                # new_dep = f"@loader_path/{libs_paths[get_library_name(current_dep)].name}"
                 if v_tmp.stem == exec_path.stem:
+                    new_dep = f"@loader_path/{lib_from_exc_path(exec_path, main_dir / libs_paths[get_library_name(current_dep)].name)}"
                     actions.append(['-change', current_dep, new_dep, str(exec_dir / v_tmp.name)])
                 else:
+                    new_dep = f"@loader_path/{libs_paths[get_library_name(current_dep)].name}"
                     actions.append(['-change', current_dep, new_dep, str(main_dir / v_tmp.name)])
     return actions
 
@@ -348,14 +356,15 @@ def perform_action(action, main_dir):
                                      target_path], 
                                     check=True, 
                                     text=True, 
-                                    capture_output=False)
+                                    capture_outpu=False)
         elif action[0] == "clean_rpath":
             rpaths = extract_rpaths(str(main_dir / action[1]), replace_dynamic_paths=False)
             for r in rpaths: 
-                if not str(r).startswith("@loader_path"):
-                    perform_action(['-delete_rpath', str(r), action[1]], main_dir)
-            if (Path("@loader_path") not in rpaths) and (Path("@loader_path/") not in rpaths):
-                perform_action(['-add_rpath', "@loader_path", action[1]], main_dir)
+                try:
+                    subprocess.run(['install_name_tool', '-delete_rpath', str(r), str(action[1])])
+                except subprocess.SubprocessError as e: 
+                    print("problem with clean_rpath : %s"%e)
+                    pass
 
         else:
             print('[Warning] not known action : %s'%action) 
@@ -383,6 +392,8 @@ if __name__ == "__main__":
     exec_path = Path(args.path)
     main_dir = args.out_dir or args.path.parent 
     actions = parse_actions_from_executable(exec_path, args.lib_paths, main_dir, args.verbose)
+
+
     if args.safe:
         for i, a in enumerate(actions):
             print_action(i, a)
@@ -396,9 +407,12 @@ if __name__ == "__main__":
     for a in tqdm.tqdm(actions): 
         perform_action(a, main_dir = main_dir)
 
+    if not args.noclean_rpath:
+        for m in [os.path.join(main_dir, m) for m in os.listdir(main_dir)] + [args.path]:
+            if is_executable(m):
+                perform_action(['clean_rpath', m], main_dir)
+
     for m in [os.path.join(main_dir, m) for m in os.listdir(main_dir)] + [args.path]:
-        if is_executable(m) and not args.noclean_rpath:
-            actions.append(['clean_rpath', m])
         try:
             subprocess.run(['chmod', '+x', m])
             subprocess.run(['codesign', '--deep', '--force', '--sign', '-', m])

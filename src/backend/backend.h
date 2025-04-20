@@ -59,8 +59,8 @@ public:
   using BufferMap = std::map<std::string, StaticBuffer<float>>;
 
   Backend();
-  void perform(std::vector<float *> in_buffer,
-                      std::vector<float *> out_buffer, 
+  void perform(std::vector<float *> &in_buffer,
+                      std::vector<float *> &out_buffer, 
                       std::string method, 
                       int n_batches, int n_out_channels, int n_vec);
   bool has_method(std::string method_name);

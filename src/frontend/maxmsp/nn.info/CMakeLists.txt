@@ -43,8 +43,8 @@ add_library(
 
 include_directories( 
 	"${C74_INCLUDES}", 
-	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
-	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared",
+	"${CMAKE_CURRENT_SOURCE_DIR}/../shared"
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared"
 )
 
 if (MSVC)

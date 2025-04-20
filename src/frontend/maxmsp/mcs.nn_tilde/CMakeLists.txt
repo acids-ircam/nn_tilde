@@ -51,9 +51,9 @@ if (MSVC)
 endif()
 
 include_directories( 
-	"${C74_INCLUDES}", 
-	"${CMAKE_CURRENT_SOURCE_DIR}/../shared",
-	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared",
+	"${C74_INCLUDES}" 
+	"${CMAKE_CURRENT_SOURCE_DIR}/../shared"
+	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared"
 )
 
 if (MSVC)
@@ -86,8 +86,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 endif()
 
-
-
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
 if (APPLE) # COPY DYLIBS IN THE LOADER FOLDER
 

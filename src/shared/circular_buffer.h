@@ -9,6 +9,7 @@ public:
   bool full();
   void put(in_type *input_array, int N);
   void get(out_type *output_array, int N);
+  void fill(out_type val); 
   void reset();
   size_t max_size() { return _max_size; } 
 
@@ -42,6 +43,15 @@ template <class in_type, class out_type>
 bool circular_buffer<in_type, out_type>::full() {
   return _full;
 }
+
+
+template <class in_type, class out_type>
+void circular_buffer<in_type, out_type>::fill(out_type value) {
+  // if (_max_size > 0) {
+  //   std::fill(_buffer.get(), _buffer.get() + _max_size, value);
+  // }
+}
+
 
 template <class in_type, class out_type>
 void circular_buffer<in_type, out_type>::put(in_type *input_array, int N) {
