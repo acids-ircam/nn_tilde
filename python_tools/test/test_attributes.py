@@ -9,6 +9,7 @@ from types import MethodType
 from typing import NoReturn
 from utils import out_dir, test_name, import_code 
 
+
 class AttributeFoo(Module):
     def __init__(self):
         super().__init__()
@@ -26,7 +27,6 @@ class AttributeFoo(Module):
         x[..., 1, :] = self.attr_float[0]
         return x
 
-    
 
 class ListAttributeFoo(Module):
     def __init__(self, n: int, attribute_type: type):
@@ -57,6 +57,21 @@ def _default(attr_hash: int):
         return (torch.tensor(0), 44100)
     else:
         raise TypeError('type not known')
+
+
+class TensorAttributeFoo(Module): 
+    def __init__(self):
+        super().__init__()
+        self.register_attribute("a", torch.zeros(4))
+        self.register_method("forward", 1, 1, 4, 1, test_method=False)
+        self.finish()
+
+    @torch.jit.export
+    def forward(self, x: torch.Tensor):
+        out = torch.zeros(x.shape[0], 4, x.shape[2])
+        for i in range(4):
+            out[:, i] = self.a[0][None, i]
+        return out
         
 
 @pytest.mark.parametrize('module_class', [AttributeFoo])
@@ -83,4 +98,28 @@ def test_list_attributes(n, attr_type, module_class, out_dir, test_name):
     module(torch.zeros(1, 1, 16))
     scripted = torch.jit.script(module)
     torch.jit.save(scripted, out_dir/f"{test_name}.ts")
+
+
+
+@pytest.mark.parametrize('n', [1, 4])
+@pytest.mark.parametrize('attr_type', [str, bool, int, float])
+@pytest.mark.parametrize('module_class', [ListAttributeFoo])
+def test_list_attributes(n, attr_type, module_class, out_dir, test_name):
+    module = module_class(n, attr_type)
+    module.get_attr()
+    module.set_attr(*([_default(module.attr_params[0])] * n))
+    module(torch.zeros(1, 1, 16))
+    scripted = torch.jit.script(module)
+    torch.jit.save(scripted, out_dir/f"{test_name}.ts")
     
+
+@pytest.mark.parametrize('module_class', [TensorAttributeFoo])
+def test_tensor_attributes(module_class, out_dir, test_name):
+    module = module_class()
+    target_attr = torch.Tensor([1,2,3,4])
+    module.set_a(torch.Tensor(target_attr))
+    out = module.get_a()[0]
+    assert out.eq(target_attr).all()
+    module(torch.zeros(1, 1, 16))
+    scripted = torch.jit.script(module)
+    torch.jit.save(scripted, out_dir/f"{test_name}.ts")

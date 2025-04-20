@@ -57,12 +57,18 @@ include_directories(
 	"${CMAKE_CURRENT_SOURCE_DIR}/../../shared"
 )
 
+include_directories( 
+	"${MAX_SDK_INCLUDES}"
+	"${MAX_SDK_MSP_INCLUDES}"
+	"${MAX_SDK_JIT_INCLUDES}"
+)
+
 if (MSVC)
 	include_directories(${VCPKG_INCLUDE_DIR})
 	link_directories(${VCPKG_LIB_DIR})
 endif()
 
-
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/c74support/max-includes")
 target_link_libraries(${PROJECT_NAME} PRIVATE backend)
 
 if (UNIX)
@@ -86,6 +92,7 @@ if (APPLE) # SEARCH FOR TORCH DYLIB IN THE LOADER FOLDER
 		# LINK_FLAGS "-Wl,-rpath,@loader_path/"
 		LINK_FLAGS "-Wl"
 	)
+	set(MAXAPI_FRAMEWORK_PATH "/absolute/path/to/MaxAPI.framework/..")
 
 	add_custom_command(
 		TARGET ${PROJECT_NAME}

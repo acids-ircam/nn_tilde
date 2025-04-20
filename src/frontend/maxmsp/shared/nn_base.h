@@ -7,6 +7,11 @@
 #include <algorithm>
 #include "c74_min.h"
 #include "max_model_download.h"
+
+#ifndef CLASS_FLAG_OBJECTAWARE
+#define CLASS_FLAG_OBJECTAWARE (0x10000000L) ///< this object can work with 'array' and 'string' objects
+#endif
+
 #include "buffer_tools.h"
 #include "dict_utils.h"
 #include "../../../backend/backend.h"
@@ -303,7 +308,6 @@ public:
       return {}; 
   }};
 
-
   message<> anything{
       this, "anything", "callback for attributes",
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
@@ -361,7 +365,11 @@ public:
             for (int i = 2; i < args.size(); i++) {
               // get if argument is buffer
               attribute_args.push_back(args[i]);
-              m_buffer_manager.append_if_buffer_element(m_model.get(), buffers, args[i], attribute_name, i - 2);
+              try {
+                m_buffer_manager.append_if_buffer_element(m_model.get(), buffers, args[i], attribute_name, i - 2);
+              } catch (std::string &message) {
+                cerr << message << endl; 
+              }
             }
             try {
               m_model->set_attribute(attribute_name, attribute_args, buffers);

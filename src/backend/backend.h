@@ -34,9 +34,6 @@ struct LockedModel {
 };
 
 
-
-
-
 class Backend {
 
 protected:
@@ -76,6 +73,7 @@ public:
 
   // buffer attributes
   bool is_buffer_element_of_attribute(std::string attribute_name, int attribute_elt_idx);
+  bool is_tensor_element_of_attribute(std::string attribute_name, int attribute_elt_idx);
   // auto get_buffer_attribtues() { return m_buffer_attributes; }
   std::string get_buffer_name(std::string attribute_name, int attribute_elt_idx);
   int update_buffer(std::string buffer_id, StaticBuffer<float> &buffer);

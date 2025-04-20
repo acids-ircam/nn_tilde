@@ -1,11 +1,11 @@
 import torch
-from typing import  List, Dict
+from typing import  List, Dict, Optional
 
 class Buffer():
     value: torch.Tensor
     min_samples: int
     max_samples: int
-    def __init__(self, tensor: torch.Tensor | None = None, 
+    def __init__(self, tensor: Optional[torch.Tensor] = None, 
                  min_samples: int = -1, 
                  max_samples: int = -1, 
                  sr: int | float | None = -1):

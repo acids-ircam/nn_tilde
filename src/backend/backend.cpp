@@ -14,6 +14,18 @@
 #define REFRESH_THREAD_INTERVAL 50
 
 
+std::string tensor_to_str(torch::Tensor &tsr) {
+  std::stringstream ss; 
+  ss << "Tensor(dim: ";
+  for (int i = 0; i < tsr.dim(); i++) {
+    ss << tsr.size(i); 
+    if (i != tsr.dim() - 1)
+      ss << ", ";
+  }
+  ss << ")"; 
+  return ss.str(); 
+}
+
 
 Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
   at::init_num_threads();
@@ -304,6 +316,12 @@ std::string Backend::get_attribute_as_string(std::string attribute_name) {
       current_attr += getter_outputs[i].toStringRef();
       break;
     }
+    // tensor case
+    case 4: {
+      auto tensor = getter_outputs[i].toTensor();
+      current_attr += tensor_to_str(tensor);
+      break; 
+    }
     case 5: {
       current_attr += getter_outputs[i].toStringRef();
       break;
@@ -375,10 +393,20 @@ void Backend::set_attribute(std::string attribute_name,
       case 3:
         setter_inputs.push_back(c10::IValue(attribute_args[i]));
         break;
-      // buffer case
+      // tensor case
+      case 4: {
+        auto buffer_name = get_buffer_name(attribute_name, i);
+        if (!buffer_array.contains(buffer_name)) {
+          throw std::string("buffer for argument ") + buffer_name + std::string(" not found. Did you initialise it?");
+        } else {
+          auto buffer = buffer_array.at(buffer_name);
+          auto buf_tensor = buffer.to_tensor().index({0});
+          setter_inputs.push_back(buf_tensor.clone()); 
+        }
+        break;
+      }
       case 5: {
         auto buffer_name = get_buffer_name(attribute_name, i);
-        // std::cout << "setting buffer " << buffer_name << std::endl; 
         if (!buffer_array.contains(buffer_name)) {
           throw std::string("buffer for argument ") + buffer_name + std::string(" not found. Did you initialise it?");
         } else {
@@ -476,6 +504,15 @@ bool Backend::is_buffer_element_of_attribute(std::string attribute_name, int att
     }
   }
   return false;
+}
+
+bool Backend::is_tensor_element_of_attribute(std::string attribute_name, int attribute_elt_idx) {
+  auto attribute_params = m_model.attr(attribute_name + "_params").toTensor(); 
+  if (id_to_string_hash.at(attribute_params.item().toInt()) == "tensor") {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 std::vector<std::string> Backend::retrieve_buffer_attributes() {

@@ -1,4 +1,5 @@
 #pragma once
+#include "array_tools.h"
 #include "../../../backend/backend.h"
 #include "../../../shared/static_buffer.h"
 #include "c74_min.h"
@@ -71,9 +72,16 @@ void BufferManager::link_attribute_to_buffer(std::string buffer_name, c74::min::
 void BufferManager::append_if_buffer_element(Backend *model, Backend::BufferMap &buffers, c74::min::symbol target_max_buffer, std::string attribute_name, int index)
 {
     if (model->is_buffer_element_of_attribute(attribute_name, index)) {
+      auto buffer_name = model->get_buffer_name(attribute_name, index);
+      link_attribute_to_buffer(buffer_name, target_max_buffer);
+      buffers[buffer_name] = static_buffer_from_name<float>(buffer_name);
+    } else if (model->is_tensor_element_of_attribute(attribute_name, index)) {
+      try {
         auto buffer_name = model->get_buffer_name(attribute_name, index);
-        link_attribute_to_buffer(buffer_name, target_max_buffer);
-        buffers[buffer_name] = static_buffer_from_name<float>(buffer_name);
+        buffers[buffer_name] = ArrayTools::static_buffer_from_array(target_max_buffer);
+      } catch (std::string &e) {
+        throw "could not populate element " + std::to_string(index) + " of " + attribute_name + ". Got : "  + e; 
+      }
     }
 }
 template <typename data_type>
