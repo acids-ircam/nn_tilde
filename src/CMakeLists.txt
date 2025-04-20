@@ -3,6 +3,12 @@ project(nn_tilde)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+
+add_custom_target(copy_linking_file ALL
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script"
+    COMMENT "Patching Max linkings"
+)
+
 set(CONDA_ENV_PATH "${CMAKE_SOURCE_DIR}/../env")
 if (MSVC)
   set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}:${CONDA_ENV_PATH}")
@@ -56,6 +62,10 @@ execute_process(
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../package-info.json.in "${CMAKE_CURRENT_SOURCE_DIR}/package-info.json")
+
+
+add_executable(${CMAKE_SOURCE_DIR} main.cpp)
+add_dependencies(myapp copy_data)
 
 if(APPLE OR MSVC)
     # MAX MSP EXTERNAL
