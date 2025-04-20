@@ -238,14 +238,18 @@ void mcs_nn::init_inlets_and_outlets() {
   DEBUG_PRINT("n_batches : %d", n_batches); 
   std::string input_label; 
   for (int i(0); i < n_batches; i++) {
-    input_label = "(multichannel) batch " + std::to_string(i) + "(" + std::to_string(m_model_in) + " dimensions)";
+    if (m_model_in > 0) {
+      input_label = "(multichannel) batch " + std::to_string(i) + "(" + std::to_string(m_model_in) + " dimensions)";
+    } else {
+      input_label = "(multichannel) batch " + std::to_string(i); 
+    }
     m_inlets.push_back(
       std::make_unique<inlet<>>(this, input_label, "multichannelsignal"));
   }
 
   std::string output_label;
   for (int i(0); i < n_batches; i++) {
-    output_label = "(multichannel) batch " + std::to_string(i) + "(" + std::to_string(m_model_out) + " dimensions)";
+    output_label = "(multichannel) batch " + std::to_string(i) + "(" + std::to_string(m_out_channels) + " dimensions)";
     m_outlets.push_back(
         std::make_unique<outlet<>>(this, output_label, "multichannelsignal"));
   }
