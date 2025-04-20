@@ -369,6 +369,7 @@ public:
                 m_buffer_manager.append_if_buffer_element(m_model.get(), buffers, args[i], attribute_name, i - 2);
               } catch (std::string &message) {
                 cerr << message << endl; 
+                return args; 
               }
             }
             try {
