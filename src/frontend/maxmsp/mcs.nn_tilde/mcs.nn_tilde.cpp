@@ -232,6 +232,7 @@ bool mcs_nn::update_channel_map(const long& index, const long& count)
   return true; 
 }
 
+
 void mcs_nn::init_inlets_and_outlets() {
    
   DEBUG_PRINT("loading model..."); 
