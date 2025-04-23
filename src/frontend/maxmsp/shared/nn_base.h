@@ -594,6 +594,9 @@ void nn_base<nn_name, op_type>::update_method(std::string method) {
     }
     if (m_model->has_method(method)) {
       auto params = m_model->get_method_params(method);
+      if (params.size() == 0) {
+        throw std::format("method {} present in model, but not initialised", method);
+      }
       // input parameters
       m_model_in = params[0];
       if (n_inlets == -1) {

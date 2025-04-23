@@ -9,6 +9,11 @@ configure_file(
   COPYONLY
 )
 
+include(${CMAKE_SOURCE_DIR}/cmake/add_torch.cmake)
+list(APPEND CMAKE_PREFIX_PATH "${torch_dir}/libtorch")
+find_package(Torch REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
 set(CONDA_ENV_PATH "${CMAKE_SOURCE_DIR}/../env")
 if (MSVC)
   set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}:${CONDA_ENV_PATH}")
@@ -48,7 +53,7 @@ if (UNIX)
 endif()
 
 
-find_package(Torch REQUIRED)
+
 add_subdirectory(backend) # DEEP LEARNING BACKEND
 
 if ((NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
@@ -63,6 +68,10 @@ execute_process(
 )
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../package-info.json.in "${CMAKE_CURRENT_SOURCE_DIR}/package-info.json")
+
+if (NOT DEFINED SIGN_ID)
+  set(SIGN_ID "-")
+endif()
 
 if(APPLE OR MSVC)
     # MAX MSP EXTERNAL

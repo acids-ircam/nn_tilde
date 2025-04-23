@@ -13,6 +13,7 @@ parser.add_argument('-p', '--path', type=Path, required=True)
 parser.add_argument('-l', '--lib_paths', nargs="*")
 parser.add_argument('-o', '--out_dir', type=Path, default=None, help="optional directory for copying dylibs")
 parser.add_argument('--safe', action="store_true", help="safe mode")
+parser.add_argument('--sign_id', type=str, default="-", help="codesign sign")
 parser.add_argument('--noclean_rpath', action="store_true", help="does not clean rpath")
 parser.add_argument('--verbose', action="store_true", help="verbose output")
 args = parser.parse_args()
@@ -415,7 +416,7 @@ if __name__ == "__main__":
     for m in [os.path.join(main_dir, m) for m in os.listdir(main_dir)] + [args.path]:
         try:
             subprocess.run(['chmod', '+x', m])
-            subprocess.run(['codesign', '--deep', '--force', '--sign', '-', m])
+            subprocess.run(['codesign', '--deep', '--force', '--options=runtime', '--sign', args.sign_id, m])
             subprocess.run(["xattr", "-r", "-d", "com.apple.quarantine", m])
         except subprocess.CalledProcessError as e: 
             print(f'Could not chmod / codesign file {m} ; codesign needed')
