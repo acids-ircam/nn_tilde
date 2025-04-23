@@ -36,7 +36,7 @@ jobs:
           export CC=$(brew --prefix llvm)/bin/clang
           export CXX=$(brew --prefix llvm)/bin/clang++
           cd build
-          cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_PREFIX_PATH=${{ github.workspace }}/env/lib/python3.12/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
+          cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
           make
       - name: Max/MSP Package creation
         run: |
@@ -118,7 +118,7 @@ jobs:
           export CC=$(/usr/local/bin/brew --prefix llvm)/bin/clang
           export CXX=$(/usr/local/bin/brew --prefix llvm)/bin/clang++
           cd build
-          arch -x86_64 ../env/bin/cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_PREFIX_PATH=${{ github.workspace }}/env/lib/python3.12/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=x86_64
+          arch -x86_64 ../env/bin/cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=x86_64
           arch -x86_64 make
       - name: Max/MSP Package creation
         run: |
