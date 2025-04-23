@@ -3,21 +3,19 @@ project(nn_tilde)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if (APPLE)
-  configure_file(
-    "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script/max-linker-flags.txt"
-    COPYONLY
-  )
-  if (NOT DEFINED SIGN_ID)
-    set(SIGN_ID "-")
-  endif()
-elseif (MINGW)
-  message("Copying ${CMAKE_SOURCE_DIR}/../install/MaxAPI.lib" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/c74support/max-includes/x64" )
-  configure_file(
-     "${CMAKE_SOURCE_DIR}/../install/MaxAPI.lib" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/c74support/max-includes/x64/MaxAPI.lib" 
-     COPYONLY
-  )
+configure_file(
+  "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script/max-linker-flags.txt"
+  COPYONLY
+)
+if (NOT DEFINED SIGN_ID)
+  set(SIGN_ID "-")
 endif()
+
+message("Copying ${CMAKE_SOURCE_DIR}/../install/MaxAPI.lib" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/c74support/max-includes/x64" )
+configure_file(
+    "${CMAKE_SOURCE_DIR}/../install/MaxAPI.lib" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/c74support/max-includes/x64/MaxAPI.lib" 
+    COPYONLY
+)
 
 configure_file(
   "${CMAKE_SOURCE_DIR}/../install/patch_with_vst.sh" "${CMAKE_SOURCE_DIR}/extras"
