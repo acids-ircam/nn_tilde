@@ -9,9 +9,16 @@ configure_file(
   COPYONLY
 )
 
+configure_file(
+  "${CMAKE_SOURCE_DIR}/../install/patch_with_vst.sh" "${CMAKE_SOURCE_DIR}/extras"
+  COPYONLY
+)
+
+
 include(${CMAKE_SOURCE_DIR}/cmake/add_torch.cmake)
-list(APPEND CMAKE_PREFIX_PATH "${torch_dir}/libtorch")
-find_package(Torch REQUIRED)
+list(PREPEND CMAKE_PREFIX_PATH "${torch_dir}/libtorch")
+find_package(Torch REQUIRED PATHS ${torch_dir}/libtorch/lib)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 set(CONDA_ENV_PATH "${CMAKE_SOURCE_DIR}/../env")

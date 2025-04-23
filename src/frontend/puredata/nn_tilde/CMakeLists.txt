@@ -241,6 +241,14 @@ endif()
 target_link_libraries(nn PRIVATE backend)
 target_include_directories(nn PRIVATE "${PUREDATA_INCLUDE_DIR}")
 
+if (APPLE)
+    add_custom_command(
+            TARGET nn
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/../install/patch_with_vst.sh" "$ENV{PD_EXTERNAL_PATH}/nn_tilde"
+        )
+endif()
+
 set(CONDA_ENV_PATH "${CMAKE_SOURCE_DIR}/../env")
 set(CURL_INCLUDE_DIR "${CONDA_ENV_PATH}/include")
 
