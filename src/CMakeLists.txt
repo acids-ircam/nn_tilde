@@ -3,11 +3,19 @@ project(nn_tilde)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-
-configure_file(
-  "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script/max-linker-flags.txt"
-  COPYONLY
-)
+if (APPLE)
+  configure_file(
+    "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script/max-linker-flags.txt"
+    COPYONLY
+  )
+  if (NOT DEFINED SIGN_ID)
+    set(SIGN_ID "-")
+  endif()
+elseif (MINGW)
+  configure_file(
+     "${CMAKE_SOURCE_DIR}/../install/MaxAPI.lib" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/c74support/max-includes/x64"
+  )
+endif()
 
 configure_file(
   "${CMAKE_SOURCE_DIR}/../install/patch_with_vst.sh" "${CMAKE_SOURCE_DIR}/extras"
@@ -63,10 +71,6 @@ endif()
 
 add_subdirectory(backend) # DEEP LEARNING BACKEND
 
-if ((NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
-    add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
-endif()
-
 execute_process(
 		COMMAND git describe --tags
 		WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
@@ -74,11 +78,14 @@ execute_process(
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
+
+if ((NOT ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")) OR (UNIX AND NOT APPLE))
+    add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
+endif()
+
+
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../package-info.json.in "${CMAKE_CURRENT_SOURCE_DIR}/package-info.json")
 
-if (NOT DEFINED SIGN_ID)
-  set(SIGN_ID "-")
-endif()
 
 if(APPLE OR MSVC)
     # MAX MSP EXTERNAL
