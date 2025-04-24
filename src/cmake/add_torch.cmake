@@ -43,7 +43,7 @@ if (NEEDS_DL)
 
   # Download
   if (UNIX AND NOT APPLE)  # Linux
-    set(torch_url "https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-${torch_version}%2Bcpu.zip")
+    set(torch_url "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${torch_version}%2Bcpu.zip")
     download_library(${torch_url} ${torch_dir})
   elseif (UNIX AND APPLE)  # OSX
     if (NOT IS_DIRECTORY ${torch_dir})
