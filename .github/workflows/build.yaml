@@ -35,6 +35,7 @@ jobs:
           mkdir build
           export CC=$(brew --prefix llvm)/bin/clang
           export CXX=$(brew --prefix llvm)/bin/clang++
+          export SIGN_ID=${{ secrets.SIGN_ID }}
           cd build
           cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
           make
@@ -117,6 +118,7 @@ jobs:
           mkdir build
           export CC=$(/usr/local/bin/brew --prefix llvm)/bin/clang
           export CXX=$(/usr/local/bin/brew --prefix llvm)/bin/clang++
+          export SIGN_ID=${{ secrets.SIGN_ID }}
           cd build
           arch -x86_64 ../env/bin/cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=x86_64
           arch -x86_64 make
