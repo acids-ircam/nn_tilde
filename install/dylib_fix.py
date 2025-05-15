@@ -413,6 +413,7 @@ if __name__ == "__main__":
             if is_executable(m):
                 perform_action(['clean_rpath', m], main_dir)
 
+
     if args.sign_id == "": args.sign_id = "-"
     for m in [os.path.join(main_dir, m) for m in os.listdir(main_dir)] + [args.path]:
         try:
