@@ -65,6 +65,9 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - run: | 
           git submodule update --init --recursive
           git fetch --tags
