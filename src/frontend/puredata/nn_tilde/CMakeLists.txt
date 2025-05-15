@@ -75,13 +75,14 @@ endfunction()
 
 
 if (UNIX AND NOT APPLE)
-    set(TORCH_ESSENTIAL_LIBS
-        "libtorch.so*"
-        "libtorch_cpu.so*"
-        "libc10.so*"
-        "libgomp*so*"
-        "libtorch_global_deps.so*"
-    )
+    # set(TORCH_ESSENTIAL_LIBS
+    #     "libtorch.so*"
+    #     "libtorch_cpu.so*"
+    #     "libc10.so*"
+    #     "libgomp*so*"
+    #     "libtorch_global_deps.so*"
+    # )
+    file(GLOB TORCH_ESSENTIAL_LIBS "${torch_dir}/libtorch/lib/*.so*")
     set(CURL_ESSENTIAL_LIBS
         "libnghttp2.so*"
         "libssh2.so*"
@@ -99,23 +100,18 @@ if (UNIX AND NOT APPLE)
 
     # Copy essential Torch libraries
     add_custom_target(copy_torch_libs)
+
     foreach(LIB_PATTR ${TORCH_ESSENTIAL_LIBS})
-    file(GLOB CURRENT_PATHS "${CMAKE_SOURCE_DIR}/../env/lib/python3.12/site-packages/torch/lib/${LIB_PATTR}")
-    list(LENGTH CURRENT_PATHS N_PATHS)
-    if (NOT ${N_PATHS} EQUAL 0)
-        list(GET CURRENT_PATHS 0 LIB)
-        get_filename_component(LIB_NAME ${LIB} NAME)
+        message("${LIB_PATTR} -> ${CMAKE_CURRENT_BINARY_DIR}")
+        get_filename_component(LIB_NAME ${LIB_PATTR} NAME)
         add_custom_command(
             TARGET copy_torch_libs
             PRE_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${LIB}"
-                "${CMAKE_CURRENT_BINARY_DIR}/$(basename ${LIB})"
+                "${LIB_PATTR}"
+                "${CMAKE_CURRENT_BINARY_DIR}/$(basename ${LIB_PATTR})"
             COMMENT "Copying ${LIB_NAME}"
         )
-    else() 
-        message("${LIB_PATTR} not found")
-    endif()
     endforeach()
 
     # Copy essential curl libs
@@ -125,13 +121,14 @@ if (UNIX AND NOT APPLE)
         if (NOT ${N_PATHS} EQUAL 0)
             list(GET CURRENT_PATHS 0 LIB)
             resolve_symlink("${LIB}" original_path)
-            get_filename_component(LIB_NAME ${original_path} NAME)
+            get_filename_component(LIB_NAME ${LIB} NAME)
+            message("${original_path} -> ${CMAKE_CURRENT_BINARY_DIR}/${LIB_NAME}")
             add_custom_command(
                 TARGET copy_torch_libs
                 PRE_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${original_path}"
-                    "${CMAKE_CURRENT_BINARY_DIR}/${LIB}"
+                    "${CMAKE_CURRENT_BINARY_DIR}/${LIB_NAME}"
                 COMMENT "Copying ${LIB_NAME}"
             )
         else() 
@@ -257,6 +254,11 @@ if (UNIX)
         set(CURL_LIBRARY "${CONDA_ENV_PATH}/lib/libcurl.dylib")
     else()
         set(CURL_LIBRARY "${CONDA_ENV_PATH}/lib/libcurl.so")
+        add_custom_command(
+            TARGET nn
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy ${CURL_LIBRARY} "${CMAKE_BINARY_DIR}/frontend/puredata/nn_tilde/"
+        )
     endif()
 endif()
 
