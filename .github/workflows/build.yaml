@@ -44,6 +44,7 @@ jobs:
       - name: Installing torch and requirements
         run: |
           source ./env/bin/activate
+          pip debug --verbose
           pip install torch==2.5.1 --dry-run -vvv 
           conda search torch
           conda install -c conda-forge -c pytorch curl torch==2.5.1 torchaudio==2.5.1
@@ -116,7 +117,7 @@ jobs:
           chmod 777 ./miniconda.sh
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
-          arch -x86_64 pip install torch_wheel.whl
+          arch -x86_64 pip install torch-2.5.0a0+gita8d6afb-cp313-cp313-macosx_14_0_x86_64
           arch -x86_64 pip install -r requirements.txt
           arch -x86_64 pip install cmake==3.28
           arch -x86_64 conda install -c conda-forge curl
