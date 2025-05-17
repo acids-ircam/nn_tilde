@@ -90,7 +90,7 @@ jobs:
 
       - name: Downloading wheels & libtorch for x64
         run: |
-          curl -O ${{ secrets.TORCH_WHEEL }} 
+          curl -L ${{ secrets.TORCH_WHEEL }} > torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
           curl -L ${{ secrets.TORCH_UB_PATH }} > torch_ub.zip
           unzip torch_ub.zip
 
