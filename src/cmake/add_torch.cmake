@@ -55,7 +55,8 @@ if (NEEDS_DL)
       endif()
       download_library(${TORCH_MAC_UB_URL} /tmp)
       execute_process(
-        COMMAND mv /tmp/torch_ub ${torch_dir}
+        COMMAND mkdir -p ${torch_dir}
+        COMMAND mv /tmp/torch ${torch_dir}/libtorch
       )
     endif()
 

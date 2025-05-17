@@ -25,22 +25,7 @@ jobs:
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
           conda install python=3.11
-      - name: Debug
-        run : | 
-          source ./env/bin/activate
-          python --version
-          python -c "import sys; print(sys.version)"
-          python -c "import platform; print(platform.platform())"
-          python -c "import platform; print(platform.machine())"
-          which python
-          uname -a
-          arch
-          env | sort
-          pip --version
-          pip config list
-          conda info
-          conda list
-          conda config --show
+
       - name: Installing torch and requirements
         run: |
           source ./env/bin/activate
@@ -115,6 +100,23 @@ jobs:
           curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh > miniconda.sh
           chmod 777 ./miniconda.sh
           bash ./miniconda.sh -b -u -p ./env
+          source ./env/bin/activate
+      - name: Debug
+        run : | 
+          source ./env/bin/activate
+          python --version
+          python -c "import sys; print(sys.version)"
+          python -c "import platform; print(platform.platform())"
+          python -c "import platform; print(platform.machine())"
+          which python
+          uname -a
+          arch
+          env | sort
+          pip --version
+          pip config list
+          pip debug --verbose
+      - name: Installing torch
+        run : |
           source ./env/bin/activate
           arch -x86_64 pip install ./torch-2.5.0a0+gita8d6afb-cp313-cp313-macosx_14_0_x86_64.whl
           arch -x86_64 pip install -r requirements.txt
