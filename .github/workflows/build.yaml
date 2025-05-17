@@ -119,9 +119,10 @@ jobs:
         run : |
           source ./env/bin/activate
           arch -x86_64 pip install ./torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
-          arch -x86_64 pip install -r requirements.txt
+          arch -x86_64 pip install cached_conv>=2.5.0
           arch -x86_64 pip install cmake==3.28
           arch -x86_64 conda install -c conda-forge curl
+          python -c "import torch; torch.__file__"
           TARGET_DIR=$(find env/lib -type d -name "python3*")
           TARGET_DIR="${TARGET_DIR}/site-packages/torch/share/cmake/Caffe2/public"
           cp install/mkl.cmake "${TARGET_DIR}"  
