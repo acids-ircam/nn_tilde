@@ -44,10 +44,7 @@ jobs:
       - name: Installing torch and requirements
         run: |
           source ./env/bin/activate
-          pip debug --verbose
-          pip install torch==2.5.1 --dry-run -vvv 
-          conda search torch
-          conda install -c conda-forge -c pytorch curl torch==2.5.1 torchaudio==2.5.1
+          conda install -c conda-forge -c pytorch curl torch==2.5 torchaudio==2.5
           pip install -r requirements.txt
       - name: Setup puredata
         run: |
