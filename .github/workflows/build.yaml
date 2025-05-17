@@ -118,7 +118,7 @@ jobs:
       - name: Installing torch
         run : |
           source ./env/bin/activate
-          arch -x86_64 pip install ./torch-2.5.0a0+gita8d6afb-cp313-cp313-macosx_14_0_x86_64.whl
+          arch -x86_64 pip install ./torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
           arch -x86_64 pip install -r requirements.txt
           arch -x86_64 pip install cmake==3.28
           arch -x86_64 conda install -c conda-forge curl
