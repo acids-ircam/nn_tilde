@@ -18,6 +18,12 @@ jobs:
       - name: Setup LLVM
         run: |
           brew install llvm 
+      - name: Setup miniconda
+        run: |
+          curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh > miniconda.sh
+          chmod +x ./miniconda.sh
+          bash ./miniconda.sh -b -u -p ./env
+          source ./env/bin/activate
       - name: Debug
         run : | 
           python --version
@@ -25,21 +31,14 @@ jobs:
           python -c "import platform; print(platform.platform())"
           python -c "import platform; print(platform.machine())"
           which python
-          conda info
-          conda list
-          conda config --show
           uname -a
           arch
           env | sort
           pip --version
           pip config list
-      - name: Setup miniconda
+      - name: Installing torch and requirements
         run: |
-          curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh > miniconda.sh
-          chmod +x ./miniconda.sh
-          bash ./miniconda.sh -b -u -p ./env
-          source ./env/bin/activate
-          conda install -c conda-forge curl torch==2.5.1 torchaudio==2.5.1
+          conda install -c conda-forge -c pytorch curl torch==2.5.1 torchaudio==2.5.1
           pip install -r requirements.txt
       - name: Setup puredata
         run: |
