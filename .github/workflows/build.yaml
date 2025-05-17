@@ -46,6 +46,7 @@ jobs:
           source ./env/bin/activate
           conda install -c conda-forge -c pytorch curl torch==2.5 torchaudio==2.5
           pip install -r requirements.txt
+          
       - name: Setup puredata
         run: |
           mkdir puredata_include
