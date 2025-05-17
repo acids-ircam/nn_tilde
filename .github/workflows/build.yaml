@@ -82,14 +82,17 @@ jobs:
           sudo chown -R $(whoami) /usr/local/homebrew
           arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" --prefix=/usr/local/homebrew
           arch -x86_64 /usr/local/bin/brew shellenv >> $GITHUB_ENV
-
       - name: Setup miniconda
         run: |
           curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh > miniconda.sh
+      - name: Downloading wheels & libtorch for x64
+        run: |
           curl -L {{ secrets.WHEEL_PATH }} > torch_wheel.whl
           curl -L {{ secrets.TORCH_UB_PATH }} > torch_ub.zip
           unzip torch_ub.zip
           chmod 777 ./miniconda.sh
+      - name: Installing dependencies...
+        run: |
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
           arch -x86_64 pip install torch_wheel.whl
