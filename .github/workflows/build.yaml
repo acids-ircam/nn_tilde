@@ -18,14 +18,29 @@ jobs:
       - name: Setup LLVM
         run: |
           brew install llvm 
+      - name: Debug
+        run : | 
+          python --version
+          python -c "import sys; print(sys.version)"
+          python -c "import platform; print(platform.platform())"
+          python -c "import platform; print(platform.machine())"
+          which python
+          conda info
+          conda list
+          conda config --show
+          uname -a
+          arch
+          env | sort
+          pip --version
+          pip config list
       - name: Setup miniconda
         run: |
           curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh > miniconda.sh
           chmod +x ./miniconda.sh
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
+          conda install -c conda-forge curl torch==2.5.1 torchaudio==2.5.1
           pip install -r requirements.txt
-          conda install -c conda-forge curl
       - name: Setup puredata
         run: |
           mkdir puredata_include
@@ -87,8 +102,8 @@ jobs:
           curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh > miniconda.sh
       - name: Downloading wheels & libtorch for x64
         run: |
-          curl -L {{ secrets.WHEEL_PATH }} > torch_wheel.whl
-          curl -L {{ secrets.TORCH_UB_PATH }} > torch_ub.zip
+          curl -L ${{ secrets.WHEEL_PATH }} > torch_wheel.whl
+          curl -L ${{ secrets.TORCH_UB_PATH }} > torch_ub.zip
           unzip torch_ub.zip
           chmod 777 ./miniconda.sh
       - name: Installing dependencies...
