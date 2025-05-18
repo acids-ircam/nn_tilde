@@ -119,6 +119,7 @@ jobs:
         run : |
           source ./env/bin/activate
           export DYLD_LIBRARY_PATH=${{ github.workspace }}/torch/lib:$DYLD_LIBRARY_PATH
+          ln -s ${{ github.workspace }}/torch/lib/libiomp5.dylib ${{ github.workspace }}/torch/lib/libomp.dylib
           arch -x86_64 pip install ./torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
           arch -x86_64 pip install cached_conv>=2.5.0
           arch -x86_64 pip install cmake==3.28
