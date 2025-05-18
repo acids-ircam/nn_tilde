@@ -57,7 +57,7 @@ if (APPLE)
     add_custom_command(
         TARGET nn
         POST_BUILD 
-        COMMAND ${CMAKE_SOURCE_DIR}/../env/bin/python ${CMAKE_SOURCE_DIR}/../install/dylib_fix.py -p "${CMAKE_CURRENT_BINARY_DIR}/*.pd_darwin" -l "${torch_dir}/libtorch" "${CMAKE_BINARY_DIR}/_deps"  "${CMAKE_SOURCE_DIR}/../env" 
+        COMMAND ${CMAKE_SOURCE_DIR}/../env/bin/python ${CMAKE_SOURCE_DIR}/../install/dylib_fix.py -p "${CMAKE_CURRENT_BINARY_DIR}/*.pd_darwin" -l "${CMAKE_CURRENT_BINARY_DIR}/" "${CMAKE_BINARY_DIR}/_deps"  "${CMAKE_SOURCE_DIR}/../env" 
         COMMENT "Fixing libraries and codesigning"
     )
 
