@@ -25,7 +25,6 @@ jobs:
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
           conda install python=3.11
-
       - name: Installing torch and requirements
         run: |
           source ./env/bin/activate
@@ -34,7 +33,8 @@ jobs:
       - name: Setup puredata
         run: |
           mkdir puredata_include
-          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o ${{ github.workspace }}/puredata_include/m_pd.h
+          cat ${{ github.workspace }}/puredata_include/m_pd.h
       - name: Build
         run: |
           mkdir build
@@ -42,7 +42,7 @@ jobs:
           export CXX=$(brew --prefix llvm)/bin/clang++
           export SIGN_ID=${{ secrets.SIGN_ID }}
           cd build
-          cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
+          cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
           make
       - name: Max/MSP Package creation
         run: |
