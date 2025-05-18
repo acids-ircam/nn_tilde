@@ -101,20 +101,8 @@ jobs:
           chmod 777 ./miniconda.sh
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
-      - name: Debug
-        run : | 
-          source ./env/bin/activate
-          python --version
-          python -c "import sys; print(sys.version)"
-          python -c "import platform; print(platform.platform())"
-          python -c "import platform; print(platform.machine())"
-          which python
-          uname -a
-          arch
-          env | sort
-          pip --version
-          pip config list
-          pip debug --verbose
+          conda install python=3.11
+
       - name: Installing torch
         run : |
           source ./env/bin/activate
