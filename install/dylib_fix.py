@@ -132,7 +132,9 @@ def get_architectures(file_path):
 def get_find_results(directory, pattern):
     try:
         # Run the find command
-        result = subprocess.run(['find', directory, '-name', pattern], 
+        command = ['find', directory, '-name', pattern]
+        print(" ".join(command))
+        result = subprocess.run(command, 
                                 check=True, 
                                 text=True, 
                                 capture_output=True)
@@ -144,17 +146,29 @@ def get_find_results(directory, pattern):
         return []
 
 
-def find_candidates_for(lib_name, lib_dir, lib_arch):
+def find_candidates_for(lib_name, lib_dir, lib_arch, allow_different_arch: bool = True):
     lib_name, lib_ext = os.path.splitext(lib_name)
     lib_name_parts = lib_name.split('.')
     candidates = []
     for l in lib_dir: 
+        print('parsing %s'%lib_name_parts)
         for i in reversed(range(1, len(lib_name_parts)+1)):
             results = get_find_results(l, ".".join(lib_name_parts[:i]) + "*" + lib_ext)
             if len(results) > 0:
                 break
         candidates.extend(results)
-    candidates = list(filter(lambda x: get_architectures(x) == lib_arch, candidates))
+    print("candidates before filtering : ", candidates)
+    if len(candidates) == 0: 
+        return [] 
+    candidates_filt_arch = list(filter(lambda x: get_architectures(x) == lib_arch, candidates))
+    if len(candidates_filt_arch) == 0:
+        print('[Warning] Candidates found for %s, but with wrong architecture'%lib_name)
+        if not allow_different_arch:
+            return [] 
+    else:
+        candidates = candidates_filt_arch
+    print(candidates)
+
     for i, c in enumerate(candidates):
         while os.path.islink(c):
             c = os.readlink(os.path.abspath(c))
@@ -210,6 +224,7 @@ def most_relevant_lib(lib_name, path_dicts, dep_paths=[], arch="arm64"):
     path_list = [Path(p['path']) for p in path_dicts]
     path_filtered_list = []
     for p in path_list:
+        print('looking in %s...'%p)
         while os.path.islink(p):
             p = Path(p.parent / os.readlink(p)).resolve().absolute()
         if not p.exists(): continue
@@ -225,7 +240,7 @@ def most_relevant_lib(lib_name, path_dicts, dep_paths=[], arch="arm64"):
         candidates = find_candidates_for(f"{lib_name}.dylib", dep_paths, arch)
         candidate = find_most_relevant_dylib_candidate(f"{lib_name}.dylib", candidates)
         if candidate is None: 
-            raise RuntimeError('no valid library found for %s'%lib_name)
+            raise RuntimeError('no valid library found for %s in %s (candidates : %s)'%(lib_name, dep_paths, candidates))
         return candidate
     # find in priority the librairies given in arguments
     for libdir in map(Path, dep_paths):

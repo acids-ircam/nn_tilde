@@ -7,8 +7,13 @@ configure_file(
   "${CMAKE_SOURCE_DIR}/../install/max-linker-flags.txt" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/script/max-linker-flags.txt"
   COPYONLY
 )
+
 if (NOT DEFINED SIGN_ID)
-  set(SIGN_ID "-")
+  if (DEFINED $ENV{SIGN_ID})
+    set(SIGN_ID $ENV{SIGN_ID})
+  else()
+    set(SIGN_ID "-")
+  endif()
 endif()
 
 message("Copying ${CMAKE_SOURCE_DIR}/../install/MaxAPI.lib" "${CMAKE_SOURCE_DIR}/frontend/maxmsp/min-api/max-sdk-base/c74support/max-includes/x64" )
@@ -82,7 +87,7 @@ if (NOT DEFINED NO_PUREDATA)
   set(NO_PUREDATA 0)
 endif()
 
-if (NOT NO_PUREDATA)
+if (NO_PUREDATA EQUAL 0)
   if ("${PUREDATA_INCLUDE_DIR}" STREQUAL "")
     set(PUREDATA_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pd_include")
     execute_process(
@@ -92,13 +97,12 @@ if (NOT NO_PUREDATA)
   endif()
   add_subdirectory(frontend/puredata/nn_tilde) # PURE DATA EXTERNAL
 else()
-  if (UNIX and not APPLE) 
+  if (UNIX AND NOT APPLE) 
     message(FATAL_ERROR "NO_PUREDATA needs to be off on Linux, otherwise no task are available")
   endif()
 endif()
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../package-info.json.in "${CMAKE_CURRENT_SOURCE_DIR}/package-info.json")
-
 
 if(APPLE OR MSVC)
     # MAX MSP EXTERNAL
