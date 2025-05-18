@@ -101,7 +101,6 @@ jobs:
           chmod 777 ./miniconda.sh
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
-          conda install python=3.11
 
       - name: Installing torch
         run : |
@@ -112,7 +111,6 @@ jobs:
           arch -x86_64 pip install cached_conv>=2.5.0
           arch -x86_64 pip install cmake==3.28
           arch -x86_64 conda install -c conda-forge curl
-          python -c "import torch; torch.__file__"
           TARGET_DIR=$(find env/lib -type d -name "python3*")
           TARGET_DIR="${TARGET_DIR}/site-packages/torch/share/cmake/Caffe2/public"
           cp install/mkl.cmake "${TARGET_DIR}"  
