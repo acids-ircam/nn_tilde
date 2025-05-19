@@ -88,9 +88,9 @@ jobs:
           arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" --prefix=/usr/local/homebrew
           arch -x86_64 /usr/local/bin/brew shellenv >> $GITHUB_ENV
 
-      - name: Downloading wheels & libtorch for x64
-        run: |
-          curl -L ${{ secrets.TORCH_WHEEL }} > torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
+      # - name: Downloading wheels & libtorch for x64
+      #   run: |
+          # curl -L ${{ secrets.TORCH_WHEEL }} > torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
           # curl -L ${{ secrets.TORCH_UB_PATH }} > torch_ub.zip
           # unzip torch_ub.zip
 
@@ -106,9 +106,9 @@ jobs:
         run : |
           source ./env/bin/activate
           export DYLD_LIBRARY_PATH=${{ github.workspace }}/torch/lib:$DYLD_LIBRARY_PATH
-          arch -x86_64 conda install -c conda-forge cmake ninja numpy setuptools mkl mkl-include typing_extensions protobuf
-          arch -x86_64 pip install ./torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
-          arch -x86_64 pip install cached_conv>=2.5.0
+          # arch -x86_64 conda install -c conda-forge cmake ninja numpy setuptools mkl mkl-include typing_extensions protobuf
+          # arch -x86_64 pip install ./torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
+          # arch -x86_64 pip install cached_conv>=2.5.0
           arch -x86_64 pip install cmake==3.28
           arch -x86_64 conda install -c conda-forge curl
           TARGET_DIR=$(find env/lib -type d -name "python3*")
