@@ -383,7 +383,6 @@ jobs:
             nn_max_msp_macos_ub.tar.gz
             nn_puredata_macos_ub.tar.gz
             nn_linux_puredata_x86_64.tar.gz
-            nn_linux_puredata_arm64.tar.gz
             nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
 
