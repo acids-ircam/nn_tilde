@@ -345,7 +345,7 @@ jobs:
           mv nn_tilde nn_tilde_x64
           cp -r nn_tilde_arm64 nn_tilde
           lipo -create "nn_tilde_arm64/nn~.pd_darwin" "nn_tilde_x64/nn~.pd_darwin" -output "nn_tilde/nn~.pd_darwin"
-          tar -czvf nn_max_msp_macos_ub.tar.gz nn_tilde
+          tar -czvf nn_puredata_macos_ub.tar.gz nn_tilde
       - name: Upload UB 
         uses: actions/upload-artifact@v4
         with:
