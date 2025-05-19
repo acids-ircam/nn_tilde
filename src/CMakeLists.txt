@@ -50,17 +50,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SET CMP00076)
 
-include(FetchContent)
 
 # import json
-FetchContent_Declare(
-  json
-  GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG v3.11.2  # Specify the version you want to use
-  CMAKE_ARGS "-DCMAKE_OSX_ARCHITECTURES:STRING=${CMAKE_OSX_ARCHITECTURES}" "DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
-)
-FetchContent_MakeAvailable(json)
-
+add_subdirectory(json-src)
 
 if (UNIX)
   if (APPLE)
@@ -69,6 +61,7 @@ if (UNIX)
     if (CMAKE_OSX_ARCHITECTURES STREQUAL "")
         set(CMAKE_OSX_ARCHITECTURES ${CMAKE_HOST_SYSTEM_PROCESSOR})
     endif()
+    message("Building for architecture : ${CMAKE_OSX_ARCHITECTURES} ")
   endif()
 endif()
 
