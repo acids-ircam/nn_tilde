@@ -342,6 +342,8 @@ jobs:
           mv nn_tilde nn_tilde_x64
           cp -r nn_tilde_arm64 nn_tilde
           lipo -create "nn_tilde_arm64/nn~.pd_darwin" "nn_tilde_x64/nn~.pd_darwin" -output "nn_tilde/nn~.pd_darwin"
+          codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/support/*
+          for i in $(find nn_tilde/externals/*/Contents/MacOS -type f -perm -111); do codesign --deep --force --sign ${{ secrets.SIGN_ID }} "nn_tilde/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)"; done
           tar -czvf nn_puredata_macos_ub.tar.gz nn_tilde
       - name: Upload UB 
         uses: actions/upload-artifact@v4
