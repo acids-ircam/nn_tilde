@@ -15,8 +15,8 @@ function (download_library url out)
       SHOW_PROGRESS
     )
     execute_process(COMMAND ${CMAKE_COMMAND} -E tar -xf torch_cc.zip
+                    COMMAND remove -f ${out}/torch_cc.zip
                     WORKING_DIRECTORY ${out})
-    file(REMOVE ${out}/torch_cc.zip)
 endfunction()
 
 if (DEFINED torch_version)
