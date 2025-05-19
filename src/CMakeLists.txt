@@ -52,7 +52,7 @@ set(SET CMP00076)
 
 
 # import json
-add_subdirectory(json-src)
+add_subdirectory(json)
 
 if (UNIX)
   if (APPLE)

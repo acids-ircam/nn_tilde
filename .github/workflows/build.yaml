@@ -297,6 +297,33 @@ jobs:
             nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
 
+  MakeUniversalForMac:
+    runs-on: macos-latest
+    needs: [osx-arm64-build, osx-x64-build]
+    steps:
+      - name: Download build binaries (arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_arm64
+      - name: Download build binaries (x86)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_x86_64
+      - name: build ub with lipo
+        run: |
+          tar -xvf nn_max_msp_macOS_arm64.tar.gz -C nn_tilde_arm64
+          tar -xvf nn_max_msp_macOS_x64.tar.gz -C nn_tilde_x64
+          cp -r nn_tilde_arm64 nn_tilde
+          for i in $(find nn_tilde/externals/*/Contents/MacOS -type f -perm -111); do lipo -create "nn_tilde_arm64/externals/*/Content/MacOS/$(basename $i)" "nn_tilde_x64/externals/*/Content/MacOS/$(basename $lib)" -output "nn_tilde/externals/*/Contents/MacOS/$(basename $lib)"; done
+          tar -czvf nn_max_msp_macos_ub.tar.gz nn_tilde
+      - name: Upload UB 
+        uses: actions/upload-artifact@v4
+        with:
+          name: nn_tilde_macos_ub
+          path: |
+            nn_max_msp_macos_ub.tar.gz
+          
+
   AutomaticRelease:
     runs-on: ubuntu-latest
     needs: [osx-arm64-build, osx-x64-build, linux, windows-x64-build]
