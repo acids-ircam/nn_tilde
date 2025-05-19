@@ -269,7 +269,7 @@ jobs:
         run: |
           mkdir nn_tilde
           mkdir nn_tilde/support
-          cp libtorch/lib/* nn_tilde/support
+          cp torch/lib/* nn_tilde/support
           cp vcpkg/installed/x64-windows/lib/*.lib nn_tilde/support
           cp vcpkg/installed/x64-windows/bin/*.dll nn_tilde/support
           curl -L https://curl.se/ca/cacert.pem -o nn_tilde/support/cacert.pem
@@ -284,7 +284,7 @@ jobs:
           Remove-Item -Recurse -Force nn_tilde
           mkdir nn_tilde
           mv build/frontend/puredata/nn_tilde/Release/* nn_tilde/
-          cp libtorch/lib/* nn_tilde/
+          cp torch/lib/* nn_tilde/
           cp vcpkg/installed/x64-windows/lib/*.lib nn_tilde/
           cp vcpkg/installed/x64-windows/bin/*.dll nn_tilde/
           curl -L https://curl.se/ca/cacert.pem -o nn_tilde/cacert.pem
