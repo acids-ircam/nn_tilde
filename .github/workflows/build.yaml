@@ -177,10 +177,6 @@ jobs:
             runs-on: ubuntu-latest
             artifact-name: nn_linux_puredata_x86_64
             conda-url: https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-          - arch: arm64
-            runs-on: ubuntu-24.04-arm
-            conda-url: https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh
-            artifact-name: nn_linux_puredata_arm64
     steps:
       - name: Check out code
         uses: actions/checkout@v2
