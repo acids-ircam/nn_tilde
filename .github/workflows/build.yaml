@@ -265,6 +265,7 @@ jobs:
         run: |
           mkdir nn_tilde
           mkdir nn_tilde/support
+          ls
           cp torch/lib/* nn_tilde/support
           cp vcpkg/installed/x64-windows/lib/*.lib nn_tilde/support
           cp vcpkg/installed/x64-windows/bin/*.dll nn_tilde/support
