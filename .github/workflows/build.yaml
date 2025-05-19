@@ -171,7 +171,7 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        arch: [amd64]
         include:
           - arch: amd64
             runs-on: ubuntu-latest
@@ -301,7 +301,7 @@ jobs:
             nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
 
-  MakeUniversalForMac:
+  MakeMaxUniversalForMac:
     runs-on: macos-latest
     needs: [osx-arm64-build, osx-x64-build]
     steps:
@@ -313,7 +313,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nn_tilde_mac_x86_64
-      - name: build ub with lipo
+      - name: build ub max with lipo
         run: |
           tar -xvf nn_max_msp_macOS_arm64.tar.gz 
           mv nn_tilde nn_tilde_arm64
@@ -325,23 +325,51 @@ jobs:
       - name: Upload UB 
         uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde_macos_ub
+          name: nn_tilde_macos_max_ub
           path: |
             nn_max_msp_macos_ub.tar.gz
+
+  MakePdUniversalForMac:
+    runs-on: macos-latest
+    needs: [osx-arm64-build, osx-x64-build]
+    steps:
+      - name: Download build binaries (arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_arm64
+      - name: Download build binaries (x86)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_x86_64
+      - name: build ub max with lipo
+        run: |
+          tar -xvf nn_puredata_macOS_arm64.tar.gz 
+          mv nn_tilde nn_tilde_arm64
+          tar -xvf nn_puredata_macOS_x64.tar.gz 
+          mv nn_tilde nn_tilde_x64
+          cp -r nn_tilde_arm64 nn_tilde
+          lipo -create "nn_tilde_arm64/nn~.pd_darwin" "nn_tilde_x64/nn~.pd_darwin" -output "nn_tilde/nn~.pd_darwin"
+          tar -czvf nn_max_msp_macos_ub.tar.gz nn_tilde
+      - name: Upload UB 
+        uses: actions/upload-artifact@v4
+        with:
+          name: nn_tilde_macos_pd_ub
+          path: |
+            nn_puredata_macos_ub.tar.gz
           
 
   AutomaticRelease:
     runs-on: ubuntu-latest
-    needs: [MakeUniversalForMac, linux, windows-x64-build]
+    needs: [MakeMaxUniversalForMac, MakePdUniversalForMac, linux, windows-x64-build]
     steps:
-      - name: Download build binaries (mac_arm64)
+      - name: Download Max build binaries (mac)
         uses: actions/download-artifact@v4
         with:
-          name: nn_tilde_mac_arm64
-      - name: Download build binaries (mac_x86_64)
+          name: nn_tilde_macos_max_ub
+      - name: Download Pd binaries (mac)
         uses: actions/download-artifact@v4
         with:
-          name: nn_tilde_mac_x86_64
+          name: nn_tilde_macos_pd_ub
       - name: Download build binaries (linux_x86_64)
         uses: actions/download-artifact@v4
         with:
@@ -360,10 +388,8 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: |
-            nn_max_msp_macOS_arm64.tar.gz
-            nn_puredata_macOS_arm64.tar.gz
-            nn_max_msp_macOS_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
+            nn_max_msp_macos_ub.tar.gz
+            nn_puredata_macos_ub.tar.gz
             nn_linux_puredata_x86_64.tar.gz
             nn_linux_puredata_arm64.tar.gz
             nn_max_msp_windows_x64.tar.gz
