@@ -238,7 +238,7 @@ jobs:
           curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
       - name: Downloading Torch 
         run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.6.0%2Bcpu.zip > "libtorch.zip"
+          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.5.1%2Bcpu.zip > "libtorch.zip"
           unzip libtorch.zip
       - name: Setup puredata
         run: |
@@ -370,10 +370,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nn_linux_puredata_x86_64
-      - name: Download build binaries (linux arm64)
-        uses: actions/download-artifact@v4
-        with:
-          name: nn_linux_puredata_arm64
       - name: Download build binaries (windows mac_x86_64)
         uses: actions/download-artifact@v4
         with:
