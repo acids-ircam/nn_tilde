@@ -91,8 +91,10 @@ jobs:
       - name: Downloading wheels & libtorch for x64
         run: |
           curl -L ${{ secrets.TORCH_WHEEL }} > torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
-          # curl -L ${{ secrets.TORCH_UB_PATH }} > torch_ub.zip
-          # unzip torch_ub.zip
+          curl -L ${{ secrets.TORCH_UB_PATH }} > torch_ub.zip
+          mkdir torch 
+          unzip torch_ub.zip -d torch
+          mv torch/torch torch/libtorch
 
       - name: Installing miniconda and dependencies...
         run: |
@@ -142,7 +144,7 @@ jobs:
           export CXX=$(/usr/local/bin/brew --prefix llvm)/bin/clang++
           export SIGN_ID=${{ secrets.SIGN_ID }}
           cd build
-          arch -x86_64 ../env/bin/cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=x86_64
+          arch -x86_64 ../env/bin/cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=x86_64
           arch -x86_64 make
       - name: Max/MSP Package creation
         run: |
@@ -197,6 +199,7 @@ jobs:
           chmod +x ./miniconda.sh
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
+          conda install python=3.11
           pip3 install torch --index-url https://download.pytorch.org/whl/cpu
           conda install -c conda-forge curl
           conda install -c pytorch torch==2.5.1 torchaudio==2.5.1
