@@ -52,7 +52,7 @@ if (NEEDS_DL)
         download_library(${TORCH_MAC_UB_URL} /tmp)
         execute_process(
           COMMAND mkdir -p ${torch_dir}
-          COMMAND ls /tmp
+          COMMAND echo $(ls /tmp)
           COMMAND mv /tmp/torch ${torch_dir}/libtorch
         )
       else()
@@ -62,7 +62,7 @@ if (NEEDS_DL)
       endif()
     endif()
   else()
-  
+
     execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${torch_dir})
     download_library("https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-${torch_version}%2Bcpu.zip" ${torch_dir})
   endif()
