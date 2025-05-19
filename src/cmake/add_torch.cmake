@@ -62,6 +62,7 @@ if (NEEDS_DL)
       endif()
     endif()
   else()
+  
     execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${torch_dir})
     download_library("https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-${torch_version}%2Bcpu.zip" ${torch_dir})
   endif()
