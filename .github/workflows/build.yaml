@@ -198,8 +198,9 @@ jobs:
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
           pip3 install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -r requirements.txt
           conda install -c conda-forge curl
+          conda install -c pytorch torch==2.5.1 torchaudio==2.5.1
+          pip install -r requirements.txt
       - name: Setup puredata
         run: |
           mkdir puredata_include
@@ -311,8 +312,10 @@ jobs:
           name: nn_tilde_mac_x86_64
       - name: build ub with lipo
         run: |
-          tar -xvf nn_max_msp_macOS_arm64.tar.gz -C nn_tilde_arm64
-          tar -xvf nn_max_msp_macOS_x64.tar.gz -C nn_tilde_x64
+          tar -xvf nn_max_msp_macOS_arm64.tar.gz 
+          mv nn_tilde nn_tile_arm64
+          tar -xvf nn_max_msp_macOS_x64.tar.gz 
+          mv nn_tilde nn_tile_x64
           cp -r nn_tilde_arm64 nn_tilde
           for i in $(find nn_tilde/externals/*/Contents/MacOS -type f -perm -111); do lipo -create "nn_tilde_arm64/externals/*/Content/MacOS/$(basename $i)" "nn_tilde_x64/externals/*/Content/MacOS/$(basename $lib)" -output "nn_tilde/externals/*/Contents/MacOS/$(basename $lib)"; done
           tar -czvf nn_max_msp_macos_ub.tar.gz nn_tilde
