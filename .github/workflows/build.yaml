@@ -313,6 +313,7 @@ jobs:
           tar -xvf nn_max_msp_macOS_x64.tar.gz 
           mv nn_tilde nn_tilde_x64
           cp -r nn_tilde_arm64 nn_tilde
+          for i in $(find nn_tilde/support/*.dylib -type f -perm -111); do lipo -create "nn_tilde_arm64/support/$(basename $i).dylib" "nn_tilde_x64/support/$(basename $i).dylib" -output "nn_tilde/support/$(basename $i).dylib"; done
           for i in $(find nn_tilde/externals/*/Contents/MacOS -type f -perm -111); do lipo -create "nn_tilde_arm64/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)" "nn_tilde_x64/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)" -output "nn_tilde/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)"; done
 
       - name: Install signing certificate
@@ -356,6 +357,7 @@ jobs:
           tar -xvf nn_puredata_macOS_x64.tar.gz 
           mv nn_tilde nn_tilde_x64
           cp -r nn_tilde_arm64 nn_tilde
+          for i in $(find nn_tilde/*.dylib -type f -perm -111); do lipo -create "nn_tilde_arm64/$(basename $i).dylib" "nn_tilde_x64/$(basename $i).dylib" -output "nn_tilde/$(basename $i).dylib"; done
           lipo -create "nn_tilde_arm64/nn~.pd_darwin" "nn_tilde_x64/nn~.pd_darwin" -output "nn_tilde/nn~.pd_darwin"
 
       - name: Install signing certificate
