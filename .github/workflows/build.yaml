@@ -330,6 +330,7 @@ jobs:
             fi
           done
 
+          
       - name: Install signing certificate
         run: |
           CERT_PATH="$RUNNER_TEMP/signing-identity.p12"
