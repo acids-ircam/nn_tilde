@@ -327,7 +327,7 @@ jobs:
               continue
             fi
             if [[ $arch1 != $arch2  ]]
-              lipo -create "nn_tilde_arm64/support/$(basename $i)" "nn_tilde_x64/support/$(basename $i)" -output "nn_tilde/externals/$(basename $i)"
+              lipo -create "nn_tilde_arm64/support/$(basename $i)" "nn_tilde_x64/support/$(basename $i)" -output "nn_tilde/externals/$(basename $i)" || true
             fi
           done
 
