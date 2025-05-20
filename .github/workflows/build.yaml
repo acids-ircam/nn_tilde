@@ -316,8 +316,10 @@ jobs:
           for i in $(find "nn_tilde/externals/*/Contents/MacOS" -type f -perm -111); do lipo -create "nn_tilde_arm64/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)" "nn_tilde_x64/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)" -output "nn_tilde/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)"
           for i in $(find "nn_tilde/support/*.dylib")
           do 
-            if [[ -n $(file "nn_tilde_x64/support/$(basename $i)" | grep -Eo '2 architectures') ]]; then
-            echo "file $i is universal binary"
+            is_ub=$(file "nn_tilde_x64/support/$(basename $i)" | grep -Eo '2 architectures')
+            echo "is universal binary : $is_ub"
+            if [[ -n "$is_ub" ]]; then
+              echo "file $i is universal binary"
               continue
             fi
             arch1=$(file "nn_tilde_x64/support/$(basename $i)" | grep -Eo 'x86_64|arm64')
@@ -326,8 +328,10 @@ jobs:
               echo "Skipping $(basename $i)"
               continue
             fi
+            echo $arch1
+            echo $arch2
             if [[ $arch1 != $arch2  ]]
-              lipo -create "nn_tilde_arm64/support/$(basename $i)" "nn_tilde_x64/support/$(basename $i)" -output "nn_tilde/externals/$(basename $i)" || true
+              lipo -create "nn_tilde_arm64/support/$(basename $i)" "nn_tilde_x64/support/$(basename $i)" -output "nn_tilde/externals/$(basename $i)"
             fi
           done
 
