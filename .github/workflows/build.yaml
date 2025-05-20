@@ -330,7 +330,7 @@ jobs:
             fi
             echo $arch1
             echo $arch2
-            if [[ $arch1 != $arch2  ]]
+            if [[ $arch1 != $arch2 ]]; then
               lipo -create "nn_tilde_arm64/support/$(basename $i)" "nn_tilde_x64/support/$(basename $i)" -output "nn_tilde/externals/$(basename $i)"
             fi
           done
