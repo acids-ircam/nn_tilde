@@ -296,17 +296,16 @@ jobs:
 
   MakeMaxUniversalForMac:
     runs-on: macos-latest
-    # needs: [osx-arm64-build, osx-x64-build]
-    needs: [osx-arm64-build]
+    needs: [osx-arm64-build, osx-x64-build]
     steps:
       - name: Download build binaries (arm64)
         uses: actions/download-artifact@v4
         with:
           name: nn_tilde_mac_arm64
-      # - name: Download build binaries (x86)
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: nn_tilde_mac_x86_64
+      - name: Download build binaries (x86)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_x86_64
       - name: Build ub max with lipo
         run: |
           tar -xvf nn_max_msp_macOS_arm64.tar.gz 
