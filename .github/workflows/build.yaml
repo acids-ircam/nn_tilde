@@ -316,7 +316,7 @@ jobs:
           for i in $(find nn_tilde/support/*.dylib -type f -perm -111); do lipo -create "nn_tilde_arm64/support/$(basename $i)" "nn_tilde_x64/support/$(basename $i)" -output "nn_tilde/support/$(basename $i)"; done
           for i in $(find nn_tilde/externals/*/Contents/MacOS -type f -perm -111) 
           do 
-            if [[ -z $(file "nn_tilde_x64/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)" | grep -Eo '2 architectures') ]]; then
+            if [[ -n $(file "nn_tilde_x64/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)" | grep -Eo '2 architectures') ]]; then
               continue
             fi
             arch1=$(file "nn_tilde_x64/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i)" | grep -Eo 'x86_64|arm64')
@@ -330,7 +330,7 @@ jobs:
             fi
           done
 
-          
+
       - name: Install signing certificate
         run: |
           CERT_PATH="$RUNNER_TEMP/signing-identity.p12"
