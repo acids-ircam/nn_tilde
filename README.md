@@ -10,13 +10,9 @@ Grab the [latest release of nn~](https://github.com/acids-ircam/nn_tilde/release
 
 ## MaxMSP
 
-Uncompress the `.tar.gz` file in the Package folder of your Max installation, i.e. in `Documents/Max 8/Packages/`.
+Uncompress the `.tar.gz` file in the Package folder of your Max installation, i.e. in `Documents/Max [your version]/Packages/`. You can then instantiate  an `nn~` object!  Alt-click the `nn~` object to open the help patch, or access the nn~ Overview patch in the Extras menu.
 
-You can then instantiate an `nn~` object. Depending on your installation, you might get a quarantine warning, such as this one
-
-<img width=500px src="assets/quarantine_warning.png"/>
-
-In most cases, proceeding with the removal will disable this warning until the next update of `nn~`. If MacOS continues to block the external you can try to codesign locally and remove the external from quarantine: 
+##### Mac alert : codesigned with IRCAM identity and not trigger MacOS quarantine ; if it does so,  please launch in the terminal : 
 
 ```bash
 cd "~/Max X/Packages/nn_tilde
@@ -25,27 +21,26 @@ sudo codesign --deep --force --sign - externals/*/Contents/MacOS/*
 xattr -r -d com.apple.quarantine externals/*/Contents/MacOS/*  
 ```
 
-Right click on the `nn~` object to open the help patch, and follow the tabs to learn more about this project.
-
 ## PureData
 
 Uncompress the `.tar.gz` file in the Package folder of your Pd installation, i.e. in `Documents/Pd/externals/`. You can then add a new path in the `Pd/File/Preferences/Path` menu pointing to the `nn_tilde` folder.
 
-On MacOS, unlike Max/MSP, PureData doesn't include an automatic quarantine removal procedure. Therefore we have to do it manually. Fire up a terminal, and `cd` to the `nn_tilde` folder. The following command will fix the issue
+Similarly, the external should not be blocked on recent MacOS systems. It it still is, `cd` to the `nn_tilde` folder and fix with
 
 ```bash
-xattr -r -d com.apple.quarantine .
+
+xattr -r -d com.apple.quarantine Documents/Pd/externals/nn_tilde
+sudo codesign --deep --force --sign - Documents/Pd/externals/nn_tilde/*.dylib
+sudo codesign --deep --force --sign - Documents/Pd/externals/nn_tilde/nn\~.pd_darwin
 ```
 
 # Usage
 
 ## Pretrained models
 
-At its core, `nn~` is a translation layer between Max/MSP or PureData and the [libtorch c++ interface for deep learning](https://pytorch.org/). Alone, `nn~` is like an empty shell, and **requires pretrained models** to operate. You can find a few [RAVE](https://github.com/acids-ircam/RAVE) models [here](https://acids-ircam.github.io/rave_models_download), or a few [vschaos2](https://github.com/acids-ircam/vschaos2) models [here](https://www.dropbox.com/sh/avdeiza7c6bn2of/AAAGZsnRo9ZVMa0iFhouCBL-a?dl=0).
+At its core, `nn~` is a translation layer between Max/MSP or PureData and the [libtorch c++ interface for deep learning](https://pytorch.org/). Alone, `nn~` is like an empty shell, and **requires pretrained models** to operate. Since v1.6.0, you can download them directly through Forum IRCAM API. Alternatively, you can find a few [RAVE](https://github.com/acids-ircam/RAVE) models [here](https://acids-ircam.github.io/rave_models_download) or [here](https://huggingface.co/Intelligent-Instruments-Lab/rave-models). Few [vschaos2](https://github.com/acids-ircam/vschaos2) models are also available[here](https://www.dropbox.com/sh/avdeiza7c6bn2of/AAAGZsnRo9ZVMa0iFhouCBL-a?dl=0).
 
-Pretrained model for `nn~` are **torchscript files**, with a `.ts` extension. You can add these files to `nn_tilde/models` folders, or any place accessible through Max / Pd filesystem (Max: `Options/File Preferences`, PureData: `File/Preferences/Path`).
-
-**New** : since v1.6.0, some models are directly downloadable through IRCAM Forum API. 
+Pretrained model for `nn~` are **torchscript files**, with a `.ts` extension. In Max/MSP, You can add these files to `nn_tilde/models` folders or any place accessible through Max filesystem `Options/File Preferences`. For PureData, models are downloaded and found in the patcher's folder, or in the PureData filesystem `File/Preferences/Path`.
 
 Once this is done, you can load a model with `nn~` by providing its name as first argument (for example, here `isis.ts` located inside `nn_tilde/models` for Max, or among the PureData patch):  
 
@@ -59,8 +54,6 @@ Once this is done, you can load a model with `nn~` by providing its name as firs
     <td><img width="100%" src="assets/pd_instance.png" /></td>
   </tr>
 </table>
-
-Note that you **have** to include the `.ts` extension in the PureData version. Depending on the model loaded, there will be a different number of inlets / outlets, corresponding to the different inputs and outputs of the model.
 
 ## Model information fetching
 
@@ -95,9 +88,16 @@ Using Max/MSP and PureData graphical objects, this can lead to an intuitive way 
   </tr>
 </table>
 
+**New in 1.6.0**
+
+- Buffers (Max) / Array (Pd) attribute setting to allow the `.ts` model to access internal buffers / arrays.
+- `torch.Tensor` attributes can be set through Max/MSP `[array]`, allowing to set attributes of unlimited size.
+
 ## Buffer configuration
 
-Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonable computational load. You can modify its size through the use of an additional integer after the method declaration, as shown below
+Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonable computational load, if the given buffer size is greater tha 0. You can modify its size through the use of an additional integer after the method declaration, as shown below. 
+
+**Important**For Windows users, the circular buffer is automatically disabled because of a memory leak [that occurs when a TorchScript model is used in a separate thread](https://github.com/pytorch/pytorch/issues/24237). Unfortunately, this implies a much lower efficiency in terms of CPU.  
 
 <table>
   <tr>
@@ -109,6 +109,7 @@ Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonab
     <td><img width="100%" src="assets/pd_buffer.png" /></td>
   </tr>
 </table>
+
 
 ## Multichannel (Max/MSP)
 
@@ -130,6 +131,14 @@ In the example above, the two multicanals signals yielded by the `nn~ rave encod
 
 To recap, the regular `nn~` operates on a single example, and has as many inlets / outlets as the model has inputs / outputs. The `mc.nn~` external is like `nn~`, but can process multiple examples _at the same time_. The `mcs.nn~` variant is a bit different, and can process mulitple examples at the same time, but will **have one inlet / outlet per examples**.
 
+## Lazy mode (Max/MSP)
+
+Since v1.6.0, nn~ has a `void` mode, that allows to initialise it with a fixed number of inlets / outlets, and may be attached to a model afterwards. This can be done with the `void` special model, that enables this lazy initialisation.
+
+<center>
+<img src="assets/max_void.png" width="30%"/>
+</center>
+
 ## Special messages
 
 ### enable [0 / 1]
@@ -150,17 +159,17 @@ Prints models downloadable through API.
 
 ### download
 
-Download a model from the API. 
+Download a model from the API.
 
 ### delete
 
 Deletes a downloaded model.
 
-### load
+### load
 
-Change dynamically the incoming model. 
+Change dynamically the incoming model.
 
-### method
+### method
 
 Change dynamically the used method.
 
