@@ -312,7 +312,7 @@ jobs:
           mv nn_tilde nn_tilde_arm64
           tar -xvf nn_max_msp_macOS_x64.tar.gz 
           mv nn_tilde nn_tilde_x64
-          curl -L https://raw.githubusercontent.com/domkirke/nn_tilde/refs/heads/dev/install/macos_max_makeub.sh -o macos_max_makeub.sh
+          curl -L https://raw.githubusercontent.com/domkirke/nn_tilde/refs/heads/dev/install/macos_max_makeub.sh > macos_max_makeub.sh
           chmod 777 ./macos_max_makeub.sh
           ./macos_max_makeub.sh
           

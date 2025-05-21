@@ -19,7 +19,7 @@ if [[ ! -d "${TARGET_DIR}" ]]; then
     cp -r ${TARGET_DIR}_arm64 ${TARGET_DIR}
 fi 
 
-lipo -create "${TARGET_DIR}_arm64/nn~.pd_darwin" "${TARGET_DIR}_x64/nn~.pd_darwin" "${TARGET_DIR}/nn~.pd_darwin"
+lipo -create "${TARGET_DIR}_arm64/nn~.pd_darwin" "${TARGET_DIR}_x64/nn~.pd_darwin" -output "${TARGET_DIR}/nn~.pd_darwin"
 
 for i in $(find ${TARGET_DIR}_x64/*.dylib)
 do 
