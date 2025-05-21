@@ -9,11 +9,13 @@ public:
   bool full();
   void put(in_type *input_array, int N);
   void get(out_type *output_array, int N);
+  void fill(out_type val); 
   void reset();
+  size_t max_size() { return _max_size; } 
 
 protected:
   std::unique_ptr<out_type[]> _buffer;
-  size_t _max_size;
+  size_t _max_size = 0;
 
   int _head = 0;
   int _tail = 0;
@@ -27,6 +29,8 @@ circular_buffer<in_type, out_type>::circular_buffer() {}
 template <class in_type, class out_type>
 void circular_buffer<in_type, out_type>::initialize(size_t size) {
   _buffer = std::make_unique<out_type[]>(size);
+  auto zero_val = static_cast<out_type>(0.0f);
+  std::fill(_buffer.get(), _buffer.get() + size, zero_val);
   _max_size = size;
 }
 
@@ -39,6 +43,15 @@ template <class in_type, class out_type>
 bool circular_buffer<in_type, out_type>::full() {
   return _full;
 }
+
+
+template <class in_type, class out_type>
+void circular_buffer<in_type, out_type>::fill(out_type value) {
+  // if (_max_size > 0) {
+  //   std::fill(_buffer.get(), _buffer.get() + _max_size, value);
+  // }
+}
+
 
 template <class in_type, class out_type>
 void circular_buffer<in_type, out_type>::put(in_type *input_array, int N) {

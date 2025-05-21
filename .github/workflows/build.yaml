@@ -3,43 +3,64 @@ on:
   push:
     tags:
       - "v*"
+
 jobs:
   osx-arm64-build:
     runs-on: macos-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v2
-      - run: git submodule update --init --recursive
-      - name: Setup torch
+      - run: | 
+          git submodule update --init --recursive
+          git fetch --tags
+          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
+          du -sh src/models/*
+      - name: Setup LLVM
         run: |
-          curl -L https://anaconda.org/pytorch/pytorch/2.0.0/download/osx-arm64/pytorch-2.0.0-py3.10_0.tar.bz2 | tar -xv
+          brew install llvm 
+      - name: Setup miniconda
+        run: |
+          curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh > miniconda.sh
+          chmod +x ./miniconda.sh
+          bash ./miniconda.sh -b -u -p ./env
+          source ./env/bin/activate
+          conda install python=3.11
+      - name: Installing torch and requirements
+        run: |
+          source ./env/bin/activate
+          conda install -c conda-forge curl
+          pip install -r requirements.txt
       - name: Setup puredata
         run: |
           mkdir puredata_include
-          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o ${{ github.workspace }}/puredata_include/m_pd.h
+          cat ${{ github.workspace }}/puredata_include/m_pd.h
       - name: Build
         run: |
           mkdir build
+          export CC=$(brew --prefix llvm)/bin/clang
+          export CXX=$(brew --prefix llvm)/bin/clang++
+          export SIGN_ID=${{ secrets.SIGN_ID }}
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/lib/python3.10/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=arm64
+          cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
           make
       - name: Max/MSP Package creation
         run: |
           mkdir nn_tilde
           mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+          mv src/externals src/help src/support src/patchers src/extras src/package-info.json src/icon.png src/source src/models src/misc nn_tilde
           tar -czvf nn_max_msp_macOS_arm64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
           rm -fr nn_tilde
           mv build/frontend/puredata/nn_tilde .
+          mv src/frontend/puredata/nn_tilde/nn~-help.pd nn_tilde
           rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
           tar -czvf nn_puredata_macOS_arm64.tar.gz nn_tilde
       - name: Upload binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde
+          name: nn_tilde_mac_arm64
           path: |
             nn_max_msp_macOS_arm64.tar.gz
             nn_puredata_macOS_arm64.tar.gz
@@ -49,104 +70,348 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v2
-      - run: git submodule update --init --recursive
-      - name: Setup torch
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: | 
+          git submodule update --init --recursive
+          git fetch --tags
+          git describe --tags --always
+          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
+
+      - name: Install x86_64 Homebrew
         run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-2.0.0.zip -o libtorch.zip
-          unzip libtorch.zip
+          sudo rm -rf /opt/homebrew
+          sudo rm -rf /usr/local/homebrew
+          sudo mkdir -p /usr/local/homebrew
+          sudo chown -R $(whoami) /usr/local/homebrew
+          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" --prefix=/usr/local/homebrew
+          arch -x86_64 /usr/local/bin/brew shellenv >> $GITHUB_ENV
+
+      - name: Downloading wheels & libtorch for x64
+        run: |
+          curl -L ${{ secrets.TORCH_WHEEL }} > torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
+          curl -L ${{ secrets.TORCH_UB_PATH }} > torch_ub.zip
+          mkdir torch 
+          unzip torch_ub.zip -d torch
+          mv torch/torch torch/libtorch
+
+      - name: Installing miniconda and dependencies...
+        run: |
+          ls 
+          curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh > miniconda.sh
+          chmod 777 ./miniconda.sh
+          bash ./miniconda.sh -b -u -p ./env
+          source ./env/bin/activate
+
+      - name: Installing torch
+        run : |
+          source ./env/bin/activate
+          export DYLD_LIBRARY_PATH=${{ github.workspace }}/torch/lib:$DYLD_LIBRARY_PATH
+          arch -x86_64 conda install -c conda-forge cmake ninja numpy setuptools mkl mkl-include typing_extensions protobuf
+          arch -x86_64 pip install ./torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
+          arch -x86_64 pip install cached_conv>=2.5.0
+          arch -x86_64 pip install cmake==3.28
+          arch -x86_64 conda install -c conda-forge curl
+          TARGET_DIR=$(find env/lib -type d -name "python3*")
+          TARGET_DIR="${TARGET_DIR}/site-packages/torch/share/cmake/Caffe2/public"
+          cp install/mkl.cmake "${TARGET_DIR}"  
+
+      - name: Setup LLVM
+        run: |
+          rm '/usr/local/bin/pydoc3'
+          rm /usr/local/bin/pydoc3.13
+          rm /usr/local/bin/python3
+          rm /usr/local/bin/python3-config
+          rm /usr/local/bin/python3.13
+          rm /usr/local/bin/python3.13-config
+          rm '/usr/local/bin/pip3.13'
+          rm '/usr/local/bin/idle3'
+          rm '/usr/local/bin/idle3.13'
+          arch -x86_64 /usr/local/bin/brew install llvm
+          export LDFLAGS="-L/usr/local/opt/llvm/lib"
+          export CPPFLAGS="-I/usr/local/opt/llvm/include"
+
       - name: Setup puredata
         run: |
           mkdir puredata_include
           curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+
       - name: Build
         run: |
           mkdir build
+          export CC=$(/usr/local/bin/brew --prefix llvm)/bin/clang
+          export CXX=$(/usr/local/bin/brew --prefix llvm)/bin/clang++
+          export SIGN_ID=${{ secrets.SIGN_ID }}
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include 
-          make
+          arch -x86_64 ../env/bin/cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=x86_64
+          arch -x86_64 make
       - name: Max/MSP Package creation
         run: |
           mkdir nn_tilde
           mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+          mv src/externals src/help src/support src/patchers src/extras src/package-info.json src/icon.png src/source src/models src/misc nn_tilde
           tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
           rm -fr nn_tilde
           mv build/frontend/puredata/nn_tilde .
+          mv src/frontend/puredata/nn_tilde/nn~-help.pd nn_tilde
           rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
-          tar -czvf nn_puredata_macOS_x64.tar.gz nn_tilde
+            tar -czvf nn_puredata_macOS_x64.tar.gz nn_tilde
       - name: Upload binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde
+          name: nn_tilde_mac_x86_64
           path: |
             nn_max_msp_macOS_x64.tar.gz
             nn_puredata_macOS_x64.tar.gz
 
+  linux:
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        arch: [amd64]
+        include:
+          - arch: amd64
+            runs-on: ubuntu-latest
+            artifact-name: nn_linux_puredata_x86_64
+            conda-url: https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - run: | 
+          git submodule update --init --recursive
+          git fetch --tags
+          GIT_TRACE=1 git describe --tags --always
+      - name: Setup LLVM
+        run: |
+          sudo apt-get install -y ca-certificates
+          sudo apt install gcc-10 g++-10
+      - name: Setup miniconda
+        run: |
+          echo "architecture : $(uname -m)"
+          curl --cacert /etc/ssl/certs/ca-certificates.crt -L ${{ matrix.conda-url }} > miniconda.sh
+          chmod +x ./miniconda.sh
+          bash ./miniconda.sh -b -u -p ./env
+          source ./env/bin/activate
+          conda install python=3.11
+          pip3 install torch --index-url https://download.pytorch.org/whl/cpu
+          conda install -c conda-forge curl
+          # conda install -c pytorch torch==2.5.1 torchaudio==2.5.1
+          # pip install -r requirements.txt
+      - name: Setup puredata
+        run: |
+          mkdir puredata_include
+          curl --cacert /etc/ssl/certs/ca-certificates.crt -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
+      - name: Build
+        run: |
+          mkdir build
+          export CC=$(which gcc-10)
+          export CXX=$(which g++-10)
+          cd build
+          cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_PREFIX_PATH=${{ github.workspace }}/env/lib/python3.12/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include
+          make
+      - name: PureData Package creation
+        run: |
+          mkdir nn_tilde
+          mv build/frontend/puredata/nn_tilde .
+          mv src/frontend/puredata/nn_tilde/nn~-help.pd nn_tilde
+          rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
+          tar -czvf ${{ matrix.artifact-name }}.tar.gz nn_tilde
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: 
+            ${{ matrix.artifact-name }}.tar.gz
+
+            
   windows-x64-build:
     runs-on: windows-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v2
-      - run: git submodule update --init --recursive
-      - name: Setup torch
-        run: |
-          curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.0.1%2Bcpu.zip -o libtorch.zip
-          unzip libtorch.zip
+      - run: | 
+          git submodule update --init --recursive
+          git fetch --tags
+          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
       - name: Setup puredata
         run: |
           mkdir pd
           cd pd
-          curl -L https://msp.puredata.info/Software/pd-0.53-2.msw.zip -o pd.zip
+          curl -L https://msp.ucsd.edu/Software/pd-0.55-2.msw.zip -o pd.zip
           unzip pd.zip
           mv pd*/src .
           mv pd*/bin .
+          cd ..
+      - name: Installing dependencies with vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg 
+          ./bootstrap-vcpkg.bat
+          ./vcpkg.exe integrate install
+          ./vcpkg.exe install curl
+          cd ..
+
       - name: Build
         run: |
           mkdir build
           cd build
-          cmake ../src -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
+          cmake ../src -G "Visual Studio 17 2022" -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
           cmake --build . --config Release
+          
       - name: Max/MSP Package creation
         run: |
           mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals nn_tilde
-          cp src/frontend/maxmsp/nn_tilde/nn~.maxhelp nn_tilde/help
+          mkdir nn_tilde/support
+          ls
+          cp torch/libtorch/lib/* nn_tilde/support
+          cp vcpkg/installed/x64-windows/lib/*.lib nn_tilde/support
+          cp vcpkg/installed/x64-windows/bin/*.dll nn_tilde/support
+          curl -L https://curl.se/ca/cacert.pem -o nn_tilde/support/cacert.pem
+          $files = @("src\externals", "src\help", "src\patchers", "src\extras", "src\package-info.json", "src\icon.png", "src\source", "src\models", "src\misc")
+          foreach ($file in $files) {
+            mv $file nn_tilde
+          }
+          curl -L https://nubo.ircam.fr/index.php/s/7xBPxJZA6nJFHkG -o ${{ secrets.WHEEL_PATH }}
           tar -czvf nn_max_msp_windows_x64.tar.gz nn_tilde
       - name: PureData Package creation
         run: |
-          Remove-Item -Force -Recurse nn_tilde
+          Remove-Item -Recurse -Force nn_tilde
           mkdir nn_tilde
           mv build/frontend/puredata/nn_tilde/Release/* nn_tilde/
+          cp torch/libtorch/lib/* nn_tilde/
+          cp vcpkg/installed/x64-windows/lib/*.lib nn_tilde/
+          cp vcpkg/installed/x64-windows/bin/*.dll nn_tilde/
+          curl -L https://curl.se/ca/cacert.pem -o nn_tilde/cacert.pem
           tar -czvf nn_puredata_windows_x64.tar.gz nn_tilde
       - name: Upload binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: nn_tilde
+          name: nn_tilde_win_x64
           path: |
             nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
 
+  MakeMaxUniversalForMac:
+    runs-on: macos-latest
+    needs: [osx-arm64-build, osx-x64-build]
+    steps:
+      - name: Download build binaries (arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_arm64
+      - name: Download build binaries (x86)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_x86_64
+      - name: Build ub max with lipo
+        run: |
+          tar -xvf nn_max_msp_macOS_arm64.tar.gz 
+          mv nn_tilde nn_tilde_arm64
+          tar -xvf nn_max_msp_macOS_x64.tar.gz 
+          mv nn_tilde nn_tilde_x64
+          curl -L https://raw.githubusercontent.com/domkirke/nn_tilde/refs/heads/dev/install/macos_max_makeub.sh > macos_max_makeub.sh
+          chmod 777 ./macos_max_makeub.sh
+          ./macos_max_makeub.sh
+          
+      - name: Install signing certificate
+        run: |
+          CERT_PATH="$RUNNER_TEMP/signing-identity.p12"
+          echo "${{ secrets.CERT }}" | base64 -D > $CERT_PATH
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import $CERT_PATH -k build.keychain -P "${{ secrets.CERT_PASSWORD }}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/support/*.dylib
+          for i in $(find nn_tilde/externals/*/Contents/MacOS -type f -perm -111); do codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i); done
+
+      - name: Compressing...
+        run: tar -czvf nn_max_msp_macos_ub.tar.gz nn_tilde
+
+      - name: Upload UB 
+        uses: actions/upload-artifact@v4
+        with:
+          name: nn_tilde_macos_max_ub
+          path: |
+            nn_max_msp_macos_ub.tar.gz
+
+  MakePdUniversalForMac:
+    runs-on: macos-latest
+    needs: [osx-arm64-build, osx-x64-build]
+    steps:
+      - name: Download build binaries (arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_arm64
+      - name: Download build binaries (x86)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_mac_x86_64
+      - name: build ub max with lipo
+        run: |
+          tar -xvf nn_puredata_macOS_arm64.tar.gz 
+          mv nn_tilde nn_tilde_arm64
+          tar -xvf nn_puredata_macOS_x64.tar.gz 
+          mv nn_tilde nn_tilde_x64
+          curl -L https://raw.githubusercontent.com/domkirke/nn_tilde/refs/heads/dev/install/macos_pd_makeub.sh -o macos_pd_makeub.sh
+          chmod 777 ./macos_pd_makeub.sh
+          ./macos_pd_makeub.sh
+
+      - name: Install signing certificate
+        run: |
+          CERT_PATH="$RUNNER_TEMP/signing-identity.p12"
+          echo "${{ secrets.CERT }}" | base64 -D > $CERT_PATH
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import $CERT_PATH -k build.keychain -P "${{ secrets.CERT_PASSWORD }}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/*.dylib
+          codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/nn~.pd_darwin
+      
+      - name: Compressing archive...
+        run: tar -czvf nn_puredata_macos_ub.tar.gz nn_tilde
+
+      - name: Upload UB 
+        uses: actions/upload-artifact@v4
+        with:
+          name: nn_tilde_macos_pd_ub
+          path: |
+            nn_puredata_macos_ub.tar.gz
+          
+
   AutomaticRelease:
     runs-on: ubuntu-latest
-    needs: [osx-arm64-build, osx-x64-build, windows-x64-build]
+    needs: [MakeMaxUniversalForMac, MakePdUniversalForMac, linux, windows-x64-build]
     steps:
-      - name: Download build binaries
-        uses: actions/download-artifact@v2
+      - name: Download Max build binaries (mac)
+        uses: actions/download-artifact@v4
         with:
-          name: nn_tilde
+          name: nn_tilde_macos_max_ub
+      - name: Download Pd binaries (mac)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_macos_pd_ub
+      - name: Download build binaries (linux_x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_linux_puredata_x86_64
+      - name: Download build binaries (windows mac_x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: nn_tilde_win_x64 
       - name: Automated Release
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: |
-            nn_max_msp_macOS_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
-            nn_max_msp_macOS_arm64.tar.gz
-            nn_puredata_macOS_arm64.tar.gz
+            nn_max_msp_macos_ub.tar.gz
+            nn_puredata_macos_ub.tar.gz
+            nn_linux_puredata_x86_64.tar.gz
             nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
+

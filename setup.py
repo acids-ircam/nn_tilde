@@ -13,12 +13,12 @@ with open("requirements.txt", "r") as requirements:
 setuptools.setup(
     name="nn_tilde",
     version=VERSION,
-    author="Antoine CAILLON",
-    author_email="caillon@ircam.fr",
+    author="Antoine CAILLON & Axel CHEMLA--ROMEU-SANTOS",
+    author_email="chemla@ircam.fr",
     description="Set of tools to create nn_tilde compatible models.",
     long_description=readme,
     long_description_content_type="text/markdown",
-    packages=['nn_tilde'],
+    packages=['nn_tilde', 'nn_tilde.templates'],
     package_dir={'nn_tilde': 'python_tools'},
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -26,5 +26,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=requirements.split("\n"),
-    python_requires='>=3.7',
+    python_requires='>=3.11',
 )
