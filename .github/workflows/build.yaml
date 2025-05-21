@@ -356,9 +356,9 @@ jobs:
           mv nn_tilde nn_tilde_arm64
           tar -xvf nn_puredata_macOS_x64.tar.gz 
           mv nn_tilde nn_tilde_x64
-          cp -r nn_tilde_arm64 nn_tilde
-          for i in $(find nn_tilde/*.dylib -type f -perm -111); do lipo -create "nn_tilde_arm64/$(basename $i)" "nn_tilde_x64/$(basename $i)" -output "nn_tilde/$(basename $i)"; done
-          lipo -create "nn_tilde_arm64/nn~.pd_darwin" "nn_tilde_x64/nn~.pd_darwin" -output "nn_tilde/nn~.pd_darwin"
+          curl -L https://raw.githubusercontent.com/domkirke/nn_tilde/refs/heads/dev/install/macos_pd_makeub.sh -o macos_pd_makeub.sh
+          chmod 777 ./macos_pd_makeub.sh
+          ./macos_pd_makeub.sh
 
       - name: Install signing certificate
         run: |
