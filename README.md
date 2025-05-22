@@ -14,12 +14,24 @@ Uncompress the `.tar.gz` file in the Package folder of your Max installation, i.
 
 ##### Mac alert : codesigned with IRCAM identity and not trigger MacOS quarantine ; if it does so,  please launch in the terminal : 
 
+<<<<<<< HEAD
+=======
+<img width=500px src="assets/quarantine_warning.png"/>
+
+In most cases, proceeding with the removal will disable this warning until the next update of `nn~`. If MacOS continues to block the external you can try to codesign locally and remove the external from quarantine: 
+
+>>>>>>> dev
 ```bash
 cd "~/Max X/Packages/nn_tilde
 sudo codesign --deep --force --sign - support/*.dylib
 sudo codesign --deep --force --sign - externals/*/Contents/MacOS/*
 xattr -r -d com.apple.quarantine externals/*/Contents/MacOS/*  
 ```
+<<<<<<< HEAD
+=======
+
+Right click on the `nn~` object to open the help patch, and follow the tabs to learn more about this project.
+>>>>>>> dev
 
 ## PureData
 
@@ -40,8 +52,15 @@ sudo codesign --deep --force --sign - Documents/Pd/externals/nn_tilde/nn\~.pd_da
 
 At its core, `nn~` is a translation layer between Max/MSP or PureData and the [libtorch c++ interface for deep learning](https://pytorch.org/). Alone, `nn~` is like an empty shell, and **requires pretrained models** to operate. Since v1.6.0, you can download them directly through Forum IRCAM API. Alternatively, you can find a few [RAVE](https://github.com/acids-ircam/RAVE) models [here](https://acids-ircam.github.io/rave_models_download) or [here](https://huggingface.co/Intelligent-Instruments-Lab/rave-models). Few [vschaos2](https://github.com/acids-ircam/vschaos2) models are also available[here](https://www.dropbox.com/sh/avdeiza7c6bn2of/AAAGZsnRo9ZVMa0iFhouCBL-a?dl=0).
 
+<<<<<<< HEAD
 Pretrained model for `nn~` are **torchscript files**, with a `.ts` extension. In Max/MSP, You can add these files to `nn_tilde/models` folders or any place accessible through Max filesystem `Options/File Preferences`. For PureData, models are downloaded and found in the patcher's folder, or in the PureData filesystem `File/Preferences/Path`.
 
+=======
+Pretrained model for `nn~` are **torchscript files**, with a `.ts` extension. You can add these files to `nn_tilde/models` folders, or any place accessible through Max / Pd filesystem (Max: `Options/File Preferences`, PureData: `File/Preferences/Path`).
+
+**New** : since v1.6.0, some models are directly downloadable through IRCAM Forum API. 
+
+>>>>>>> dev
 Once this is done, you can load a model with `nn~` by providing its name as first argument (for example, here `isis.ts` located inside `nn_tilde/models` for Max, or among the PureData patch):  
 
 <table>
@@ -57,6 +76,7 @@ Once this is done, you can load a model with `nn~` by providing its name as firs
 
 ## Model information fetching
 
+<<<<<<< HEAD
 Coming with v1.6.0, the `nn.info` object allows model inspection and fetching avilable models for download on the IRCAM-API. With this object, you can get available methods and attributes for a given model. For example, you can see below that a RAVE model has three different methods : `encode`, `decode`, and `forward`.
 
 <center>
@@ -69,6 +89,22 @@ Models can have several _methods_, that correspond to several processing pipelin
 
 ### Attributes
 
+=======
+## Model information fetching
+
+Coming with v1.6.0, the `nn.info` object allows model inspection and fetching avilable models for download on the IRCAM-API. With this object, you can get available methods and attributes for a given model. For example, you can see below that a RAVE model has three different methods : `encode`, `decode`, and `forward`.
+
+<center>
+<img src="assets/max_nninfo.png"/>
+</center>
+
+### Methods
+
+Models can have several _methods_, that correspond to several processing pipelines the model can achieve. Hence, each method can have a different number in inlets / outlets. The method is given as the third argument (for exemple, `decode` above), and equals `forward` by default.
+
+### Attributes
+
+>>>>>>> dev
 It is possible the internal state of the module through _attributes_, that are **model-dependent** and defined at exportation. Model attributes can be set using _messages_, with the following syntax:
 
 ```bash
@@ -88,11 +124,14 @@ Using Max/MSP and PureData graphical objects, this can lead to an intuitive way 
   </tr>
 </table>
 
+<<<<<<< HEAD
 **New in 1.6.0**
 
 - Buffers (Max) / Array (Pd) attribute setting to allow the `.ts` model to access internal buffers / arrays.
 - `torch.Tensor` attributes can be set through Max/MSP `[array]`, allowing to set attributes of unlimited size.
 
+=======
+>>>>>>> dev
 ## Buffer configuration
 
 Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonable computational load, if the given buffer size is greater tha 0. You can modify its size through the use of an additional integer after the method declaration, as shown below. 
@@ -110,7 +149,10 @@ Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonab
   </tr>
 </table>
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> dev
 ## Multichannel (Max/MSP)
 
 The Max/MSP release of `nn~` includes additional externals, namely `mc.nn~` and `mcs.nn~`, allowing the use of the multicanal abilities of Max 8+ to simplify the patching process with `nn~` and optionally decrease the computational load.
@@ -159,17 +201,29 @@ Prints models downloadable through API.
 
 ### download
 
+<<<<<<< HEAD
 Download a model from the API.
+=======
+Download a model from the API. 
+>>>>>>> dev
 
 ### delete
 
 Deletes a downloaded model.
 
+<<<<<<< HEAD
 ### load
 
 Change dynamically the incoming model.
 
 ### method
+=======
+### load
+
+Change dynamically the incoming model. 
+
+### method
+>>>>>>> dev
 
 Change dynamically the used method.
 
