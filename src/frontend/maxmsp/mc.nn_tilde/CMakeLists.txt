@@ -11,7 +11,7 @@ set(C74_MIN_API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../min-api)
 include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 
 if (APPLE)
-	set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12")
+	set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3")
 endif()
 
 
