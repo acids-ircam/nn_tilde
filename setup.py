@@ -2,7 +2,7 @@ import os
 
 import setuptools
 
-VERSION = os.environ["NN_TILDE_VERSION"]
+VERSION = os.environ.get("NN_TILDE_VERSION", "1.6.0")
 
 with open("README.md", "r") as readme:
     readme = readme.read()
