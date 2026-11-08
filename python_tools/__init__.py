@@ -1,4 +1,6 @@
-
+import os
+if os.environ.get('NN_TILDE_VERSION') is None: 
+  os.environ['NN_TILDE_VERSION'] = 1.6
 import pathlib
 import torch
 TMP_FILE_OUTPUT = pathlib.Path(__file__).parent / ".tmpfile"
