@@ -172,7 +172,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake ../src -G "Visual Studio 17 2022" -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
+          cmake --version
+          # no -G: CMake picks the newest Visual Studio installed on the runner
+          cmake ../src -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/pd/src -DPUREDATA_BIN_DIR=${{ github.workspace }}/pd/bin -A x64
           cmake --build . --config Release
           
       - name: Max/MSP Package creation
