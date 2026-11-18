@@ -101,7 +101,8 @@ jobs:
       - name: Setup LLVM
         run: |
           sudo apt-get install -y ca-certificates
-          sudo apt install gcc-10 g++-10
+          # the image default GCC (libtorch >= 2.7 is built with the C++11 ABI, GCC 9+ is fine)
+          sudo apt-get install -y gcc g++
       - name: Setup miniconda
         run: |
           echo "architecture : $(uname -m)"
@@ -121,8 +122,8 @@ jobs:
       - name: Build
         run: |
           mkdir build
-          export CC=$(which gcc-10)
-          export CXX=$(which g++-10)
+          export CC=$(which gcc)
+          export CXX=$(which g++)
           cd build
           cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_PREFIX_PATH=${{ github.workspace }}/env/lib/python3.12/site-packages/torch -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include
           make

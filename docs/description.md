@@ -76,8 +76,8 @@ By default the model runs in a **separate thread**: while the model processes bu
 
 | mode | when | latency | CPU constraint |
 |---|---|---|---|
-| threaded | default on macOS and Linux | 2 × buffer size | one forward pass must take less than one buffer duration |
-| in audio thread | buffer size `0`, and always on Windows | 1 × buffer size | one forward pass must fit within one audio callback |
+| threaded | default | 2 × buffer size | one forward pass must take less than one buffer duration |
+| in audio thread | buffer size `0` | 1 × buffer size | one forward pass must fit within one audio callback |
 
 For example, at 44.1 kHz with a buffer of 4096 samples, the threaded latency is 8192 samples (186 ms) and the model has 93 ms to process each buffer.
 

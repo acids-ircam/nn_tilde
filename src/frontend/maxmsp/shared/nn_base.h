@@ -663,11 +663,9 @@ void nn_base<nn_name, op_type>::init_process() {
   if (m_buffer_size == 0) {
     m_use_thread = false;
   }
-  // Calling forward in a thread causes memory leak in windows.
-  // See https://github.com/pytorch/pytorch/issues/24237
-  #ifdef _WIN32
-  m_use_thread = false;
-  #endif
+  // A single long-lived compute thread per object: libtorch leaks thread-local
+  // state for every thread that runs a model (notably on Windows, see
+  // https://github.com/pytorch/pytorch/issues/24237), so never spawn one per buffer.
   if (m_use_thread && !m_compute_thread) {
     m_compute_thread = std::make_unique<std::thread>(&nn_base<nn_name, op_type>::compute_loop, this);
   }

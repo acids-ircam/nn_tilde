@@ -3,8 +3,11 @@
 #include <stdlib.h>
 
 #include <limits.h>
+#include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <exception>
 #include <string>
 #include <vector>
@@ -109,6 +112,69 @@ unsigned power_ceil(unsigned x)
   return power;
 }
 
+// Runs a job on one long-lived thread, one call per start(). libtorch leaks
+// thread-local state for every thread that runs a model (notably on Windows,
+// see https://github.com/pytorch/pytorch/issues/24237), so we never spawn a
+// thread per buffer.
+class ComputeWorker
+{
+public:
+  explicit ComputeWorker(std::function<void()> job)
+      : m_job(std::move(job)), m_thread(&ComputeWorker::loop, this) {}
+
+  // finishes the pending job, if any, then stops the thread
+  ~ComputeWorker()
+  {
+    {
+      std::lock_guard<std::mutex> lock(m_mutex);
+      m_stop = true;
+    }
+    m_cv.notify_all();
+    m_thread.join();
+  }
+
+  // runs the job once on the worker thread; call wait() first
+  void start()
+  {
+    {
+      std::lock_guard<std::mutex> lock(m_mutex);
+      m_pending = true;
+    }
+    m_cv.notify_all();
+  }
+
+  // blocks until the last started job is done
+  void wait()
+  {
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_cv.wait(lock, [this] { return !m_pending; });
+  }
+
+private:
+  void loop()
+  {
+    std::unique_lock<std::mutex> lock(m_mutex);
+    while (true)
+    {
+      m_cv.wait(lock, [this] { return m_pending || m_stop; });
+      if (!m_pending)
+        return; // stop requested, nothing left to do
+      lock.unlock();
+      m_job();
+      lock.lock();
+      m_pending = false;
+      m_cv.notify_all();
+    }
+  }
+
+  std::mutex m_mutex;
+  std::condition_variable m_cv;
+  bool m_pending = false;
+  bool m_stop = false;
+  std::function<void()> m_job;
+  std::thread m_thread; // last: starts once the members above are initialised
+};
+
 // CLASS LIKE INITIALISATION
 typedef struct _nn_tilde
 {
@@ -128,7 +194,7 @@ typedef struct _nn_tilde
   std::vector<float *> m_out_model_ptrs;
   std::vector<std::string> settable_attributes;
   t_symbol *m_method, *m_path;
-  std::unique_ptr<std::thread> m_compute_thread;
+  std::unique_ptr<ComputeWorker> m_worker; // created on first use when m_use_thread
 
   // BUFFER RELATED MEMBERS
   int m_head, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio, m_buffer_size;
@@ -210,8 +276,8 @@ t_int *nn_tilde_perform(t_int *w)
   if (x->m_in_buffer[0].full())
   { // BUFFER IS FULL
     // IF USE THREAD, CHECK THAT COMPUTATION IS OVER
-    if (x->m_compute_thread && x->m_use_thread)
-      x->m_compute_thread->join();
+    if (x->m_worker && x->m_use_thread)
+      x->m_worker->wait();
 
     // TRANSFER MEMORY BETWEEN INPUT CIRCULAR BUFFER AND MODEL BUFFER
     for (int c(0); c < x->m_in_dim; c++)
@@ -225,7 +291,11 @@ t_int *nn_tilde_perform(t_int *w)
       x->m_out_buffer[c].put(x->m_out_model[c].get(), x->m_buffer_size);
 
     if (x->m_use_thread) // PROCESS DATA LATER
-      x->m_compute_thread = std::make_unique<std::thread>(model_perform, x);
+    {
+      if (!x->m_worker) // normally created in nn_tilde_dsp
+        x->m_worker = std::make_unique<ComputeWorker>([x] { model_perform(x); });
+      x->m_worker->start();
+    }
   }
 
   // COPY CIRCULAR BUFFER TO OUTPUT
@@ -271,13 +341,24 @@ void nn_tilde_dsp(t_nn_tilde *x, t_signal **sp)
       x->m_dsp_out_vec.push_back(sp[i]->s_vec);
     }
   }
+  // start the compute thread here rather than in the audio callback
+  if (x->m_use_thread && !x->m_worker)
+    x->m_worker = std::make_unique<ComputeWorker>([x] { model_perform(x); });
+
   dsp_add(nn_tilde_perform, 1, x);
+}
+
+// waits for the running computation before changing model, method or buffers
+void nn_tilde_wait_compute(t_nn_tilde *x)
+{
+  if (x->m_worker)
+    x->m_worker->wait();
 }
 
 void nn_tilde_free(t_nn_tilde *x)
 {
-  if (x->m_compute_thread)
-    x->m_compute_thread->join();
+  // pd_free does not run C++ destructors: stop and join the thread explicitly
+  x->m_worker.reset();
 }
 
 std::string resolve_file_path(t_nn_tilde *x, const char *filename)
@@ -533,7 +614,7 @@ void *nn_tilde_new(t_symbol *s, int argc, t_atom *argv)
   x->m_model = std::make_unique<Backend>();
   x->m_buf_manager = std::make_unique<PdBufferManager<_nn_tilde>>(x->m_model.get(), x);
   x->m_head = 0;
-  x->m_compute_thread = nullptr;
+  x->m_worker = nullptr;
   x->m_in_dim = 1;
   x->m_in_ratio = 1;
   x->m_out_dim = 1;
@@ -628,11 +709,7 @@ void nn_tilde_method(t_nn_tilde *x, t_symbol *s)
     return;
   }
 
-  if (x->m_compute_thread)
-  {
-    x->m_compute_thread->join();
-    x->m_compute_thread = nullptr;
-  }
+  nn_tilde_wait_compute(x);
 
   if (nn_tilde_update_model_params(x, s) && x->m_dims_changed)
     canvas_update_dsp();
@@ -640,14 +717,11 @@ void nn_tilde_method(t_nn_tilde *x, t_symbol *s)
 
 void nn_tilde_bufsize(t_nn_tilde *x, t_floatarg size)
 {
-  if (x->m_compute_thread)
-  {
-    x->m_compute_thread->join();
-    x->m_compute_thread = nullptr;
-  }
+  nn_tilde_wait_compute(x);
 
   // Store and validate new size
   x->m_buffer_size = (int)size;
+  x->m_use_thread = true; // set back to false below for size 0
   auto higher_ratio = x->m_model->get_higher_ratio();
   if (!x->m_buffer_size)
   {
@@ -677,11 +751,7 @@ void nn_tilde_load(t_nn_tilde *x, t_symbol *s)
     return;
   }
 
-  if (x->m_compute_thread)
-  {
-    x->m_compute_thread->join();
-    x->m_compute_thread = nullptr;
-  }
+  nn_tilde_wait_compute(x);
 
   if (nn_tilde_load_model(x, s->s_name))
   {

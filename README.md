@@ -103,8 +103,6 @@ Using Max/MSP and PureData graphical objects, this can lead to an intuitive way 
 
 Internally, `nn~` has a circular buffer mechanism that helps maintain a reasonable computational load, if the given buffer size is greater tha 0. You can modify its size through the use of an additional integer after the method declaration, as shown below. 
 
-**Important**For Windows users, the circular buffer is automatically disabled because of a memory leak [that occurs when a TorchScript model is used in a separate thread](https://github.com/pytorch/pytorch/issues/24237). Unfortunately, this implies a much lower efficiency in terms of CPU.  
-
 <table>
   <tr>
     <th width="50%">Max / MSP</th>

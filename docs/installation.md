@@ -43,8 +43,6 @@ codesign --force --deep --sign - externals/*.mxo
 
 Install the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist) if Max reports that the external cannot be loaded.
 
-On Windows, `nn~` computes in the audio thread instead of a separate thread, because of a [memory leak in libtorch](https://github.com/pytorch/pytorch/issues/24237) when a TorchScript model runs in another thread. This needs more CPU headroom. See [Threads](description.md#threads-and-latency).
-
 ## PureData
 
 1. Download the Pd archive for your platform (`nn_puredata_macOS_arm64.tar.gz`, `nn_puredata_windows_x64.tar.gz` or `nn_linux_puredata_x86_64.tar.gz`) from the [latest release](https://github.com/acids-ircam/nn_tilde/releases/latest).
