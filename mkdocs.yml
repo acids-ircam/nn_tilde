@@ -16,22 +16,31 @@ nav:
 
 theme:
   name: material
+  font: false            # fonts are set in docs/stylesheets/theme.css
+  logo: assets/nnlogo.png   # copy of assets/nnlogo.png (only docs/ is published)
   features:
     - navigation.sections
     - navigation.top
+    - navigation.footer
     - toc.follow
+    - search.suggest
+    - search.highlight
     - content.code.copy
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
-        name: Dark mode
+        name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
-        name: Light mode
+        name: Switch to light mode
 
 markdown_extensions:
   - tables
@@ -40,8 +49,17 @@ markdown_extensions:
   - md_in_html
   - toc:
       permalink: true
-  - pymdownx.highlight
+  - pymdownx.highlight:
+      anchor_linenums: true
   - pymdownx.superfences
+  - pymdownx.inlinehilite
+
+plugins:
+  - search
+
+# all visual settings (colors, fonts, sizes) live in this file
+extra_css:
+  - stylesheets/theme.css
 
 validation:
   links:
