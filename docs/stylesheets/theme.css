@@ -1,0 +1,193 @@
+/* =========================================================================
+   nn~ docs — single file driving the visuals (same layout as the RAVE docs).
+   Edit the variables in section 1 (and 2 for dark mode); everything else
+   reads from them. Colors must be plain values (#hex, rgb()...): a color
+   written as var(--nn-...) is frozen to its light-mode value. `mkdocs serve` reloads on save.
+   ========================================================================= */
+
+/* --- 0. Fonts ----------------------------------------------------------
+   Any Google Font works: change the URL and the two --nn-font-* below. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap");
+
+/* --- 1. Light mode (and defaults shared by both modes) ------------------
+   Palette taken from the logo (assets/nnlogo.png):
+   #333333 object box, #808080 frame, #eec486 text, #e5e5e5 / #c0c2c4 light greys.
+   The logo gold is too pale on white, so links use a darker shade of it. */
+:root,
+[data-md-color-scheme="default"] {
+  /* brand */
+  --nn-primary: #333333; /* header: the logo's object box */
+  --nn-primary-light: #808080;
+  --nn-primary-dark: #222222;
+  --nn-on-primary: #eec486; /* text on the header: the logo's gold */
+  --nn-accent: #6f4a15; /* links hover, buttons, focus (darker gold than links, 8:1 on white) */
+  --nn-logo-height: 1.8rem; /* header logo (theme.logo in mkdocs.yml) */
+
+  /* page */
+  --nn-bg: #ffffff;
+  --nn-text: #2b2b2b;
+  --nn-text-muted: #6b6b6b;
+  --nn-link: #8a5d1c; /* dark gold, 5.5:1 on white */
+  --nn-heading-color: #333333; /* h1-h4; use plain colors here, not var(...) */
+  --nn-header-border: #808080; /* line under the header: the logo's frame */
+
+  /* search box (on the header) */
+  --nn-search-bg: #444444;
+  --nn-search-bg-hover: #4d4d4d;
+  --nn-search-text: #e5e5e5;
+  --nn-search-placeholder: #c0c2c4;
+
+  /* code */
+  --nn-code-bg: #f2f2f2;
+  --nn-code-text: #2b2b2b;
+
+  /* tables */
+  --nn-table-header-bg: #e5e5e5;
+  --nn-table-border: #d6d6d6;
+
+  /* typography */
+  --nn-font-text: "Inter";
+  --nn-font-code: "JetBrains Mono";
+  --nn-font-size: 0.8rem; /* body text (Material default: .8rem) */
+  --nn-line-height: 1.65;
+  --nn-h1-weight: 700;
+
+  /* layout */
+  --nn-content-width: 61rem; /* max page width (Material default: 61rem) */
+  --nn-radius: 6px; /* code blocks, tables, admonitions, screenshots */
+}
+
+/* --- 2. Dark mode -------------------------------------------------------- */
+[data-md-color-scheme="slate"] {
+  --nn-primary: #333333;
+  --nn-primary-light: #808080;
+  --nn-primary-dark: #222222;
+  --nn-on-primary: #eec486;
+  --nn-accent: #eec486;
+
+  --nn-bg: #242424;
+  --nn-text: #e5e5e5;
+  --nn-text-muted: #a3a3a3;
+  --nn-link: #eec486; /* the logo gold, 10:1 on the page */
+  --nn-heading-color: #eec486;
+  --nn-header-border: #808080;
+
+  --nn-search-bg: #444444;
+  --nn-search-bg-hover: #4d4d4d;
+  --nn-search-text: #e5e5e5;
+  --nn-search-placeholder: #c0c2c4;
+
+  --nn-code-bg: #333333;
+  --nn-code-text: #e5e5e5;
+
+  --nn-table-header-bg: #333333;
+  --nn-table-border: #4a4a4a;
+}
+
+/* =========================================================================
+   Below: wiring of the variables into Material. Normally no need to edit.
+   ========================================================================= */
+
+/* colors */
+:root,
+[data-md-color-scheme="default"],
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: var(--nn-primary);
+  --md-primary-fg-color--light: var(--nn-primary-light);
+  --md-primary-fg-color--dark: var(--nn-primary-dark);
+  --md-primary-bg-color: var(--nn-on-primary);
+  --md-accent-fg-color: var(--nn-accent);
+
+  --md-default-bg-color: var(--nn-bg);
+  --md-default-fg-color: var(--nn-text);
+  --md-default-fg-color--light: var(--nn-text-muted);
+  --md-typeset-color: var(--nn-text);
+  --md-typeset-a-color: var(--nn-link);
+
+  --md-code-bg-color: var(--nn-code-bg);
+  --md-code-fg-color: var(--nn-code-text);
+
+  --md-text-font: var(--nn-font-text);
+  --md-code-font: var(--nn-font-code);
+}
+
+/* header: thin separator, since it has the page background color */
+.md-header {
+  border-bottom: 1px solid var(--nn-header-border);
+  box-shadow: none;
+}
+
+/* search box: set explicitly rather than derived from the header color */
+.md-search__input {
+  background-color: var(--nn-search-bg);
+  color: var(--nn-search-text);
+}
+.md-search__input::placeholder,
+.md-search__icon[for="__search"] {
+  color: var(--nn-search-placeholder);
+}
+.md-search__input:hover {
+  background-color: var(--nn-search-bg-hover);
+}
+
+/* typography */
+.md-typeset {
+  font-size: var(--nn-font-size);
+  line-height: var(--nn-line-height);
+}
+.md-typeset h1 {
+  font-weight: var(--nn-h1-weight);
+  color: var(--nn-heading-color);
+}
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  color: var(--nn-heading-color);
+}
+
+/* layout */
+.md-grid {
+  max-width: var(--nn-content-width);
+}
+
+/* code blocks */
+.md-typeset pre > code,
+.md-typeset .highlight,
+.md-typeset .highlighttable {
+  border-radius: var(--nn-radius);
+}
+
+/* tables */
+.md-typeset table:not([class]) {
+  border-radius: var(--nn-radius);
+  border: 1px solid var(--nn-table-border);
+  font-size: calc(var(--nn-font-size) * 0.9);
+}
+.md-typeset table:not([class]) th {
+  background: var(--nn-table-header-bg);
+}
+.md-typeset table:not([class]) td {
+  border-top: 1px solid var(--nn-table-border);
+}
+
+/* admonitions (the "> Note" style callouts) */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: var(--nn-radius);
+}
+.md-typeset blockquote {
+  border-left-color: var(--nn-accent);
+  color: var(--nn-text-muted);
+}
+
+/* logo: keep its proportions (it is wider than tall) */
+.md-header__button.md-logo img,
+.md-nav__button.md-logo img {
+  height: var(--nn-logo-height);
+  width: auto;
+}
+
+/* screenshots of Max / Pd patches */
+.md-typeset img {
+  border-radius: var(--nn-radius);
+}

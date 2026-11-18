@@ -1,4 +1,6 @@
 ![banner](https://github.com/acids-ircam/nn_tilde/raw/master/assets/banner.png)
+[![docs](https://readthedocs.org/projects/nn-tilde/badge/?version=latest)](https://nn-tilde.readthedocs.io/)
+
 
 # Demonstration video
 
