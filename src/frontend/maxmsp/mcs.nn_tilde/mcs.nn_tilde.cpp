@@ -20,7 +20,7 @@ void model_perform(nn_class* nn_instance) {
 
 template <typename nn_class>
 void model_perform_async(nn_class* nn_instance) {
-  
+  nn_boost_worker_qos();
   while (!nn_instance->can_perform()){
     std::this_thread::sleep_for(std::chrono::milliseconds(REFRESH_THREAD_INTERVAL));
     if (nn_instance->m_should_stop_perform_thread) {

@@ -29,6 +29,11 @@ std::string tensor_to_str(torch::Tensor &tsr) {
 
 Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
   at::init_num_threads();
+  if (const char *n = getenv("NN_TILDE_NUM_THREADS")) {
+    at::set_num_threads(std::max(1, atoi(n)));
+  } else {
+    at::set_num_threads(1);
+  }
 }
 
 void Backend::perform(std::vector<float *> &in_buffer,

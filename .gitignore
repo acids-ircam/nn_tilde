@@ -8,3 +8,11 @@ src/tests
 src/docs
 dist/
 *.egg-info*
+
+# Build artifacts and local-environment leftovers
+*.bak
+env/
+src/support/
+src/package-info.json
+MEMORY.md
+.claude/

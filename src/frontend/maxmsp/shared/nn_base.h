@@ -30,6 +30,17 @@
 #define DEFAULT_BUFFER_SIZE 4096
 #endif
 
+#ifdef __APPLE__
+#include <pthread.h>
+#include <sys/qos.h>
+#endif
+
+static inline void nn_boost_worker_qos() {
+#ifdef __APPLE__
+  pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+#endif
+}
+
 using namespace c74::min;
 
 #define DEBUG 0
@@ -168,12 +179,30 @@ public:
                          description{"Enable / disable tensor computation"}};
 
   // ENABLE / DISABLE ATTRIBUTE
+  // Switching the model's device while the worker thread is mid-forward can
+  // wedge MPS calls and starve Core Audio (audio output goes silent system-
+  // wide). Stop the worker cleanly, switch device, restart.
   attribute<bool> gpu{this, "gpu", false,
                       description{"Enable / disable gpu usage when available"},
                       setter{[this](const c74::min::atoms &args,
                                     const int inlet) -> c74::min::atoms {
-                        if (m_is_backend_init)
-                          m_model->use_gpu(bool(args[0]));
+                        if (!m_is_backend_init) return args;
+                        bool was_threaded = m_use_thread && m_compute_thread != nullptr;
+                        if (was_threaded) {
+                          m_should_stop_perform_thread = true;
+                          m_data_available_lock.release(); // wake worker if parked
+                          m_compute_thread->join();
+                          m_compute_thread.reset();
+                          // restore semaphores to ctor state (data=0, result=1)
+                          while (m_data_available_lock.try_acquire()) {}
+                          while (m_result_available_lock.try_acquire()) {}
+                          m_result_available_lock.release();
+                          m_should_stop_perform_thread = false;
+                        }
+                        m_model->use_gpu(bool(args[0]));
+                        if (was_threaded) {
+                          init_process(); // virtual; derived override re-spawns worker
+                        }
                         return args;
                       }}};
 

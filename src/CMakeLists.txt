@@ -43,7 +43,7 @@ endif()
 
 
 if (APPLE)
-  set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12")
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
