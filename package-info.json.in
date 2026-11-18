@@ -6,19 +6,19 @@
 	"authors" : [ "Antoine Caillon", "Axel Chemla--Romeu-Santos", "Philippe Esling", "Nils Demerlé"],
 	"description" : "Max interfaces for deep neural generation",
 	"tags" : [ "audio", "ai", "neural synthesis"],
-	"website" : "http://www.github.com/acids-ircam/nn_tilde",
+	"website" : "https://github.com/acids-ircam/nn_tilde",
 	"extends" : "",
 	"extensible" : 1,
 	"max_version_min" : "8.0.2",
 	"max_version_max" : "none",
 	"os" : 	{
 		"macintosh" : 		{
-			"min_version" : "10.12.x",
-			"platform" : [ "x64", "aarch64" ]
+			"min_version" : "11.0",
+			"platform" : [ "aarch64" ]
 		}
 ,
 		"windows" : 		{
-			"min_version" : "7",
+			"min_version" : "10",
 			"platform" : [ "x64" ]
 		}
 
@@ -27,7 +27,5 @@
 	"homepatcher" : "help_hub.maxpat",
 	"package_extra" : 	{
 	}
-,
-	"c74install" : 1,
-	"installdate" : 3745215604
+
 }

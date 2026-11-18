@@ -303,11 +303,11 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
     // create lock file, to not download two times the same model
     std::string lock_path = lock_path_from_target(target_path, model_name);
     FILE* lock_file = fopen(lock_path.c_str(), "w");
-    fputc('l', lock_file);
     if (!lock_file) {
-        parent->print_to_parent(std::string("could not open file for writing : ") + target_path, "cerr"); 
+        parent->print_to_parent(std::string("could not open file for writing : ") + lock_path, "cerr");
         return;
     }
+    fputc('l', lock_file);
 
     try {
         CURL* curl;
@@ -315,7 +315,8 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
         CURLcode res;
 
         curl = curl_easy_init();
-        std::string url = (parent->get_api_root()) + "download_model?model=" + model_name; 
+        // model card (source/model/name) as path segments; the API rejects the former ?model= query
+        std::string url = (parent->get_api_root()) + "download_model/" + model_name;
         if (curl) {
             file = fopen(target_path.c_str(), "wb");
             if (!file) {
@@ -330,17 +331,27 @@ void download_thread(ModelDownloader *parent, std::string model_name, std::strin
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, ModelWriteCallback);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
             curl_easy_setopt(curl, CURLOPT_CAINFO, parent->get_certificate_path().string().c_str());
-            
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+            // HTTP errors (404, 500...) fail the transfer instead of saving the error page as the model
+            curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+
             // Perform the request
             res = curl_easy_perform(curl);
             if (res != CURLE_OK) {
-                parent->print_to_parent("error during download : " + std::string(curl_easy_strerror(res)), "cerr");
+                long http_code = 0;
+                curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+                std::string reason = std::string(curl_easy_strerror(res));
+                if (http_code >= 400)
+                    reason = "server answered HTTP " + std::to_string(http_code);
+                parent->print_to_parent("failed to download " + model_name + " : " + reason, "cerr");
                 fclose(file);
+                std::error_code ec;
+                fs::remove(target_path, ec); // do not leave a partial or invalid model behind
                 fclose(lock_file);
                 fs::remove(lock_path);
                 curl_easy_cleanup(curl);
                 return;
-            } 
+            }
 
             // Clean up
             fclose(file);
