@@ -1,0 +1,39 @@
+name: Documentation
+
+# builds the MkDocs site (mkdocs.yml, docs/) and publishes it on GitHub Pages.
+# Requires Settings > Pages > Source : "GitHub Actions".
+on:
+  release:
+    types: [published]
+  workflow_dispatch:   # "Run workflow" button, to publish doc fixes between releases
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build site
+        run: |
+          pip install -r docs/requirements.txt
+          mkdocs build --strict
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

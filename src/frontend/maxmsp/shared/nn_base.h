@@ -5,6 +5,7 @@
 #include <thread>
 #include <vector>
 #include <algorithm>
+#include <atomic>
 #include "c74_min.h"
 #include "max_model_download.h"
 
@@ -23,7 +24,7 @@
 #endif
 
 #ifndef REFRESH_THREAD_INTERVAL
-#define REFRESH_THREAD_INTERVAL 100
+#define REFRESH_THREAD_INTERVAL 200
 #endif
 
 #ifndef DEFAULT_BUFFER_SIZE
@@ -54,10 +55,60 @@ unsigned power_ceil(unsigned x) {
   return power;
 }
 
-template <typename nn_name, typename op_type> 
-void dumb(nn_name* obj) {
+// ---------------------------------------------------------------------------
+// DspState
+// Everything the audio thread and the compute thread share for one model
+// configuration: buffer sizes, method, channel layout and the buffers
+// themselves. A DspState is built entirely on a non-audio thread, then handed
+// over to the audio thread (see nn_base::swap_pending_state), which only swaps
+// it in when the compute thread is guaranteed to be idle. Once active, a state
+// is never resized or reallocated, so sizes, pointers and params always agree.
+// ---------------------------------------------------------------------------
+struct DspState {
+  bool valid = false;           // false -> output silence
+  std::string method;
+  int buffer_size = 0;          // n_vec given to the backend
+  int model_in = 0;             // model input channels (per batch)
+  int model_out = 0;            // model output channels (per batch)
+  int n_batches = 1;            // batches given to the backend
+  int n_out_channels = 0;       // out channels per batch given to the backend
 
-}
+  // frontend-specific layout (mc.nn~ / mcs.nn~)
+  std::vector<long> channel_map;
+  int batches_out = 1;
+  int out_channels = 0;
+
+  // circular buffers (audio thread <-> model buffers)
+  int buffer_in = 0, buffer_out = 0;
+  std::unique_ptr<circular_buffer<double, float>[]> in_buffer;
+  std::unique_ptr<circular_buffer<float, double>[]> out_buffer;
+
+  // model buffers (audio thread <-> compute thread)
+  std::vector<std::unique_ptr<float[]>> in_model, out_model;
+  std::vector<float *> in_ptrs, out_ptrs;
+
+  void allocate(int n_buffer_in, int n_buffer_out, int n_model_in, int n_model_out) {
+    buffer_in = std::max(0, n_buffer_in);
+    buffer_out = std::max(0, n_buffer_out);
+    in_buffer = std::make_unique<circular_buffer<double, float>[]>(buffer_in);
+    for (int i = 0; i < buffer_in; i++)
+      in_buffer[i].initialize(buffer_size);
+    out_buffer = std::make_unique<circular_buffer<float, double>[]>(buffer_out);
+    for (int i = 0; i < buffer_out; i++)
+      out_buffer[i].initialize(buffer_size);
+
+    in_model.clear(); in_ptrs.clear();
+    for (int i = 0; i < n_model_in; i++) {
+      in_model.push_back(std::make_unique<float[]>(buffer_size)); // zero-initialised
+      in_ptrs.push_back(in_model.back().get());
+    }
+    out_model.clear(); out_ptrs.clear();
+    for (int i = 0; i < n_model_out; i++) {
+      out_model.push_back(std::make_unique<float[]>(buffer_size));
+      out_ptrs.push_back(out_model.back().get());
+    }
+  }
+};
 
 template <typename nn_name, typename op_type = vector_operator<>> 
 class nn_base : public object<nn_name>, public op_type {
@@ -66,7 +117,7 @@ public:
   using BufferList = std::map<std::string, StaticBuffer<float>>;
 
   nn_base(const atoms &args = {});
-  ~nn_base<nn_name, op_type>();
+  ~nn_base<nn_name, op_type>(); 
   static std::string get_external_name() { return ""; } 
 
   // INLETS OUTLETS
@@ -77,7 +128,6 @@ public:
   virtual void init_downloader(); 
   virtual void init_inputs_and_outputs(const atoms& args); 
   virtual void init_inlets_and_outlets();
-  virtual void init_buffers();
   virtual void init_process();
   virtual int get_sample_rate() = 0;
   virtual void init_external(const atoms &args) {
@@ -86,14 +136,9 @@ public:
     if (!args.size()) { return; } 
     init_inputs_and_outputs(args);
     init_inlets_and_outlets();
-    if (init_buffers_at_init()) {
-      init_buffers(); 
-    } else {
-      wait_for_buffer_reset = true; 
-    }
     init_process();
+    request_rebuild();
   } 
-  virtual bool init_buffers_at_init() { return true; }
 
   // BACKEND RELATED MEMBERS
   std::unique_ptr<Backend> m_model;
@@ -102,20 +147,11 @@ public:
   std::string m_method;
   std::vector<std::string> settable_attributes;
   c74::min::path m_path;
+  // model configuration, as seen by the message thread. The audio / compute
+  // threads never read these: they use the active DspState instead.
   int n_inlets, m_model_in, m_in_ratio, n_outlets, m_model_out, m_out_ratio, m_higher_ratio, n_batches;
   bool has_settable_attribute(std::string attribute);
   bool is_valid_print_key(std::string string);
-  bool buffer_initialised = false; 
-  bool wait_for_buffer_reset = false; 
-  bool had_buffer_reset = true; 
-  bool can_perform() {
-    if (m_model->is_loaded()) {
-      if (m_model->has_method(m_method)) {
-        return true;
-      }
-    }
-    return false;
-  }
   void update_model(const std::string &model);
   virtual void load_model(const std::string &model);
   virtual void set_method(std::string method);  
@@ -125,20 +161,33 @@ public:
   // BUFFER ATTRIBUTES MANAGER
   BufferManager m_buffer_manager;
 
-  // BUFFER RELATED MEMBERS
+  // BUFFER SIZE AS REQUESTED BY THE USER (-1: unset, 0: no thread)
   int m_buffer_size;
-  int m_buffer_in, m_buffer_out; 
-  std::unique_ptr<circular_buffer<double, float>[]> m_in_buffer;
-  std::unique_ptr<circular_buffer<float, double>[]> m_out_buffer;
-  std::vector<std::unique_ptr<float[]>> m_in_model, m_out_model;
+  int effective_buffer_size();
+
+  // DSP STATE HANDOVER
+  //  - request_rebuild() (non-audio threads) builds a new DspState and posts
+  //    it to m_pending_state.
+  //  - swap_pending_state() (audio thread) installs it as m_active_state only
+  //    when the compute thread is idle; the previous state goes to
+  //    m_retired_state and is freed by the next request_rebuild().
+  std::atomic<DspState *> m_active_state{nullptr};
+  std::atomic<DspState *> m_pending_state{nullptr};
+  std::atomic<DspState *> m_retired_state{nullptr};
+  virtual std::unique_ptr<DspState> build_state();
+  void request_rebuild();
+  DspState *swap_pending_state();
 
   // AUDIO PERFORM
-  bool m_force_refresh, m_use_thread, m_should_stop_perform_thread;
+  bool m_force_refresh, m_use_thread;
+  std::atomic<bool> m_should_stop_perform_thread;
   std::binary_semaphore m_data_available_lock, m_result_available_lock;
   std::unique_ptr<std::thread> m_compute_thread;
+  void run_model(DspState &state);
+  void compute_loop();
 
   void operator()(audio_bundle input, audio_bundle output);
-  virtual void perform(audio_bundle input, audio_bundle output) { }
+  virtual void perform(DspState &state, audio_bundle input, audio_bundle output) { }
 
   // FLUX
   logger cout;
@@ -283,7 +332,8 @@ public:
           }
         }
         this->set_method(method);
-        this->wait_for_buffer_reset = true; 
+        this->update_method();
+        this->request_rebuild(); 
       } catch (std::string &e) {
         cerr << e << endl;   
       }
@@ -313,7 +363,12 @@ public:
       [this](const c74::min::atoms &args, const int inlet) -> c74::min::atoms {
         symbol attribute_name = args[0];
         if (attribute_name == "reload") {
-          m_model->reload();
+          try {
+            m_model->reload();
+          } catch (std::string &e) {
+            cerr << e << endl;
+          }
+          request_rebuild();
         } else if (attribute_name == "load") {
           if (args.size() < 2) {
             cerr << "a model path must be given along the model message" << endl; 
@@ -511,6 +566,99 @@ void nn_base<nn_name, op_type>::init_inlets_and_outlets() {
 }
 
 template <typename nn_name, typename op_type>
+int nn_base<nn_name, op_type>::effective_buffer_size() {
+  int higher_ratio = std::max(1, m_higher_ratio);
+  if (m_buffer_size <= 0) {
+    // -1 (unset) or 0 (no thread mode) : smallest possible buffer
+    return higher_ratio;
+  }
+  if (m_buffer_size < higher_ratio) {
+    cerr << "buffer size too small, switching to " << higher_ratio << endl;
+    return higher_ratio;
+  }
+  return power_ceil(m_buffer_size);
+}
+
+template <typename nn_name, typename op_type>
+std::unique_ptr<DspState> nn_base<nn_name, op_type>::build_state() {
+  auto state = std::make_unique<DspState>();
+  if (!m_ready || !m_model || !m_model->is_loaded())
+    return state;
+  auto params = m_model->get_method_params(m_method);
+  if (params.size() < 4)
+    return state;
+  state->method = m_method;
+  state->model_in = params[0];
+  state->model_out = params[2];
+  state->buffer_size = effective_buffer_size();
+  state->n_batches = 1;
+  state->n_out_channels = state->model_out;
+  state->allocate(n_inlets, n_outlets, state->model_in, state->model_out);
+  state->valid = true;
+  return state;
+}
+
+template <typename nn_name, typename op_type>
+void nn_base<nn_name, op_type>::request_rebuild() {
+  // must NOT be called from the audio thread (allocates, may lock the model)
+  DspState *state = build_state().release();
+  delete m_retired_state.exchange(nullptr, std::memory_order_acq_rel);
+  // if a previous pending state was never picked up, drop it
+  delete m_pending_state.exchange(state, std::memory_order_acq_rel);
+}
+
+template <typename nn_name, typename op_type>
+DspState *nn_base<nn_name, op_type>::swap_pending_state() {
+  // audio thread. No allocation, no lock.
+  DspState *active = m_active_state.load(std::memory_order_acquire);
+  if (m_pending_state.load(std::memory_order_relaxed) == nullptr)
+    return active;
+
+  // In thread mode, m_result_available_lock is only available when the
+  // compute thread is idle (it is held from the moment the audio thread
+  // hands data over until the forward pass is done). Holding it guarantees
+  // the compute thread is not using the active state while we swap.
+  if (m_use_thread && !m_result_available_lock.try_acquire())
+    return active; // compute thread busy, retry on next vector
+
+  DspState *next = m_pending_state.exchange(nullptr, std::memory_order_acq_rel);
+  if (next) {
+    m_active_state.store(next, std::memory_order_release);
+    // hand the old state back to the message thread for deletion.
+    // (the slot is always emptied by request_rebuild() before a new state is
+    // posted, so this delete is a never-expected fallback)
+    delete m_retired_state.exchange(active, std::memory_order_acq_rel);
+    active = next;
+  }
+
+  if (m_use_thread)
+    m_result_available_lock.release();
+  return active;
+}
+
+template <typename nn_name, typename op_type>
+void nn_base<nn_name, op_type>::run_model(DspState &state) {
+  m_model->perform(state.in_ptrs, state.out_ptrs, state.method,
+                   state.n_batches, state.n_out_channels, state.buffer_size);
+}
+
+template <typename nn_name, typename op_type>
+void nn_base<nn_name, op_type>::compute_loop() {
+  while (!m_should_stop_perform_thread.load()) {
+    if (m_data_available_lock.try_acquire_for(
+            std::chrono::milliseconds(REFRESH_THREAD_INTERVAL))) {
+      // the audio thread only releases m_data_available_lock after filling
+      // the active state's buffers, and cannot swap the state before we
+      // release m_result_available_lock.
+      DspState *state = m_active_state.load(std::memory_order_acquire);
+      if (state && state->valid)
+        run_model(*state);
+      m_result_available_lock.release();
+    }
+  }
+}
+
+template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::init_process() {
   if (m_buffer_size == 0) {
     m_use_thread = false;
@@ -520,16 +668,18 @@ void nn_base<nn_name, op_type>::init_process() {
   #ifdef _WIN32
   m_use_thread = false;
   #endif
-
+  if (m_use_thread && !m_compute_thread) {
+    m_compute_thread = std::make_unique<std::thread>(&nn_base<nn_name, op_type>::compute_loop, this);
+  }
 }
 
 template <typename nn_name, typename op_type>
 nn_base<nn_name, op_type>::nn_base(const atoms &args)
-    : m_compute_thread(nullptr), n_inlets(-1), m_in_ratio(1), n_outlets(-1),
-      m_out_ratio(1), m_buffer_size(-1), n_batches(1), 
+    : m_compute_thread(nullptr), n_inlets(-1), m_model_in(0), m_in_ratio(1), n_outlets(-1), m_model_out(0),
+      m_out_ratio(1), m_higher_ratio(1), m_buffer_size(-1), n_batches(1),  
       m_method("forward"), m_force_refresh(false),
       m_use_thread(true), m_data_available_lock(0), m_result_available_lock(1),
-      m_should_stop_perform_thread(false), m_in_model(), m_out_model(),
+      m_should_stop_perform_thread(false),
       cout(this, logger::type::message), cwarn(this, logger::type::warning), cerr(this, logger::type::error) 
 {
   init_external(args);
@@ -542,6 +692,9 @@ nn_base<nn_name, op_type>::~nn_base() {
   m_should_stop_perform_thread = true;
   if (m_compute_thread)
     m_compute_thread->join();
+  delete m_pending_state.exchange(nullptr);
+  delete m_active_state.exchange(nullptr);
+  delete m_retired_state.exchange(nullptr);
 }
 
 template <typename nn_name, typename op_type>
@@ -570,13 +723,14 @@ template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::update_model(const std::string &model) {
   load_model(model);
   if ((m_model->is_loaded()) && m_model->has_method(m_method)) {
-    update_method(); 
+    update_method();
   }
+  request_rebuild();
 }
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::set_method(std::string method) {
-  m_method = method; 
+  m_method = method;
 }
 
 template <typename nn_name, typename op_type>
@@ -595,7 +749,7 @@ void nn_base<nn_name, op_type>::update_method(std::string method) {
     if (m_model->has_method(method)) {
       auto params = m_model->get_method_params(method);
       if (params.size() == 0) {
-        throw std::format("method {} present in model, but not initialised", method);
+        throw std::string("method ") + method + " present in model, but not initialised";
       }
       // input parameters
       m_model_in = params[0];
@@ -618,44 +772,18 @@ void nn_base<nn_name, op_type>::update_method(std::string method) {
         cwarn << "nn_base~ has been initialised with " << n_outlets << " outputs, but current model has " << m_model_out << endl;
       }
       
-      set_method(method); 
-
-      if (m_buffer_size == -1) {
-        // NO THREAD MODE
-        m_buffer_size = m_higher_ratio;
-      }
-      DEBUG_PRINT("buffer size : %d", m_buffer_size);
-      if (m_buffer_size == 0) {
-        m_use_thread = false; 
-        m_buffer_size = m_higher_ratio; 
-      } else {
-        if (m_buffer_size < m_higher_ratio) {
-          cerr << "buffer size too small, switching to " << m_buffer_size << endl;
-          m_buffer_size = m_higher_ratio;
-        } else {
-          m_buffer_size = power_ceil(m_buffer_size);
-        }
-      }
+      set_method(method);
+      m_ready = true;
     } else {
       cerr << "model " << m_path << " does not have method " << method << endl; 
-      m_ready = false; 
+      m_ready = false;
     }
-    wait_for_buffer_reset = true; 
   } catch (std::string &e) {
     cerr << "failed to set method to " << method << ". Caught exception : " << e << endl; 
   } catch (std::exception &e) {
     cerr << "failed to set method to " << method << ". Caught exception : " << e.what() << endl; 
   }
 
-  DEBUG_PRINT("updating buffer size by default");
-  if (m_buffer_size == -1) {
-    // NO THREAD MODE
-    m_buffer_size = DEFAULT_BUFFER_SIZE;
-  }
-  if (m_buffer_size == 0) {
-    m_use_thread = false; 
-    m_buffer_size = DEFAULT_BUFFER_SIZE; 
-  } 
 }
 
 template <typename nn_name, typename op_type>
@@ -681,66 +809,8 @@ void nn_base<nn_name, op_type>::load_model(const std::string& model_path) {
     }
   } catch (std::string &e) {
     cerr << e << endl;
-    return; 
+    return;
   }
-}
-
-template <typename nn_name, typename op_type>
-void nn_base<nn_name, op_type>::init_buffers() { 
-  if (!m_ready) { return; }
-  update_method(); 
-
-  // if (m_buffer_size == -1) {
-  //   m_buffer_size = DEFAULT_BUFFER_SIZE;
-  // } else if (m_buffer_size == 0) {
-  //   m_use_thread = false; 
-  //   m_buffer_size = m_higher_ratio;
-  // } else {
-  //   if (m_buffer_size < m_higher_ratio) {
-  //     cerr << "buffer size too small, switching to " << m_buffer_size << endl;
-  //     m_buffer_size = m_higher_ratio;
-  //   } else {
-  //     m_buffer_size = power_ceil(m_buffer_size);
-  //   }
-  // }
-
-  // Calling forward in a thread causes memory leak in windows.
-  // See https://github.com/pytorch/pytorch/issues/24237
-  #ifdef _WIN32
-  m_use_thread = false;
-  #endif
-  
-  if (m_in_buffer.get() != nullptr) { m_in_buffer.release(); }
-  m_in_buffer = std::make_unique<circular_buffer<double, float>[]>(n_inlets);
-  if (m_in_buffer.get()->max_size() < m_buffer_size) {
-    for (int i = 0; i < n_inlets; i++) {
-      m_in_buffer[i].initialize(m_buffer_size);
-    }
-  }
-
-  if (m_out_buffer.get() != nullptr) { m_out_buffer.release(); }
-  m_out_buffer = std::make_unique<circular_buffer<float, double>[]>(n_outlets);
-if (m_out_buffer.get()->max_size() < m_buffer_size) {
-    for (int i = 0; i < n_outlets; i++) {
-      m_out_buffer[i].initialize(m_buffer_size);
-    }
-  }
-
-  m_in_model.clear(); 
-  for (int i = 0; i < m_model_in; i++) {
-    m_in_model.push_back(std::make_unique<float[]>(m_buffer_size));
-    std::fill(m_in_model[i].get(), m_in_model[i].get() + m_buffer_size, 0.); 
-  }
-
-  m_out_model.clear(); 
-  for (int i = 0; i < m_model_out; i++) {
-    m_out_model.push_back(std::make_unique<float[]>(m_buffer_size));
-    std::fill(m_out_model[i].get(), m_out_model[i].get() + m_buffer_size, 0.); 
-  }
-
-  wait_for_buffer_reset = false; 
-  had_buffer_reset = true; 
-  buffer_initialised = true; 
 }
 
 template <typename nn_name, typename op_type>
@@ -754,38 +824,27 @@ bool nn_base<nn_name, op_type>::has_settable_attribute(std::string attribute) {
 
 template <typename nn_name, typename op_type>
 void nn_base<nn_name, op_type>::operator()(audio_bundle input, audio_bundle output) {
+  // install a newly built state if one is pending (safe point)
+  DspState *state = swap_pending_state();
 
   // CHECK IF MODEL IS LOADED AND ENABLED
-  if (!m_ready || !enable) {
+  if (!enable || state == nullptr || !state->valid) {
     fill_with_zero(output);
     return;
   }
 
-  if ((!m_use_thread) && (!buffer_initialised)) {
-    init_buffers(); 
+  // CHECK IF DSP_VEC_SIZE IS LARGER THAN BUFFER SIZE
+  auto dsp_vec_size = output.frame_count();
+  if (dsp_vec_size > state->buffer_size) {
+    cerr << "vector size (" << dsp_vec_size << ") ";
+    cerr << "larger than buffer size (" << state->buffer_size << "). ";
+    cerr << "disabling model.";
+    cerr << endl;
+    enable = false;
+    fill_with_zero(output);
+    return;
   }
-
-  if (can_perform()) {
-    if (buffer_initialised) {
-      auto dsp_vec_size = output.frame_count();
-      // CHECK IF DSP_VEC_SIZE IS LARGER THAN BUFFER SIZE
-      if (dsp_vec_size > m_buffer_size) {
-        cerr << "vector size (" << dsp_vec_size << ") ";
-        cerr << "larger than buffer size (" << m_buffer_size << "). ";
-        cerr << "disabling model.";
-        cerr << endl;
-        enable = false;
-        fill_with_zero(output);
-        return;
-      } 
-      perform(input, output);
-    } 
-    // else {
-    //   fill_with_zero();
-    // }
-  } else {
-    fill_with_zero(output); 
-  }
+  perform(*state, input, output);
 }
 
 template <typename nn_name, typename op_type>

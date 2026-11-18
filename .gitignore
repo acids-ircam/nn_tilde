@@ -8,3 +8,5 @@ src/tests
 src/docs
 dist/
 *.egg-info*
+# MkDocs output
+site/

@@ -11,8 +11,6 @@
 #define CUDA torch::kCUDA
 #define MPS torch::kMPS
 
-#define REFRESH_THREAD_INTERVAL 50
-
 
 std::string tensor_to_str(torch::Tensor &tsr) {
   std::stringstream ss; 
@@ -27,112 +25,217 @@ std::string tensor_to_str(torch::Tensor &tsr) {
 }
 
 
-Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false) {
+Backend::Backend() : m_loaded(0), m_device(CPU), m_use_gpu(false), m_sr(0) {
   at::init_num_threads();
+}
+
+// ---------------------------------------------------------------------------
+// Helpers working on a *given* module, without touching shared state / locks.
+// Used by load() to fully prepare a model before it is swapped in.
+// ---------------------------------------------------------------------------
+
+std::vector<std::string> Backend::methods_of(torch::jit::script::Module &model) {
+  std::vector<std::string> methods;
+  try {
+    std::vector<c10::IValue> dumb_input = {};
+    auto methods_from_model = model.get_method("get_methods")(dumb_input).toList();
+    for (int i = 0; i < methods_from_model.size(); i++) {
+      methods.push_back(methods_from_model.get(i).toStringRef());
+    }
+  } catch (...) {
+    methods.clear();
+    for (const auto &m : model.get_methods()) {
+      try {
+        auto method_params = model.attr(m.name() + "_params");
+        methods.push_back(m.name());
+      } catch (...) {
+      }
+    }
+  }
+  return methods;
+}
+
+bool Backend::module_has_method(torch::jit::script::Module &model,
+                                const std::string &method_name) {
+  return model.find_method(method_name).has_value();
+}
+
+std::vector<std::string> Backend::buffer_attributes_of(torch::jit::script::Module &model) {
+  std::vector<std::string> buffer_names = {};
+  std::string getter_name = "get_buffer_attributes";
+  if (module_has_method(model, getter_name)) {
+    auto model_out = model.get_method(getter_name)(empty_args(), empty_kwargs()).toList().vec();
+    for (int i = 0; i < model_out.size(); i++) {
+      buffer_names.push_back(model_out[i].toStringRef());
+    }
+  }
+  return buffer_names;
+}
+
+// Must be called with m_model_mutex held.
+std::vector<int> Backend::method_params_unlocked(const std::string &method) {
+  std::vector<int> params;
+  if (std::find(m_available_methods.begin(), m_available_methods.end(),
+                method) == m_available_methods.end()) {
+    return params;
+  }
+  try {
+    auto p = m_model.attr(method + "_params").toTensor();
+    auto p_int = p.to(torch::kCPU).to(torch::kInt64).contiguous();
+    if (p_int.numel() < 4)
+      return params;
+    auto ptr = p_int.data_ptr<int64_t>();
+    for (int i(0); i < 4; i++)
+      params.push_back(static_cast<int>(ptr[i]));
+  } catch (...) {
+    params.clear();
+  }
+  return params;
+}
+
+// ---------------------------------------------------------------------------
+// PERFORM
+// Called from the compute thread (or the audio thread in no-thread mode).
+// The whole call runs under m_model_mutex, so the model *and* its params are
+// read atomically w.r.t. load()/reload(). Every buffer access is bounded by
+// the sizes of the vectors that were passed in, so a model whose shape does
+// not match the frontend buffers can produce silence, never a memory error.
+// ---------------------------------------------------------------------------
+
+static void zero_buffers(std::vector<float *> &buffers, int n_vec) {
+  for (auto *buf : buffers)
+    if (buf)
+      memset(buf, 0, n_vec * sizeof(float));
 }
 
 void Backend::perform(std::vector<float *> &in_buffer,
                       std::vector<float *> &out_buffer, 
-                      std::string method, 
+                      const std::string &method, 
                       int n_batches, int n_out_channels, int n_vec) {
   c10::InferenceMode guard;
-
-  auto params = get_method_params(method);
-  if (!params.size())
-    return;
-
-  auto in_dim = params[0];
-  auto in_ratio = params[1];
-  auto out_dim = params[2];
-  auto out_ratio = params[3];
-
-  if (!m_loaded)
-    return;
-
-  // COPY BUFFER INTO A TENSOR
-  std::vector<at::Tensor> tensor_in;
-  // for (auto buf : in_buffer)
-  for (int i(0); i < in_dim * n_batches; i++) {
-    if (i < in_buffer.size()) {
-      tensor_in.push_back(torch::from_blob(in_buffer[i], {1, 1, n_vec}).clone());
-    } else {
-      tensor_in.push_back(torch::zeros({1, 1, n_vec}));
-    }
-  }
-
-  auto cat_tensor_in = torch::cat(tensor_in, 1);
-  cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
-  cat_tensor_in = cat_tensor_in.select(-1, -1);
-  cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
-
-  // SEND TENSOR TO DEVICE
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
-  cat_tensor_in = cat_tensor_in.to(m_device);
-  std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
-  auto kwargs = empty_kwargs();
 
-  // PROCESS TENSOR
-  at::Tensor tensor_out;
+  if (!m_loaded || n_vec <= 0 || n_batches <= 0) {
+    zero_buffers(out_buffer, n_vec);
+    return;
+  }
+
+  auto params = method_params_unlocked(method);
+  if (params.size() < 4) {
+    zero_buffers(out_buffer, n_vec);
+    return;
+  }
+  const int in_dim = params[0];
+  const int in_ratio = params[1];
+  const int out_dim = params[2];
+  const int out_ratio = params[3];
+
+  if (in_dim <= 0 || out_dim <= 0 || in_ratio <= 0 || out_ratio <= 0 ||
+      (n_vec % in_ratio) != 0) {
+    zero_buffers(out_buffer, n_vec);
+    return;
+  }
+
   try {
-    tensor_out = m_model.get_method(method)(inputs, kwargs).toTensor();
-    tensor_out = tensor_out.repeat_interleave(out_ratio).reshape(
-        {n_batches, out_dim, -1});
-  } catch (const std::exception &e) {
-    std::cerr << e.what() << '\n';
-    return;
-  }
-  model_lock.unlock();
-
-  int out_batches(tensor_out.size(0)), out_channels(tensor_out.size(1)),
-      out_n_vec(tensor_out.size(2));
-
-  if (out_n_vec != n_vec) {
-    std::cout << "model output size is not consistent, expected " << n_vec
-              << " samples, got " << out_n_vec << "!\n";
-    return;
-  }
-
-  tensor_out = tensor_out.to(CPU);
-
-  for (int i(0); i < n_out_channels; i++) {
-    for (int j(0); j < n_batches; j++) {
-      if (i < tensor_out.size(1)) {
-        auto out_ptr = tensor_out.index({j, i}).contiguous().data_ptr<float>();
-        memcpy(out_buffer[j * n_out_channels + i], out_ptr, n_vec * sizeof(float));
+    // COPY BUFFERS INTO A (in_dim * n_batches, n_vec) TENSOR
+    // (layout of in_buffer is channel-major: idx = c * n_batches + b)
+    const int n_in = in_dim * n_batches;
+    auto cat_tensor_in = torch::empty({n_in, n_vec}, torch::kFloat32);
+    auto in_ptr = cat_tensor_in.data_ptr<float>();
+    for (int i(0); i < n_in; i++) {
+      if (i < (int)in_buffer.size() && in_buffer[i] != nullptr) {
+        memcpy(in_ptr + i * n_vec, in_buffer[i], n_vec * sizeof(float));
       } else {
-        // put zeros
-        memset(out_buffer[j * n_out_channels + i], 0, n_vec *sizeof(float));
+        memset(in_ptr + i * n_vec, 0, n_vec * sizeof(float));
       }
     }
+    cat_tensor_in = cat_tensor_in.reshape({in_dim, n_batches, -1, in_ratio});
+    cat_tensor_in = cat_tensor_in.select(-1, -1);
+    cat_tensor_in = cat_tensor_in.permute({1, 0, 2});
+
+    // SEND TENSOR TO DEVICE & PROCESS
+    cat_tensor_in = cat_tensor_in.to(m_device);
+    std::vector<torch::jit::IValue> inputs = {cat_tensor_in};
+    at::Tensor tensor_out = m_model.get_method(method)(inputs).toTensor();
+    tensor_out = tensor_out.repeat_interleave(out_ratio).reshape({n_batches, out_dim, -1});
+    model_lock.unlock();
+
+    if (tensor_out.size(2) != n_vec) {
+      std::cerr << "model output size is not consistent, expected " << n_vec
+                << " samples, got " << tensor_out.size(2) << "!\n";
+      zero_buffers(out_buffer, n_vec);
+      return;
+    }
+
+    tensor_out = tensor_out.to(CPU).contiguous();
+    auto out_ptr = tensor_out.data_ptr<float>();
+
+    // COPY BACK (layout of out_buffer is batch-major: idx = b * n_out_channels + c)
+    for (int b(0); b < n_batches; b++) {
+      for (int c(0); c < n_out_channels; c++) {
+        const int idx = b * n_out_channels + c;
+        if (idx >= (int)out_buffer.size() || out_buffer[idx] == nullptr)
+          continue;
+        if (c < out_dim) {
+          memcpy(out_buffer[idx], out_ptr + (b * out_dim + c) * n_vec,
+                 n_vec * sizeof(float));
+        } else {
+          memset(out_buffer[idx], 0, n_vec * sizeof(float));
+        }
+      }
+    }
+  } catch (const std::exception &e) {
+    std::cerr << e.what() << '\n';
+    zero_buffers(out_buffer, n_vec);
   }
 }
+
+// ---------------------------------------------------------------------------
+// LOAD
+// Everything is prepared on a local module (no lock held during the slow
+// torch::jit::load), then model + metadata are swapped in a single critical
+// section, so perform() never sees a new model with old metadata.
+// ---------------------------------------------------------------------------
 
 int Backend::load(std::string path, double sampleRate, const std::string* target_method) {
   try {
     auto model = torch::jit::load(path);
-    if (target_method != nullptr) {
-      if (!(*target_method).empty()) {
-        // if target_method is not null, check if loaded model has it
-        auto locked_model = LockedModel(); 
-        locked_model.model = &model;  
-        auto methods = get_available_methods(&locked_model);
-        if (std::find(methods.begin(), methods.end(), *target_method) == methods.end()) {
-          throw "path " + path + " does not contain target method " + (*target_method); 
-        }
+    model.eval();
+
+    auto methods = methods_of(model);
+    if (target_method != nullptr && !target_method->empty()) {
+      if (std::find(methods.begin(), methods.end(), *target_method) == methods.end()) {
+        throw "path " + path + " does not contain target method " + (*target_method); 
       }
     }
-    model.eval();
-    model.to(m_device);
 
-    std::unique_lock<std::mutex> model_lock(m_model_mutex);
-    m_model = model;
-    model_lock.unlock();
+    c10::DeviceType device;
+    {
+      std::lock_guard<std::mutex> lock(m_model_mutex);
+      device = m_device;
+    }
+    model.to(device);
 
-    m_available_methods = get_available_methods();
-    m_buffer_attributes = retrieve_buffer_attributes();
-    m_path = path;
-    set_sample_rate(sampleRate);
-    m_loaded = 1;
+    if (module_has_method(model, "set_sample_rate")) {
+      try {
+        auto args = empty_args(); args.push_back((int)sampleRate);
+        model.get_method("set_sample_rate")(args, empty_kwargs());
+      } catch (const std::exception &e) {
+        std::cerr << "set_sample_rate failed for " << path << ": " << e.what() << '\n';
+      }
+    }
+
+    auto buffer_attributes = buffer_attributes_of(model);
+
+    {
+      std::lock_guard<std::mutex> lock(m_model_mutex);
+      m_model = model;
+      m_available_methods = std::move(methods);
+      m_buffer_attributes = std::move(buffer_attributes);
+      m_path = path;
+      m_sr = sampleRate;
+      m_loaded = 1;
+    }
     return 0;
   } catch (const std::exception &e) {
     throw "problem loading model " + path + ". Exception : " + e.what();
@@ -140,33 +243,29 @@ int Backend::load(std::string path, double sampleRate, const std::string* target
 }
 
 void Backend::set_sample_rate(double sampleRate) {
- if (has_method("set_sample_rate")) {
-      m_sr = sampleRate;
-      std::vector<c10::IValue> sr_input = {sampleRate};
-      std::unique_lock<std::mutex> model_lock(m_model_mutex);
-      auto args = empty_args(); args.push_back((int)sampleRate);
-      auto kwargs = empty_kwargs();
-      std::string method_name = "set_sample_rate";
-      m_model.get_method(method_name)(args, kwargs); 
-      model_lock.unlock();
-    } 
+  std::lock_guard<std::mutex> lock(m_model_mutex);
+  if (!m_loaded || !module_has_method(m_model, "set_sample_rate"))
+    return;
+  m_sr = sampleRate;
+  auto args = empty_args(); args.push_back((int)sampleRate);
+  m_model.get_method("set_sample_rate")(args, empty_kwargs());
 }
 
 int Backend::reload() {
-  auto return_code = load(m_path, m_sr);
-  return return_code;
+  std::string path; double sr;
+  {
+    std::lock_guard<std::mutex> lock(m_model_mutex);
+    path = m_path; sr = m_sr;
+  }
+  return load(path, sr);
 }
 
 bool Backend::has_method(std::string method_name) {
   if (!is_loaded()){
     return false; 
   }
-  std::unique_lock<std::mutex> model_lock(m_model_mutex);
-  for (const auto &m : m_model.get_methods()) {
-    if (m.name() == method_name)
-      return true;
-  }
-  return false;
+  std::lock_guard<std::mutex> lock(m_model_mutex);
+  return module_has_method(m_model, method_name);
 }
 
 bool Backend::has_settable_attribute(std::string attribute) {
@@ -177,39 +276,9 @@ bool Backend::has_settable_attribute(std::string attribute) {
   return false;
 }
 
-std::vector<std::string> Backend::get_available_methods(LockedModel *target_model) {
-  std::vector<std::string> methods;
-  torch::jit::script::Module *model;
-  std::mutex *mutex; 
-  if (target_model == nullptr) {
-    model = &m_model;
-    mutex = &m_model_mutex;    
-  } else {
-    model = target_model->model;
-    mutex = &target_model->mutex;
-  }
-  try {
-    std::vector<c10::IValue> dumb_input = {};
-    std::unique_lock<std::mutex> model_lock(*mutex);
-    auto methods_from_model =
-        model->get_method("get_methods")(dumb_input).toList();
-    model_lock.unlock();
-
-    for (int i = 0; i < methods_from_model.size(); i++) {
-      methods.push_back(methods_from_model.get(i).toStringRef());
-    }
-  } catch (...) {
-    std::unique_lock<std::mutex> model_lock(*mutex);
-    for (const auto &m : model->get_methods()) {
-      try {
-        auto method_params = model->attr(m.name() + "_params");
-        methods.push_back(m.name());
-      } catch (...) {
-      }
-    }
-    model_lock.unlock();
-  }
-  return methods;
+std::vector<std::string> Backend::get_available_methods() {
+  std::lock_guard<std::mutex> lock(m_model_mutex);
+  return m_available_methods;
 }
 
 std::vector<std::string> Backend::get_available_attributes() {
@@ -441,27 +510,16 @@ void Backend::set_attribute(std::string attribute_name,
 }
 
 std::vector<int> Backend::get_method_params(std::string method) {
-  std::vector<int> params;
-
-  if (std::find(m_available_methods.begin(), m_available_methods.end(),
-                method) != m_available_methods.end()) {
-    try {
-      std::unique_lock<std::mutex> model_lock(m_model_mutex);
-      auto p = m_model.attr(method + "_params").toTensor();
-      model_lock.unlock();
-      for (int i(0); i < 4; i++)
-        params.push_back(p[i].item().to<int>());
-    } catch (...) {
-    }
-  }
-  return params;
+  std::lock_guard<std::mutex> lock(m_model_mutex);
+  return method_params_unlocked(method);
 }
 
 int Backend::get_higher_ratio() {
+  std::lock_guard<std::mutex> lock(m_model_mutex);
   int higher_ratio = 1;
   for (const auto &method : m_available_methods) {
-    auto params = get_method_params(method);
-    if (!params.size())
+    auto params = method_params_unlocked(method);
+    if (params.size() < 4)
       continue; // METHOD NOT USABLE, SKIPPING
     int max_ratio = std::max(params[1], params[3]);
     higher_ratio = std::max(higher_ratio, max_ratio);
@@ -496,7 +554,7 @@ std::string Backend::get_buffer_name(std::string attribute_name, int attribute_e
 
 bool Backend::is_buffer_element_of_attribute(std::string attribute_name, int attribute_elt_idx) {
   std::string target_buffer_name = get_buffer_name(attribute_name, attribute_elt_idx);
-  // std::cout << "current registered buffers : " << m_buffer_attributes.size() << std::endl; 
+  std::lock_guard<std::mutex> lock(m_model_mutex);
   for (auto buffer_name: m_buffer_attributes) {
     // std::cout << "target buffer name : " << target_buffer_name << "; compared buffer name : " << buffer_name << std::endl;
     if (buffer_name == target_buffer_name) {
@@ -507,6 +565,7 @@ bool Backend::is_buffer_element_of_attribute(std::string attribute_name, int att
 }
 
 bool Backend::is_tensor_element_of_attribute(std::string attribute_name, int attribute_elt_idx) {
+  std::lock_guard<std::mutex> lock(m_model_mutex);
   auto attribute_params = m_model.attr(attribute_name + "_params").toTensor(); 
   if (id_to_string_hash.at(attribute_params.item().toInt()) == "tensor") {
     return true;
@@ -515,28 +574,8 @@ bool Backend::is_tensor_element_of_attribute(std::string attribute_name, int att
   }
 }
 
-std::vector<std::string> Backend::retrieve_buffer_attributes() {
-  std::vector<std::string> bufferNames = {};
-  std::string getter_name = "get_buffer_attributes";
-  if (has_method(getter_name)) {
-    std::unique_lock<std::mutex> model_lock(m_model_mutex);
-    try {
-      auto model_method = m_model.get_method(getter_name);
-      auto model_out = model_method(empty_args(), empty_kwargs()).toList().vec();
-      for (int i = 0; i < model_out.size(); i++) {
-        // std::cout << "adding " << model_out[i].toStringRef() << " to buffer list" << std::endl; 
-        bufferNames.push_back(model_out[i].toStringRef());
-      }
-      model_lock.unlock();
-    } catch (std::exception& e) {
-      model_lock.unlock();
-      throw e;
-    }
-  } 
-  return bufferNames;
-}
-
 std::vector<std::string> Backend::get_buffer_attributes() {
+  std::lock_guard<std::mutex> lock(m_model_mutex);
   return m_buffer_attributes;
 }
 
@@ -553,11 +592,10 @@ int Backend::reset_buffer(std::string buffer_name) {
 int Backend::update_buffer(std::string buffer_name, StaticBuffer<float> &buffer) {
   std::string setter_method = "set_buffer_attribute";
   auto args = empty_args(); auto kwargs = empty_kwargs();
-  auto tensor = buffer.to_tensor().to(m_device); auto sr = static_cast<int>(buffer.sr());
-  // auto tensor_min = tensor.min(); auto tensor_max = tensor.max(); 
-  auto tensor_size = {tensor.size(0), tensor.size(1)};
-  args.push_back(buffer_name); args.push_back(tensor); args.push_back(sr);
+  auto sr = static_cast<int>(buffer.sr());
   std::unique_lock<std::mutex> model_lock(m_model_mutex);
+  auto tensor = buffer.to_tensor().to(m_device);
+  args.push_back(buffer_name); args.push_back(tensor); args.push_back(sr);
   auto model_out = m_model.get_method(setter_method)(args, kwargs);
   model_lock.unlock();
   int result = model_out.toInt();

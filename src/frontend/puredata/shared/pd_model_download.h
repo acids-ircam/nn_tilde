@@ -39,7 +39,7 @@ public:
         }
     };
 
-    fs::path cert_path_from_path(fs::path path)
+    fs::path cert_path_from_path(fs::path path) override
     {
 #if defined(_WIN32) || defined(_WIN64)
         const char *homeDir = std::getenv("USERPROFILE");

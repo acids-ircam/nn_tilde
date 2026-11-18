@@ -215,7 +215,7 @@ please replace `arm64` in the last line by `x86_64` if you want compile for 64 b
 ```bash
 git clone https://github.com/acids-ircam/nn_tilde --recurse-submodules
 cd nn_tilde
-curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.6.0%2Bcpu.zip > "libtorch.zip"
+curl -L https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.8.0%2Bcpu.zip > "libtorch.zip"
 unzip libtorch.zip
 mkdir pd
 cd pd

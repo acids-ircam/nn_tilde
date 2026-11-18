@@ -1,10 +1,12 @@
 #pragma once
+#include <atomic>
 #include <mutex>
 #include <string>
+#include <vector>
+#include <ATen/core/ivalue.h>
+#include <torch/torch.h>
 #include <torch/script.h>
 #include "../shared/static_buffer.h"
-#include <torch/torch.h>
-#include <vector>
 
 
 
@@ -28,26 +30,53 @@ struct ModelInfo {
   AttributeDict attribute_properties = {}; 
 };
 
+
 struct LockedModel {
   torch::jit::script::Module* model; 
   std::mutex mutex;
 };
 
 
+struct Timer {
+  std::chrono::high_resolution_clock::time_point last;
+  Timer() : last(std::chrono::high_resolution_clock::now()) {}
+  void print_delay(const std::string& msg) {
+      auto now = std::chrono::high_resolution_clock::now();
+      std::cout << msg << ": " 
+                << std::chrono::duration_cast<std::chrono::microseconds>(now - last).count() 
+                << " ms\n";
+      last = now;
+  }
+  void reset() {
+    last = std::chrono::high_resolution_clock::now();
+  }
+};
+
+
+
 class Backend {
 
 protected:
+  // m_model, m_available_methods, m_buffer_attributes, m_path, m_sr and
+  // m_device are protected by m_model_mutex. They are always swapped together
+  // in load(), so readers holding the lock see a consistent model.
   torch::jit::script::Module m_model;
-  int m_loaded, m_in_dim, m_in_ratio, m_out_dim, m_out_ratio;
+  std::atomic<int> m_loaded;
   std::string m_path;
   std::mutex m_model_mutex;
   std::vector<std::string> m_available_methods;
   std::vector<std::string> m_buffer_attributes;
   c10::DeviceType m_device;
   bool m_use_gpu;
-  std::vector<std::string> retrieve_buffer_attributes();
-  std::unique_ptr<std::thread> set_attribute_thread; 
   double m_sr; 
+
+  // lock-free helpers operating on a given module (used to prepare a model
+  // before swapping it in)
+  std::vector<std::string> methods_of(torch::jit::script::Module &model);
+  std::vector<std::string> buffer_attributes_of(torch::jit::script::Module &model);
+  static bool module_has_method(torch::jit::script::Module &model, const std::string &method_name);
+  // requires m_model_mutex to be held
+  std::vector<int> method_params_unlocked(const std::string &method);
 
 public:
   using DataType = float; 
@@ -58,11 +87,11 @@ public:
   Backend();
   void perform(std::vector<float *> &in_buffer,
                       std::vector<float *> &out_buffer, 
-                      std::string method, 
+                      const std::string &method, 
                       int n_batches, int n_out_channels, int n_vec);
   bool has_method(std::string method_name);
   bool has_settable_attribute(std::string attribute);
-  std::vector<std::string> get_available_methods(LockedModel *model = nullptr);
+  std::vector<std::string> get_available_methods();
   std::vector<std::string> get_available_attributes();
   std::vector<std::string> get_settable_attributes();
   std::vector<c10::IValue> get_attribute(std::string attribute_name);
@@ -85,7 +114,10 @@ public:
   int reload();
   void set_sample_rate(double sampleRate);
   bool is_loaded();
-  torch::jit::script::Module get_model() { return m_model; }
+  torch::jit::script::Module get_model() {
+    std::lock_guard<std::mutex> lock(m_model_mutex);
+    return m_model;
+  }
   void use_gpu(bool value);
   std::vector<std::string> get_buffer_attributes();
   

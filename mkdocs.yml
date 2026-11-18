@@ -1,0 +1,53 @@
+site_name: nn~ documentation
+site_description: Real-time deep learning models in Max/MSP and PureData
+site_url: https://acids-ircam.github.io/nn_tilde/
+repo_url: https://github.com/acids-ircam/nn_tilde
+repo_name: acids-ircam/nn_tilde
+edit_uri: edit/master/docs/
+docs_dir: docs
+site_dir: site
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Detailed description: description.md
+  - Functionalities: reference.md
+  - Wrapping models: wrapping.md
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+markdown_extensions:
+  - tables
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+
+# docs/requirements.txt is for building the site, not a page
+exclude_docs: |
+  requirements.txt

@@ -1,6 +1,14 @@
 set(torch_dir ${CMAKE_CURRENT_BINARY_DIR}/../torch)
 set(torch_lib_name torch)
 
+# forget a cached libtorch that was deleted since the last configure (e.g. replaced by another version)
+if (torch_lib AND NOT EXISTS "${torch_lib}")
+  message("cached libtorch ${torch_lib} is gone, looking for it again")
+  unset(torch_lib CACHE)
+  unset(Torch_DIR CACHE)
+  unset(Caffe2_DIR CACHE)
+endif()
+
 message("first looking for lib in : ${torch_dir}")
 find_library(torch_lib
   NAMES ${torch_lib_name}
@@ -22,7 +30,7 @@ endfunction()
 if (DEFINED torch_version)
   message("setting torch version : ${torch_version}")
 else()
-  set(torch_version "2.5.1")
+  set(torch_version "2.8.0")
   message("torch version : ${torch_version}")
 endif()
 
@@ -114,4 +122,13 @@ find_library(torch_lib
 
 if (NOT torch_lib)
   message(FATAL_ERROR "torch could not be included")
+endif()
+
+# refuse a previously downloaded libtorch of another version (the download is skipped when one is found)
+if (EXISTS ${torch_dir}/libtorch/build-version)
+  file(STRINGS ${torch_dir}/libtorch/build-version found_torch_version LIMIT_COUNT 1)
+  string(REGEX REPLACE "\\+.*$" "" found_torch_version "${found_torch_version}")
+  if (NOT found_torch_version VERSION_EQUAL torch_version)
+    message(FATAL_ERROR "libtorch ${found_torch_version} found in ${torch_dir}, expected ${torch_version}: delete ${torch_dir} to download it, or pass -Dtorch_version=${found_torch_version}")
+  endif()
 endif()

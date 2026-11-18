@@ -63,7 +63,8 @@ public:
     };
 
     float& at(const size_t dim1, const size_t dim2) {
-        return _data.get()->at(dim1 * _dims[0] + dim2);
+        // row-major (channels, samples) : row stride is the number of samples
+        return _data.get()->at(dim1 * _dims[1] + dim2);
     }
 
     void put(data_type data, const size_t dim1, const size_t dim2) {

@@ -1,8 +1,8 @@
 name: Build nn_tilde
+# runs when a GitHub release is published; the packages are attached to it
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
 
 jobs:
   osx-arm64-build:
@@ -42,8 +42,24 @@ jobs:
           export CXX=$(brew --prefix llvm)/bin/clang++
           export SIGN_ID=${{ secrets.SIGN_ID }}
           cd build
-          cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTORCH_MAC_UB_URL=${{ secrets.TORCH_UB_PATH }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+          # no TORCH_MAC_UB_URL : add_torch.cmake downloads the official arm64 libtorch
+          cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
           make
+      - name: Sign binaries
+        run: |
+          CERT_PATH="$RUNNER_TEMP/signing-identity.p12"
+          echo "${{ secrets.CERT }}" | base64 -D > $CERT_PATH
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import $CERT_PATH -k build.keychain -P "${{ secrets.CERT_PASSWORD }}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          # Max
+          codesign --force --sign ${{ secrets.SIGN_ID }} src/support/*.dylib
+          for i in $(find src/externals/*/Contents/MacOS -type f -perm -111); do codesign --deep --force --sign ${{ secrets.SIGN_ID }} src/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i); done
+          # Pd
+          codesign --force --sign ${{ secrets.SIGN_ID }} build/frontend/puredata/nn_tilde/*.dylib
+          codesign --force --sign ${{ secrets.SIGN_ID }} build/frontend/puredata/nn_tilde/nn~.pd_darwin
       - name: Max/MSP Package creation
         run: |
           mkdir nn_tilde
@@ -64,108 +80,6 @@ jobs:
           path: |
             nn_max_msp_macOS_arm64.tar.gz
             nn_puredata_macOS_arm64.tar.gz
-
-  osx-x64-build:
-    runs-on: macos-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: | 
-          git submodule update --init --recursive
-          git fetch --tags
-          git describe --tags --always
-          curl -L  ${{ secrets.WHEEL_PATH }} -o src/models/wheel.ts
-
-      - name: Install x86_64 Homebrew
-        run: |
-          sudo rm -rf /opt/homebrew
-          sudo rm -rf /usr/local/homebrew
-          sudo mkdir -p /usr/local/homebrew
-          sudo chown -R $(whoami) /usr/local/homebrew
-          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" --prefix=/usr/local/homebrew
-          arch -x86_64 /usr/local/bin/brew shellenv >> $GITHUB_ENV
-
-      - name: Downloading wheels & libtorch for x64
-        run: |
-          curl -L ${{ secrets.TORCH_WHEEL }} > torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
-          curl -L ${{ secrets.TORCH_UB_PATH }} > torch_ub.zip
-          mkdir torch 
-          unzip torch_ub.zip -d torch
-          mv torch/torch torch/libtorch
-
-      - name: Installing miniconda and dependencies...
-        run: |
-          ls 
-          curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh > miniconda.sh
-          chmod 777 ./miniconda.sh
-          bash ./miniconda.sh -b -u -p ./env
-          source ./env/bin/activate
-
-      - name: Installing torch
-        run : |
-          source ./env/bin/activate
-          export DYLD_LIBRARY_PATH=${{ github.workspace }}/torch/lib:$DYLD_LIBRARY_PATH
-          arch -x86_64 conda install -c conda-forge cmake ninja numpy setuptools mkl mkl-include typing_extensions protobuf
-          arch -x86_64 pip install ./torch-2.5.1-cp313-cp313-macosx_14_0_x86_64.whl
-          arch -x86_64 pip install cached_conv>=2.5.0
-          arch -x86_64 pip install cmake==3.28
-          arch -x86_64 conda install -c conda-forge curl
-          TARGET_DIR=$(find env/lib -type d -name "python3*")
-          TARGET_DIR="${TARGET_DIR}/site-packages/torch/share/cmake/Caffe2/public"
-          cp install/mkl.cmake "${TARGET_DIR}"  
-
-      - name: Setup LLVM
-        run: |
-          rm '/usr/local/bin/pydoc3'
-          rm /usr/local/bin/pydoc3.13
-          rm /usr/local/bin/python3
-          rm /usr/local/bin/python3-config
-          rm /usr/local/bin/python3.13
-          rm /usr/local/bin/python3.13-config
-          rm '/usr/local/bin/pip3.13'
-          rm '/usr/local/bin/idle3'
-          rm '/usr/local/bin/idle3.13'
-          arch -x86_64 /usr/local/bin/brew install llvm
-          export LDFLAGS="-L/usr/local/opt/llvm/lib"
-          export CPPFLAGS="-I/usr/local/opt/llvm/include"
-
-      - name: Setup puredata
-        run: |
-          mkdir puredata_include
-          curl -L https://raw.githubusercontent.com/pure-data/pure-data/master/src/m_pd.h -o puredata_include/m_pd.h
-
-      - name: Build
-        run: |
-          mkdir build
-          export CC=$(/usr/local/bin/brew --prefix llvm)/bin/clang
-          export CXX=$(/usr/local/bin/brew --prefix llvm)/bin/clang++
-          export SIGN_ID=${{ secrets.SIGN_ID }}
-          cd build
-          arch -x86_64 ../env/bin/cmake ../src -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_BUILD_TYPE=Release -DPUREDATA_INCLUDE_DIR=${{ github.workspace }}/puredata_include -DCMAKE_OSX_ARCHITECTURES=x86_64
-          arch -x86_64 make
-      - name: Max/MSP Package creation
-        run: |
-          mkdir nn_tilde
-          mkdir nn_tilde/help
-          mv src/externals src/help src/support src/patchers src/extras src/package-info.json src/icon.png src/source src/models src/misc nn_tilde
-          tar -czvf nn_max_msp_macOS_x64.tar.gz nn_tilde
-      - name: PureData Package creation
-        run: |
-          rm -fr nn_tilde
-          mv build/frontend/puredata/nn_tilde .
-          mv src/frontend/puredata/nn_tilde/nn~-help.pd nn_tilde
-          rm -fr nn_tilde/CMakeFiles/ nn_tilde/*.cmake nn_tilde/Makefile
-            tar -czvf nn_puredata_macOS_x64.tar.gz nn_tilde
-      - name: Upload binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: nn_tilde_mac_x86_64
-          path: |
-            nn_max_msp_macOS_x64.tar.gz
-            nn_puredata_macOS_x64.tar.gz
 
   linux:
     runs-on: ${{ matrix.runs-on }}
@@ -196,7 +110,7 @@ jobs:
           bash ./miniconda.sh -b -u -p ./env
           source ./env/bin/activate
           conda install python=3.11
-          pip3 install torch --index-url https://download.pytorch.org/whl/cpu
+          pip3 install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
           conda install -c conda-forge curl
           # conda install -c pytorch torch==2.5.1 torchaudio==2.5.1
           # pip install -r requirements.txt
@@ -294,124 +208,32 @@ jobs:
             nn_max_msp_windows_x64.tar.gz
             nn_puredata_windows_x64.tar.gz
 
-  MakeMaxUniversalForMac:
-    runs-on: macos-latest
-    needs: [osx-arm64-build, osx-x64-build]
-    steps:
-      - name: Download build binaries (arm64)
-        uses: actions/download-artifact@v4
-        with:
-          name: nn_tilde_mac_arm64
-      - name: Download build binaries (x86)
-        uses: actions/download-artifact@v4
-        with:
-          name: nn_tilde_mac_x86_64
-      - name: Build ub max with lipo
-        run: |
-          tar -xvf nn_max_msp_macOS_arm64.tar.gz 
-          mv nn_tilde nn_tilde_arm64
-          tar -xvf nn_max_msp_macOS_x64.tar.gz 
-          mv nn_tilde nn_tilde_x64
-          curl -L https://raw.githubusercontent.com/domkirke/nn_tilde/refs/heads/dev/install/macos_max_makeub.sh > macos_max_makeub.sh
-          chmod 777 ./macos_max_makeub.sh
-          ./macos_max_makeub.sh
-          
-      - name: Install signing certificate
-        run: |
-          CERT_PATH="$RUNNER_TEMP/signing-identity.p12"
-          echo "${{ secrets.CERT }}" | base64 -D > $CERT_PATH
-          security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security import $CERT_PATH -k build.keychain -P "${{ secrets.CERT_PASSWORD }}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-          codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/support/*.dylib
-          for i in $(find nn_tilde/externals/*/Contents/MacOS -type f -perm -111); do codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/externals/$(basename $i).mxo/Contents/MacOS/$(basename $i); done
-
-      - name: Compressing...
-        run: tar -czvf nn_max_msp_macos_ub.tar.gz nn_tilde
-
-      - name: Upload UB 
-        uses: actions/upload-artifact@v4
-        with:
-          name: nn_tilde_macos_max_ub
-          path: |
-            nn_max_msp_macos_ub.tar.gz
-
-  MakePdUniversalForMac:
-    runs-on: macos-latest
-    needs: [osx-arm64-build, osx-x64-build]
-    steps:
-      - name: Download build binaries (arm64)
-        uses: actions/download-artifact@v4
-        with:
-          name: nn_tilde_mac_arm64
-      - name: Download build binaries (x86)
-        uses: actions/download-artifact@v4
-        with:
-          name: nn_tilde_mac_x86_64
-      - name: build ub max with lipo
-        run: |
-          tar -xvf nn_puredata_macOS_arm64.tar.gz 
-          mv nn_tilde nn_tilde_arm64
-          tar -xvf nn_puredata_macOS_x64.tar.gz 
-          mv nn_tilde nn_tilde_x64
-          curl -L https://raw.githubusercontent.com/domkirke/nn_tilde/refs/heads/dev/install/macos_pd_makeub.sh > macos_pd_makeub.sh
-          chmod 777 ./macos_pd_makeub.sh
-          ./macos_pd_makeub.sh
-
-      - name: Install signing certificate
-        run: |
-          CERT_PATH="$RUNNER_TEMP/signing-identity.p12"
-          echo "${{ secrets.CERT }}" | base64 -D > $CERT_PATH
-          security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security import $CERT_PATH -k build.keychain -P "${{ secrets.CERT_PASSWORD }}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-          codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/*.dylib
-          codesign --deep --force --sign ${{ secrets.SIGN_ID }} nn_tilde/nn~.pd_darwin
-      
-      - name: Compressing archive...
-        run: tar -czvf nn_puredata_macos_ub.tar.gz nn_tilde
-
-      - name: Upload UB 
-        uses: actions/upload-artifact@v4
-        with:
-          name: nn_tilde_macos_pd_ub
-          path: |
-            nn_puredata_macos_ub.tar.gz
-          
-
-  AutomaticRelease:
+  UploadReleaseAssets:
     runs-on: ubuntu-latest
-    needs: [MakeMaxUniversalForMac, MakePdUniversalForMac, linux, windows-x64-build]
+    needs: [osx-arm64-build, linux, windows-x64-build]
+    permissions:
+      contents: write
     steps:
-      - name: Download Max build binaries (mac)
+      - name: Download build binaries (mac arm64)
         uses: actions/download-artifact@v4
         with:
-          name: nn_tilde_macos_max_ub
-      - name: Download Pd binaries (mac)
-        uses: actions/download-artifact@v4
-        with:
-          name: nn_tilde_macos_pd_ub
+          name: nn_tilde_mac_arm64
       - name: Download build binaries (linux_x86_64)
         uses: actions/download-artifact@v4
         with:
           name: nn_linux_puredata_x86_64
-      - name: Download build binaries (windows mac_x86_64)
+      - name: Download build binaries (windows x64)
         uses: actions/download-artifact@v4
         with:
-          name: nn_tilde_win_x64 
-      - name: Automated Release
-        uses: "marvinpinto/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          files: |
-            nn_max_msp_macos_ub.tar.gz
-            nn_puredata_macos_ub.tar.gz
-            nn_linux_puredata_x86_64.tar.gz
-            nn_max_msp_windows_x64.tar.gz
-            nn_puredata_windows_x64.tar.gz
-
+          name: nn_tilde_win_x64
+      - name: Attach packages to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            nn_max_msp_macOS_arm64.tar.gz \
+            nn_puredata_macOS_arm64.tar.gz \
+            nn_linux_puredata_x86_64.tar.gz \
+            nn_max_msp_windows_x64.tar.gz \
+            nn_puredata_windows_x64.tar.gz \
+            --repo "${{ github.repository }}" --clobber

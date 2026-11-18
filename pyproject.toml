@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nn_tilde"
+version = "1.6.1"
+description = "Set of tools to create nn_tilde compatible models."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "CC-BY-NC-4.0"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Antoine CAILLON & Axel CHEMLA--ROMEU-SANTOS", email = "acids.paris@gmail.com" },
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+# dependencies are read from requirements.txt (also used by CI)
+dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/acids-ircam/nn_tilde"
+Documentation = "https://acids-ircam.github.io/nn_tilde/"
+
+[tool.setuptools]
+# the Python package "nn_tilde" lives in python_tools/
+packages = ["nn_tilde", "nn_tilde.templates"]
+package-dir = { nn_tilde = "python_tools" }
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }

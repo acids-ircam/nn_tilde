@@ -132,7 +132,7 @@ def get_architectures(file_path):
 def get_find_results(directory, pattern):
     try:
         # Run the find command
-        command = ['find', directory, '-name', pattern]
+        command = ['find', '-H', directory, '-name', pattern]  # -H: follow directory if it is a symlink (e.g. env)
         print(" ".join(command))
         result = subprocess.run(command, 
                                 check=True, 
