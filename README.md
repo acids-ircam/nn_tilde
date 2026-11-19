@@ -18,7 +18,8 @@ Uncompress the `.tar.gz` file in the Package folder of your Max installation, i.
 cd "~/Max X/Packages/nn_tilde
 sudo codesign --deep --force --sign - support/*.dylib
 sudo codesign --deep --force --sign - externals/*/Contents/MacOS/*
-xattr -r -d com.apple.quarantine externals/*/Contents/MacOS/*  
+xattr -r -d com.apple.quarantine externals/*/Contents/MacOS/*
+xattr -r -d com.apple.quarantine .  
 ```
 
 Alt+click on the `nn~` object to open the help patch, and follow the tabs to learn more about this project.
